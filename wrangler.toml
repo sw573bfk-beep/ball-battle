@@ -1,0 +1,23 @@
+name = "ball-battle-server"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# The built client is served from the same origin as the room server.
+# Vercel also hosts the client; this keeps a zero-CORS fallback available.
+[assets]
+directory = "../dist"
+binding = "ASSETS"
+not_found_handling = "none"
+
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoom"
+
+# SQLite-backed Durable Objects work on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameRoom"]
+
+[observability]
+enabled = true

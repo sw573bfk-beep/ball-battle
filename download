@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vercel/
+.wrangler/
+.DS_Store
+*.log
+test-results/
+screenshot.png
+# Dev screenshots produced by the test scripts
+*.png

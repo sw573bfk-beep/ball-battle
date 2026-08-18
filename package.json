@@ -1,0 +1,31 @@
+{
+  "name": "ball-combat",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "wrangler dev --config server/wrangler.toml --port 8787 --ip 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p server/tsconfig.json --noEmit",
+    "test": "tsx tests/sim.test.ts && tsx tests/combat.test.ts && tsx tests/match.test.ts && tsx tests/modes.test.ts && tsx tests/maps.test.ts && tsx tests/powerups.test.ts",
+    "test:browser": "node tests/browser.test.mjs",
+    "test:server": "node tests/server.test.mjs",
+    "test:mp": "node tests/mp.test.mjs",
+    "check": "npm run typecheck && npm run test",
+    "verify": "npm run typecheck && npm run test && npm run build && npm run test:browser",
+    "verify:all": "npm run verify && npm run test:server && npm run test:mp && npm run test:load",
+    "deploy:server": "wrangler deploy --config server/wrangler.toml",
+    "test:load": "node tests/load.test.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260818.1",
+    "@types/node": "^22.9.0",
+    "playwright": "^1.62.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "wrangler": "^4.123.0"
+  }
+}
