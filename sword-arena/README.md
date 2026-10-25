@@ -12,8 +12,12 @@ npm install
 npm run dev        # open http://localhost:5173
 ```
 
-`npm run build` produces a static site in `dist/` that any static host can serve
-(Vercel, Netlify, GitHub Pages, ...).
+`npm run build` produces a static site in `dist/` that any static host can serve.
+
+**Shareable link:** every push to `main` that touches `sword-arena/` is built and
+published to GitHub Pages by `.github/workflows/sword-arena-pages.yml`, at
+https://sw573bfk-beep.github.io/ball-battle/. One-time setup: repo
+**Settings → Pages → Source: GitHub Actions**.
 
 ## Controls
 
