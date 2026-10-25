@@ -1,0 +1,159 @@
+:root {
+  --bg: #07080d;
+  --card: rgba(16, 19, 30, 0.94);
+  --line: #2a3045;
+  --text: #e6e9f2;
+  --muted: #8a93a8;
+  --accent: #ff5470;
+  --gold: #ffd84a;
+  --ruby: #ff5d7a;
+  --iron: #dfe6ee;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: block;
+  outline: none;
+  cursor: crosshair;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: radial-gradient(ellipse at center, rgba(20, 24, 40, 0.75), rgba(4, 5, 9, 0.92));
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+.overlay[hidden], #pauseBtn[hidden] { display: none; }
+
+.card {
+  width: min(460px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  user-select: text;
+}
+.card.small { width: min(300px, 100%); text-align: center; }
+
+h1 {
+  margin: 0;
+  font-size: clamp(30px, 8vw, 44px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-align: center;
+}
+h1 span { color: var(--accent); }
+h1.win { color: var(--gold); }
+h2 { margin: 0 0 16px; }
+
+.tag { margin: 6px 0 20px; color: var(--muted); text-align: center; font-size: 14px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; flex: 1; font-size: 13px; color: var(--muted); }
+.field b { color: var(--text); }
+.row { display: flex; gap: 14px; }
+
+input, select {
+  font: inherit;
+  font-size: 16px; /* stops iOS zooming on focus */
+  color: var(--text);
+  background: #0b0d16;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+input[type="range"] { padding: 0; height: 40px; accent-color: var(--accent); background: none; border: none; }
+
+button {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  font: inherit;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: var(--text);
+  background: #1c2132;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.15); }
+button.primary { background: var(--accent); border-color: transparent; color: #fff; font-size: 20px; padding: 14px; }
+
+.how { margin-top: 16px; font-size: 14px; color: #cfd5e6; }
+.how summary { cursor: pointer; color: var(--muted); font-weight: bold; }
+.how ul { padding-left: 18px; line-height: 1.5; }
+.t0 { color: var(--iron); font-weight: bold; }
+.t1 { color: var(--ruby); font-weight: bold; }
+.t2 { color: var(--gold); font-weight: bold; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.keys td { padding: 4px 6px; border-top: 1px solid var(--line); color: var(--muted); }
+.keys td:first-child { color: var(--text); font-weight: bold; }
+
+.board { margin: 10px 0 8px; font-size: 15px; }
+.board th { text-align: left; color: var(--muted); font-size: 12px; padding: 4px 8px; }
+.board td { padding: 6px 8px; border-top: 1px solid var(--line); }
+.board td:nth-child(n+3), .board th:nth-child(n+3) { text-align: right; }
+.board tr.me td { background: rgba(255, 255, 255, 0.07); font-weight: bold; }
+.board i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+
+#pauseBtn {
+  position: fixed;
+  top: 16px;
+  left: calc(50% - 112px);
+  width: 40px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  letter-spacing: 0;
+  background: rgba(8, 10, 18, 0.6);
+  border-radius: 8px;
+  opacity: 0.8;
+}
+
+/* Short screens (phones in landscape): tighten the menu so PLAY stays visible. */
+@media (max-height: 520px) {
+  .card { padding: 14px 18px; }
+  h1 { font-size: 28px; }
+  .tag { margin: 2px 0 10px; font-size: 12px; }
+  .field { margin-bottom: 8px; }
+  input, select { padding: 7px 10px; }
+  button { margin-top: 6px; padding: 9px; }
+  button.primary { padding: 10px; font-size: 18px; }
+  .board td { padding: 3px 8px; }
+}
+
+/* Narrow screens: the minimap takes the top-left, so tuck pause under the timer. */
+@media (max-width: 600px) {
+  #pauseBtn { top: 56px; left: calc(50% - 20px); }
+}
