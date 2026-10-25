@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#07080d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Sword Arena</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='9' fill='%23ff5470'/><path d='M16 1v6M16 25v6M1 16h6M25 16h6' stroke='%23ffd84a' stroke-width='3'/></svg>" />
+  </head>
+  <body>
+    <canvas id="game" tabindex="0"></canvas>
+    <button id="pauseBtn" aria-label="Pause" hidden>❚❚</button>
+    <div id="menu" class="overlay"></div>
+    <div id="pause" class="overlay" hidden></div>
+    <div id="results" class="overlay" hidden></div>
+    <script type="module" src="/src/client/main.ts"></script>
+  </body>
+</html>
