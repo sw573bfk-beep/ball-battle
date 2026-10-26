@@ -169,19 +169,5 @@ button.bind.waiting { border-color: var(--accent); color: var(--accent); }
 
 /* Narrow screens: the minimap takes the top-left, so tuck pause under the timer. */
 @media (max-width: 600px) {
-  .binds td { padding: 4px 6px; border-top: 1px solid var(--line); }
-.binds td:first-child { color: var(--text); font-weight: bold; white-space: nowrap; }
-.binds td:not(:first-child) { width: 34%; }
-button.bind {
-  margin: 0;
-  padding: 7px 8px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0;
-  min-height: 36px;
-  background: #0b0d16;
-}
-button.bind.waiting { border-color: var(--accent); color: var(--accent); }
-
-#pauseBtn { top: 56px; left: calc(50% - 20px); }
+  #pauseBtn { top: 56px; left: calc(50% - 20px); }
 }
