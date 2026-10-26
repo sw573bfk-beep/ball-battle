@@ -10,6 +10,7 @@ import { DEFAULT_MAP, MAPS } from '../sim/maps.js';
 import type { InputCmd, Player, SimEvent, World } from '../sim/types.js';
 import { addPlayer, createWorld, rankPlayers, stepWorld } from '../sim/world.js';
 import { Audio, type Sfx } from './audio.js';
+import type { Bindings } from './bindings.js';
 import { Fx } from './fx.js';
 import { Input } from './input.js';
 import { hexA, Renderer, type Announcement, type KillFeedEntry } from './render.js';
@@ -53,7 +54,7 @@ export class Game {
   onOver: ((world: World) => void) | null = null;
   onPauseToggle: ((paused: boolean) => void) | null = null;
 
-  constructor(canvas: HTMLCanvasElement, opts: GameOptions, audio: Audio) {
+  constructor(canvas: HTMLCanvasElement, opts: GameOptions, audio: Audio, private bindings: Bindings) {
     const seed = opts.seed ?? (Math.random() * 2 ** 31) | 0;
     const map = MAPS[DEFAULT_MAP];
     this.world = createWorld({ map, seed });
@@ -70,10 +71,10 @@ export class Game {
       this.brains.push(createBrain(id, diff, seed + i * 7919));
     }
 
-    this.input = new Input(canvas);
-    this.input.onKey = (code) => {
-      if (code === 'Escape' || code === 'KeyP') this.togglePause();
-      if (code === 'KeyM') this.audio.muted = !this.audio.muted;
+    this.input = new Input(canvas, bindings);
+    this.input.onAction = (action) => {
+      if (action === 'pause') this.togglePause();
+      if (action === 'mute') this.audio.muted = !this.audio.muted;
     };
     this.renderer = new Renderer(canvas);
     this.input.layout(this.renderer.w, this.renderer.h);
@@ -144,7 +145,7 @@ export class Game {
     this.renderer.draw({
       world: this.world, localId: this.localId, fx: this.fx, input: this.input,
       feed: this.feed, announce: this.announce, pos: this.pos, killedBy: this.killedBy,
-      muted: this.audio.muted, paused: this.paused,
+      muted: this.audio.muted, paused: this.paused, bindings: this.bindings,
     });
   };
 
@@ -205,6 +206,16 @@ export class Game {
           fx.burst(e.x, e.y, '#ffe27a', 12, 480, 'spark', 2, 0.3);
           fx.text(e.x, e.y - 20, 'BLOCKED', '#ffe27a', 14, 0.6);
           this.sfx('clash', e.x, e.y);
+          break;
+        case 'shatter':
+          // Shards in the broken sword's colour.
+          fx.burst(e.x, e.y, ['#dfe6ee', '#ff5d7a', '#ffd84a'][e.tier], 14, 360, 'spark', 2.5, 0.45);
+          this.sfx('shatter', e.x, e.y);
+          break;
+        case 'knockoff':
+          fx.burst(e.x, e.y, '#fff3b0', 8, 300, 'spark', 2, 0.3);
+          if (e.who === this.localId) fx.text(e.x, e.y - 18, 'SWORD LOST', '#ff8c42', 15, 0.7);
+          this.sfx('clash', e.x, e.y, 0.7);
           break;
         case 'stick':
           fx.burst(e.x, e.y, '#cfd8e3', 6, 220, 'spark', 1.5, 0.2);

@@ -1,6 +1,6 @@
 /** Tiny synthesized sound effects — no audio files to download. */
 
-export type Sfx = 'throw' | 'clash' | 'hit' | 'bighit' | 'pickup' | 'death' | 'dash' | 'heal' | 'crate' | 'beep' | 'go' | 'kill' | 'stick';
+export type Sfx = 'throw' | 'clash' | 'shatter' | 'hit' | 'bighit' | 'pickup' | 'death' | 'dash' | 'heal' | 'crate' | 'beep' | 'go' | 'kill' | 'stick';
 
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -35,6 +35,10 @@ export class Audio {
       case 'clash':
         this.tone(t, 'triangle', 1500 + Math.random() * 300, 1400, 0.18, 0.28 * vol);
         this.tone(t, 'sine', 2350 + Math.random() * 200, 2300, 0.12, 0.16 * vol);
+        break;
+      case 'shatter':
+        this.noise(t, 0.22, 5000, 1500, 0.35 * vol, 'highpass');
+        this.tone(t, 'triangle', 2600, 900, 0.16, 0.18 * vol);
         break;
       case 'stick': this.tone(t, 'square', 220, 140, 0.06, 0.12 * vol); this.noise(t, 0.05, 2000, 2000, 0.2 * vol, 'highpass'); break;
       case 'hit': this.tone(t, 'sine', 180, 60, 0.12, 0.6 * vol); this.noise(t, 0.08, 1200, 400, 0.35 * vol, 'lowpass'); break;

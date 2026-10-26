@@ -208,10 +208,14 @@ export function crateRect(c: Crate): Rect {
 }
 
 function collideSolids(world: World, p: Player): void {
-  for (let pass = 0; pass < 2; pass++) {
-    for (const r of solids(world)) {
+  const rects = solids(world);
+  // Several passes so corners where two walls meet settle cleanly.
+  for (let pass = 0; pass < 4; pass++) {
+    let touched = false;
+    for (const r of rects) {
       const hit = circleVsRect(p.x, p.y, PLAYER.RADIUS, r);
       if (!hit) continue;
+      touched = true;
       p.x += hit.nx * hit.depth;
       p.y += hit.ny * hit.depth;
       const vn = p.vx * hit.nx + p.vy * hit.ny;
@@ -221,6 +225,7 @@ function collideSolids(world: World, p: Player): void {
         if (p.dashTime > 0) p.dashTime = 0;
       }
     }
+    if (!touched) break;
   }
 }
 
@@ -288,6 +293,8 @@ function orbitCombat(world: World, _dt: number): void {
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const d = len(dx, dy) || 1;
+        // Getting cut knocks one of your own swords loose, flung away from the hit.
+        if (b.swords.length > 0 && world.phase === 'playing') knockOff(world, b, nearestBlade(b, a.x, a.y), dx / d, dy / d);
         damage(world, b, TIERS[a.swords[i]].orbitDamage, a.id, (dx / d) * SWORD.ORBIT_KNOCKBACK, (dy / d) * SWORD.ORBIT_KNOCKBACK, false, bl.bx, bl.by);
         if (!a.alive || a.swords.length === 0) break;
       }
@@ -387,7 +394,7 @@ function stepThrown(world: World, dt: number): void {
       if (wall || crate) {
         if (crate) hitCrate(world, crate, t.x, t.y, true);
         else world.events.push({ t: 'stick', x: t.x, y: t.y });
-        dropAt(world, t.tier, px, py, 0, 0, '', t.angle);
+        dropAt(world, t.tier, px, py, 0, 0, 0, t.angle);
         continue outer;
       }
 
@@ -406,14 +413,16 @@ function stepThrown(world: World, dt: number): void {
           }
           continue;
         }
+        // A hit costs both sides a sword: the thrown one breaks, and so does
+        // the victim's blade nearest the impact.
         const sp = len(t.vx, t.vy) || 1;
+        world.events.push({ t: 'shatter', x: t.x, y: t.y, tier: t.tier });
+        if (p.swords.length > 0 && world.phase === 'playing') shatter(world, p, nearestBlade(p, t.x, t.y));
         damage(world, p, TIERS[t.tier].throwDamage, t.owner, (t.vx / sp) * SWORD.THROW_KNOCKBACK, (t.vy / sp) * SWORD.THROW_KNOCKBACK, true, t.x, t.y);
-        // Bounce back toward the thrower; the victim can't just pocket it.
-        dropAt(world, t.tier, t.x, t.y, -t.vx * 0.35, -t.vy * 0.35, p.id, t.angle);
         continue outer;
       }
 
-      // Enemy orbiting blades swat it out of the air.
+      // Catching it on an enemy's orbiting blade breaks both swords.
       for (const p of world.players) {
         if (p.id === t.owner || !armed(p)) continue;
         for (let i = 0; i < p.swords.length; i++) {
@@ -421,13 +430,14 @@ function stepThrown(world: World, dt: number): void {
           const rr = SWORD.DEFLECT_RADIUS + SWORD.THICKNESS;
           if (distSqPointSegment(t.x, t.y, bl.ax, bl.ay, bl.bx, bl.by) > rr * rr) continue;
           world.events.push({ t: 'deflect', x: t.x, y: t.y });
-          dropAt(world, t.tier, t.x, t.y, -t.vx * 0.3, -t.vy * 0.3, '', t.angle);
+          world.events.push({ t: 'shatter', x: t.x, y: t.y, tier: t.tier });
+          shatter(world, p, i);
           continue outer;
         }
       }
 
       if (t.travelled >= SWORD.THROW_RANGE) {
-        dropAt(world, t.tier, t.x, t.y, t.vx * 0.2, t.vy * 0.2, '', t.angle);
+        dropAt(world, t.tier, t.x, t.y, t.vx * 0.2, t.vy * 0.2, 0, t.angle);
         continue outer;
       }
     }
@@ -436,11 +446,44 @@ function stepThrown(world: World, dt: number): void {
   world.thrown = keep;
 }
 
-function dropAt(world: World, tier: Tier, x: number, y: number, vx: number, vy: number, by: string, angle?: number): FloorSword {
+/** Index of p's orbiting blade whose tip is closest to (x, y). */
+function nearestBlade(p: Player, x: number, y: number): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < p.swords.length; i++) {
+    const bl = bladeOf(p, i);
+    const d = (bl.bx - x) ** 2 + (bl.by - y) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+/** Destroy one of p's orbiting swords for good. */
+function shatter(world: World, p: Player, i: number): void {
+  const bl = bladeOf(p, i);
+  const tier = p.swords.splice(i, 1)[0];
+  world.events.push({ t: 'shatter', x: bl.bx, y: bl.by, tier });
+}
+
+/** Knock one of p's orbiting swords loose so it slides off along (ux, uy). */
+function knockOff(world: World, p: Player, i: number, ux: number, uy: number): void {
+  const bl = bladeOf(p, i);
+  const tier = p.swords.splice(i, 1)[0];
+  // Launch from the far side of the victim so the attacker can't just
+  // scoop it up. Floor swords decay exponentially: they travel speed / friction.
+  const speed = SWORD.KNOCKOFF_DISTANCE * SWORD.FLOOR_FRICTION;
+  const a = Math.atan2(uy, ux) + (rand(world) - 0.5) * 0.5;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  dropAt(world, tier, p.x + c * PLAYER.RADIUS, p.y + s * PLAYER.RADIUS, c * speed, s * speed, SWORD.KNOCKOFF_LOCK, bl.angle);
+  world.events.push({ t: 'knockoff', x: bl.bx, y: bl.by, who: p.id });
+}
+
+function dropAt(world: World, tier: Tier, x: number, y: number, vx: number, vy: number, lock: number, angle?: number): FloorSword {
   const f: FloorSword = {
     id: world.nextId++, tier, x, y, vx, vy,
     angle: angle ?? rand(world) * Math.PI * 2,
-    ttl: SWORD.FLOOR_LIFETIME, droppedBy: by, noPickup: by ? SWORD.DROP_PICKUP_DELAY : 0,
+    ttl: SWORD.FLOOR_LIFETIME, lock,
   };
   unstick(world, f);
   world.floor.push(f);
@@ -470,7 +513,7 @@ function stepFloor(world: World, dt: number): void {
   }
   world.floor = world.floor.filter((f) => {
     f.ttl -= dt;
-    f.noPickup = Math.max(0, f.noPickup - dt);
+    f.lock = Math.max(0, f.lock - dt);
     if (f.vx !== 0 || f.vy !== 0) {
       f.x += f.vx * dt;
       f.y += f.vy * dt;
@@ -490,7 +533,7 @@ function stepPickups(world: World, dt: number): void {
       const rr = PLAYER.RADIUS + SWORD.PICKUP_RADIUS;
       for (let i = 0; i < world.floor.length; i++) {
         const f = world.floor[i];
-        if (f.droppedBy === p.id && f.noPickup > 0) continue;
+        if (f.lock > 0) continue;
         if ((f.x - p.x) ** 2 + (f.y - p.y) ** 2 > rr * rr) continue;
         p.swords.push(f.tier);
         world.floor.splice(i--, 1);
@@ -532,7 +575,7 @@ function hitCrate(world: World, c: Crate, x: number, y: number, heavy = false): 
     let tier = rollTier(world);
     if (tier < 2 && rand(world) < CRATE.UPGRADE_CHANCE) tier = (tier + 1) as Tier;
     const a = rand(world) * Math.PI * 2;
-    dropAt(world, tier, c.x, c.y, Math.cos(a) * 120, Math.sin(a) * 120, '');
+    dropAt(world, tier, c.x, c.y, Math.cos(a) * 120, Math.sin(a) * 120, 0);
   } else {
     world.health.push({ id: world.nextId++, x: c.x, y: c.y, fixed: false, respawnIn: 0, ttl: HEALTH_PACK.LOOSE_LIFETIME });
   }
@@ -578,7 +621,7 @@ function stepSpawner(world: World, dt: number): void {
 export function spawnFloorSword(world: World): FloorSword | null {
   const pt = openPoint(world, 26, SPAWNER.MIN_PLAYER_DIST);
   if (!pt) return null;
-  return dropAt(world, rollTier(world), pt.x, pt.y, 0, 0, '');
+  return dropAt(world, rollTier(world), pt.x, pt.y, 0, 0, 0);
 }
 
 /** A random spot clear of walls and crates (and players, if minPlayerDist > 0). */
@@ -624,7 +667,7 @@ export function kill(world: World, victim: Player, killerId: string): void {
   for (let i = 0; i < n; i++) {
     const a = victim.spin + (i * Math.PI * 2) / n;
     const sp = 200 + rand(world) * 120;
-    dropAt(world, victim.swords[i], victim.x + Math.cos(a) * 20, victim.y + Math.sin(a) * 20, Math.cos(a) * sp, Math.sin(a) * sp, '', a);
+    dropAt(world, victim.swords[i], victim.x + Math.cos(a) * 20, victim.y + Math.sin(a) * 20, Math.cos(a) * sp, Math.sin(a) * sp, 0, a);
   }
   victim.swords = [];
   world.events.push({ t: 'death', x: victim.x, y: victim.y, victim: victim.id, killer: killerId, color: victim.color });

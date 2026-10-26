@@ -78,6 +78,33 @@ try {
     await page.close();
   }
 
+  // ------------------------------------------------------------ rebinding
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    page.on('pageerror', (e) => fail(`rebind pageerror: ${e.message}`));
+    page.on('console', (m) => m.type() === 'error' && fail(`rebind console: ${m.text()}`));
+    await page.goto(url);
+    await page.click('#menuControls');
+    await page.click('button.bind[data-action="throw"][data-slot="0"]');
+    await page.keyboard.press('KeyF');
+    await page.screenshot({ path: join(shots, 'controls.png') });
+    const label = await page.textContent('button.bind[data-action="throw"][data-slot="0"]');
+    if (label?.trim() !== 'F') fail(`rebind: throw slot should read "F", got "${label}"`);
+    await page.click('#controlsDone');
+    // It should survive a reload.
+    await page.reload();
+    await page.click('#play');
+    await page.waitForFunction(() => window.game.world.phase === 'playing', null, { timeout: 6000 });
+    await page.mouse.move(1000, 360);
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(50);
+    if ((await state(page)).throwCd > 0) fail('rebind: Space should no longer throw');
+    await page.keyboard.press('KeyF');
+    await page.waitForTimeout(50);
+    if (!((await state(page)).throwCd > 0)) fail('rebind: F should throw now');
+    await page.close();
+  }
+
   // ------------------------------------------------------------------ phone
   {
     const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
