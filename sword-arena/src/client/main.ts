@@ -3,13 +3,20 @@ import { MATCH, PLAYER, SWORD, TIERS, type Difficulty } from '../sim/config.js';
 import type { Player, World } from '../sim/types.js';
 import { rankPlayers } from '../sim/world.js';
 import { Audio } from './audio.js';
+import {
+  ACTIONS, ACTION_LABELS, DEFAULT_BINDINGS, assign, bindingLabel, keyLabel, loadBindings, saveBindings,
+  type Action,
+} from './bindings.js';
 import { Game, type GameOptions } from './game.js';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const menu = document.getElementById('menu') as HTMLDivElement;
 const pause = document.getElementById('pause') as HTMLDivElement;
 const results = document.getElementById('results') as HTMLDivElement;
+const controls = document.getElementById('controls') as HTMLDivElement;
 const audio = new Audio();
+/** One shared object: the controls screen edits it and the game reads it live. */
+const bindings = loadBindings();
 
 let game: Game | null = null;
 let lastOpts: GameOptions | null = null;
@@ -48,26 +55,39 @@ menu.innerHTML = `
       </label>
     </div>
     <button id="play" class="primary">PLAY</button>
+    <button id="menuControls">Controls</button>
     <details class="how">
       <summary>How to play</summary>
       <ul>
         <li>Swords <b>spin around you</b> and hurt anyone they touch. Pick up more (up to ${SWORD.MAX_HELD}) to spin more.</li>
         <li><b>Throw</b> your best sword at your aim. It lands where it hits, so go get it back.</li>
         <li>Each sword slows you down a little. Hoard or throw: your call.</li>
-        <li>Enemy blades can <b>block</b> thrown swords, and blades that touch <b>clash</b> and push you apart.</li>
+        <li>A thrown sword that hits someone <b>breaks</b>, and breaks one of their swords too. If it hits a spinning sword instead, both break and nobody gets hurt.</li>
+        <li>Getting cut by a spinning sword <b>knocks one of yours off</b>. It flies away, and anyone can grab it.</li>
+        <li>Blades that touch <b>clash</b> and push you apart.</li>
         <li>Smash <b>crates</b> for loot. Green pads heal. A knockout drops <b>all</b> of the loser's swords.</li>
         <li>Sword tiers: <span class="t0">${TIERS[0].name}</span> · <span class="t1">${TIERS[1].name}</span> · <span class="t2">${TIERS[2].name}</span> (rarer hits harder).</li>
         <li>First to <b>${MATCH.KILL_TARGET}</b> knockouts, or most after ${MATCH.DURATION / 60} minutes, wins. Each knockout heals you ${PLAYER.KILL_HEAL}.</li>
       </ul>
       <table class="keys">
-        <tr><td>Move</td><td>WASD / arrows</td><td>left stick</td></tr>
+        <tr><td>Move</td><td id="kMove"></td><td>left stick</td></tr>
         <tr><td>Aim</td><td>mouse</td><td>right stick</td></tr>
-        <tr><td>Throw</td><td>Space / left click</td><td>release right stick (tap = auto-aim)</td></tr>
-        <tr><td>Dash</td><td>Shift / right click</td><td>DASH button</td></tr>
-        <tr><td>Pause / mute</td><td>Esc · M</td><td>❚❚ button</td></tr>
+        <tr><td>Throw</td><td id="kThrow"></td><td>release right stick (tap = auto-aim)</td></tr>
+        <tr><td>Dash</td><td id="kDash"></td><td>DASH button</td></tr>
+        <tr><td>Pause / mute</td><td id="kPause"></td><td>❚❚ button</td></tr>
       </table>
     </details>
   </div>`;
+
+/** Keep the "How to play" key column in step with the current bindings. */
+function refreshKeyTable(): void {
+  const set = (id: string, text: string) => { menu.querySelector(`#${id}`)!.textContent = text; };
+  set('kMove', (['up', 'left', 'down', 'right'] as const).map((a) => keyLabel(bindings[a][0])).join(' '));
+  set('kThrow', bindingLabel(bindings, 'throw'));
+  set('kDash', bindingLabel(bindings, 'dash'));
+  set('kPause', `${bindingLabel(bindings, 'pause')} · ${bindingLabel(bindings, 'mute')}`);
+}
+refreshKeyTable();
 
 const nameEl = menu.querySelector('#name') as HTMLInputElement;
 const botsEl = menu.querySelector('#bots') as HTMLInputElement;
@@ -102,6 +122,7 @@ pause.innerHTML = `
     <h2>Paused</h2>
     <button id="resume" class="primary">Resume</button>
     <button id="mute">Sound: on</button>
+    <button id="pauseControls">Controls</button>
     <button id="quit">Quit to menu</button>
   </div>`;
 const muteBtn = pause.querySelector('#mute') as HTMLButtonElement;
@@ -113,6 +134,96 @@ muteBtn.addEventListener('click', () => {
 pause.querySelector('#quit')!.addEventListener('click', () => showMenu());
 pauseBtn.addEventListener('click', () => game?.togglePause());
 
+// -------------------------------------------------------------- controls
+
+/** The screen to go back to when the controls screen closes. */
+let controlsReturn: HTMLElement = menu;
+/** The slot waiting for a key press, if any. */
+let listening: { action: Action; slot: 0 | 1 } | null = null;
+
+controls.innerHTML = `
+  <div class="card">
+    <h2>Controls</h2>
+    <p class="tag">Click a box, then press a key or mouse button. Esc cancels, Backspace clears.</p>
+    <table class="binds"><tbody></tbody></table>
+    <button id="controlsDone" class="primary">Done</button>
+    <button id="controlsReset">Reset to defaults</button>
+  </div>`;
+const bindRows = controls.querySelector('tbody')!;
+
+function renderControls(): void {
+  bindRows.innerHTML = ACTIONS.map((a) => `
+    <tr>
+      <td>${ACTION_LABELS[a]}</td>
+      ${([0, 1] as const).map((slot) => {
+        const waiting = listening?.action === a && listening.slot === slot;
+        return `<td><button class="bind${waiting ? ' waiting' : ''}" data-action="${a}" data-slot="${slot}">${
+          waiting ? 'Press a key…' : keyLabel(bindings[a][slot])}</button></td>`;
+      }).join('')}
+    </tr>`).join('');
+}
+
+function openControls(from: HTMLElement): void {
+  controlsReturn = from;
+  from.hidden = true;
+  listening = null;
+  renderControls();
+  controls.hidden = false;
+}
+
+function closeControls(): void {
+  listening = null;
+  controls.hidden = true;
+  controlsReturn.hidden = false;
+  refreshKeyTable();
+}
+
+function bindTo(code: string): void {
+  if (!listening) return;
+  assign(bindings, listening.action, listening.slot, code);
+  saveBindings(bindings);
+  listening = null;
+  renderControls();
+}
+
+bindRows.addEventListener('click', (e) => {
+  const btn = (e.target as HTMLElement).closest('button.bind') as HTMLButtonElement | null;
+  if (!btn) return;
+  listening = { action: btn.dataset.action as Action, slot: Number(btn.dataset.slot) as 0 | 1 };
+  renderControls();
+});
+controls.querySelector('#controlsDone')!.addEventListener('click', closeControls);
+controls.querySelector('#controlsReset')!.addEventListener('click', () => {
+  for (const a of ACTIONS) bindings[a] = [DEFAULT_BINDINGS[a][0], DEFAULT_BINDINGS[a][1]];
+  saveBindings(bindings);
+  listening = null;
+  renderControls();
+});
+
+// While the controls screen is open it owns the keyboard, so keys don't also
+// pause or steer the game underneath. Capture phase runs before the game's.
+window.addEventListener('keydown', (e) => {
+  if (controls.hidden) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (!listening) {
+    if (e.code === 'Escape') closeControls();
+    return;
+  }
+  if (e.code === 'Escape') { listening = null; renderControls(); }
+  else if (e.code === 'Backspace' || e.code === 'Delete') bindTo('');
+  else bindTo(e.code);
+}, true);
+window.addEventListener('mousedown', (e) => {
+  if (controls.hidden || !listening) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  bindTo(`Mouse${e.button}`);
+}, true);
+controls.addEventListener('contextmenu', (e) => e.preventDefault());
+menu.querySelector('#menuControls')!.addEventListener('click', () => openControls(menu));
+pause.querySelector('#pauseControls')!.addEventListener('click', () => openControls(pause));
+
 function startGame(opts: GameOptions): void {
   audio.unlock();
   game?.destroy();
@@ -121,7 +232,7 @@ function startGame(opts: GameOptions): void {
   results.hidden = true;
   pause.hidden = true;
   pauseBtn.hidden = false;
-  game = new Game(canvas, opts, audio);
+  game = new Game(canvas, opts, audio, bindings);
   game.onPauseToggle = (p) => {
     pause.hidden = !p;
     muteBtn.textContent = `Sound: ${audio.muted ? 'off' : 'on'}`;
@@ -137,6 +248,7 @@ function showMenu(): void {
   game = null;
   pause.hidden = true;
   results.hidden = true;
+  controls.hidden = true;
   pauseBtn.hidden = true;
   menu.hidden = false;
 }

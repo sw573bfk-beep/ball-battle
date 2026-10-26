@@ -81,9 +81,8 @@ export interface FloorSword {
   angle: number;
   /** Seconds left before it disappears. */
   ttl: number;
-  /** Who dropped it and how long until they may re-grab it. */
-  droppedBy: string;
-  noPickup: number;
+  /** Nobody can pick it up until this reaches 0 (s). */
+  lock: number;
 }
 
 export interface Crate {
@@ -124,6 +123,10 @@ export type SimEvent =
   | { t: 'hit'; x: number; y: number; target: string; by: string; damage: number; thrown: boolean }
   | { t: 'clash'; x: number; y: number }
   | { t: 'deflect'; x: number; y: number }
+  /** A sword broke for good (thrown sword on impact, or a blade it hit). */
+  | { t: 'shatter'; x: number; y: number; tier: Tier }
+  /** A blade hit knocked one of `who`'s swords loose. */
+  | { t: 'knockoff'; x: number; y: number; who: string }
   | { t: 'stick'; x: number; y: number }
   | { t: 'pickup'; x: number; y: number; who: string; tier: Tier }
   | { t: 'heal'; x: number; y: number; who: string }

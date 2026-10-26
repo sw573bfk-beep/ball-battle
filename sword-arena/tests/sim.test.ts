@@ -64,7 +64,7 @@ test('map: spawns, crates and pads are clear of walls and reachable', () => {
 test('walking over a floor sword picks it up', () => {
   const w = box();
   const p = addPlayer(w, 'a', 'A', '#fff', false);
-  w.floor.push({ id: 99, tier: 2, x: p.x + 120, y: p.y, vx: 0, vy: 0, angle: 0, ttl: 30, droppedBy: '', noPickup: 0 });
+  w.floor.push({ id: 99, tier: 2, x: p.x + 120, y: p.y, vx: 0, vy: 0, angle: 0, ttl: 30, lock: 0 });
   const before = p.swords.length;
   run(w, 40, new Map([['a', { ...emptyInput(), moveX: 1 }]]));
   check(p.swords.length === before + 1, `expected ${before + 1} swords, got ${p.swords.length}`);
@@ -118,12 +118,14 @@ test('you throw your best sword first', () => {
   check(p.swords.join() === '0,1', `left with ${p.swords.join()}`);
 });
 
-test('a thrown sword hits an enemy for its tier damage', () => {
+test('a thrown sword hits an enemy for its tier damage, and both swords break', () => {
   const w = box();
   const a = addPlayer(w, 'a', 'A', '#fff', false);
   const b = addPlayer(w, 'b', 'B', '#fff', false);
   a.protect = b.protect = 0;
-  b.swords = [];
+  // b's two blades point straight up and down, so the throw reaches the body.
+  b.swords = [0, 1];
+  b.spin = Math.PI / 2;
   a.x = 200; a.y = 400;
   b.x = 500; b.y = 400;
   a.swords = [2];
@@ -131,7 +133,8 @@ test('a thrown sword hits an enemy for its tier damage', () => {
   throwSword(w, a);
   run(w, 40);
   check(b.health === PLAYER.HEALTH - TIERS[2].throwDamage, `health ${b.health}`);
-  check(w.floor.length === 1, 'the sword drops where it hit');
+  check(b.swords.length === 1, `b should lose one sword, has ${b.swords.length}`);
+  check(w.floor.length === 0 && w.thrown.length === 0, 'the thrown sword is destroyed, not dropped');
 });
 
 test('a full orbit blocks some throws, but not all of them', () => {
@@ -151,6 +154,9 @@ test('a full orbit blocks some throws, but not all of them', () => {
     throwSword(w, a);
     run(w, 40);
     if (b.health === PLAYER.HEALTH) blocked++;
+    // Blocked or not, the throw costs b exactly one sword and is gone itself.
+    check(b.swords.length === 7, `b should have 7 swords left, has ${b.swords.length}`);
+    check(w.floor.length === 0 && w.thrown.length === 0, 'the thrown sword should be destroyed');
   }
   check(blocked > 0 && blocked < tries, `blocked ${blocked}/${tries}`);
 });
@@ -172,6 +178,32 @@ test('orbiting swords damage players they touch, with a per-blade cooldown', () 
   }
   check(hits >= 1, 'should have been hit at least once');
   check(hits <= Math.ceil(1 / SWORD.HIT_COOLDOWN), `too many hits for one blade: ${hits}`);
+});
+
+test('a blade hit knocks one of your swords about 7 ball-widths away', () => {
+  const w = box();
+  const a = addPlayer(w, 'a', 'A', '#fff', false);
+  const b = addPlayer(w, 'b', 'B', '#fff', false);
+  a.protect = b.protect = 0;
+  a.x = 400; a.y = 400;
+  a.swords = [0];
+  b.swords = [1, 1];
+  let knocked = false;
+  for (let i = 0; i < 60 && !knocked; i++) {
+    b.x = a.x + PLAYER.RADIUS * 2 + 12; b.y = a.y; b.vx = b.vy = a.vx = a.vy = 0;
+    stepWorld(w, new Map());
+    knocked = w.events.some((e) => e.t === 'knockoff');
+  }
+  check(knocked, 'a blade hit should knock a sword off');
+  check(b.swords.length === 1, `b should have 1 sword left, has ${b.swords.length}`);
+  const start = { x: w.floor[0].x, y: w.floor[0].y };
+  run(w, 120);
+  const f = w.floor[0];
+  check(f && f.tier === 1, 'the knocked-off sword should be on the floor');
+  const travelled = Math.hypot(f.x - start.x, f.y - start.y);
+  const want = SWORD.KNOCKOFF_DISTANCE;
+  check(Math.abs(travelled - want) < want * 0.2, `slid ${travelled | 0}px, expected about ${want}`);
+  check(f.x > a.x, 'it flies away from the attacker');
 });
 
 test('spawn protection blocks damage', () => {

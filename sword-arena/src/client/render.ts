@@ -4,6 +4,7 @@ import { CRATE, DASH, HEALTH_PACK, MATCH, PLAYER, SWORD, type Tier } from '../si
 import type { Player, World } from '../sim/types.js';
 import { bladeOf, crateRect, rankPlayers } from '../sim/world.js';
 import type { Fx } from './fx.js';
+import { bindingLabel, keyLabel, type Bindings } from './bindings.js';
 import { Input } from './input.js';
 
 export interface KillFeedEntry {
@@ -34,6 +35,7 @@ export interface View {
   killedBy: string;
   muted: boolean;
   paused: boolean;
+  bindings: Bindings;
 }
 
 const TIER_COLORS = [
@@ -544,7 +546,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     // Your status: health, swords, dash.
-    if (me) this.drawStatus(me, ui, v.input.touchMode);
+    if (me) this.drawStatus(me, ui, v.input.touchMode, v.bindings);
 
     this.drawMinimap(v, ui, small);
 
@@ -573,7 +575,7 @@ export class Renderer {
     }
   }
 
-  private drawStatus(me: Player, ui: number, touch: boolean): void {
+  private drawStatus(me: Player, ui: number, touch: boolean, bindings: Bindings): void {
     const { ctx, w, h } = this;
     const bw = Math.min(320, w * 0.5) * ui;
     const bx = w / 2 - bw / 2;
@@ -630,7 +632,7 @@ export class Renderer {
       ctx.fillText('DASH', cx, cy);
       ctx.fillStyle = 'rgba(220,225,240,0.55)';
       ctx.font = `${12 * ui}px ${FONT}`;
-      ctx.fillText('WASD move · mouse aim · SPACE/click throw · SHIFT/right-click dash', w / 2, h - 12 * ui);
+      ctx.fillText(controlsHint(bindings), w / 2, h - 12 * ui);
     }
   }
 
@@ -762,6 +764,13 @@ export class Renderer {
 }
 
 // ------------------------------------------------------------- helpers
+
+/** One-line reminder of the current controls, e.g. "WASD move · F throw". */
+function controlsHint(b: Bindings): string {
+  const moves = (['up', 'left', 'down', 'right'] as const).map((a) => keyLabel(b[a][0]));
+  const move = moves.every((m) => m.length === 1) ? moves.join('') : moves.join('/');
+  return `${move} move · mouse aim · ${bindingLabel(b, 'throw')} throw · ${bindingLabel(b, 'dash')} dash`;
+}
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   r = Math.max(0, Math.min(r, w / 2, h / 2));

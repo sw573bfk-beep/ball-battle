@@ -9,6 +9,7 @@
  */
 
 import type { InputCmd } from '../sim/types.js';
+import { actionsFor, type Action, type Bindings } from './bindings.js';
 
 export interface Stick {
   id: number;
@@ -25,7 +26,8 @@ const DEADZONE = 14;
 const TAP_MS = 220;
 
 export class Input {
-  private keys = new Set<string>();
+  /** Key codes and mouse buttons ("Mouse0") currently held. */
+  private held = new Set<string>();
   private throwLatch = false;
   private dashLatch = false;
   private mouseX = 0;
@@ -41,30 +43,29 @@ export class Input {
   autoAim = false;
   dashButton = { x: 0, y: 0, r: 34 };
 
-  /** Fired on any key so the game can react to Esc etc. */
-  onKey: ((code: string) => void) | null = null;
+  /** Fired when a menu-type action (pause, mute) is pressed. */
+  onAction: ((action: Action) => void) | null = null;
 
   private listeners: [EventTarget, string, EventListener, AddEventListenerOptions?][] = [];
 
-  constructor(private canvas: HTMLCanvasElement) {
+  /** `bindings` is shared and live: edits from the controls menu apply at once. */
+  constructor(private canvas: HTMLCanvasElement, private bindings: Bindings) {
     const on = <K extends string>(t: EventTarget, type: K, fn: (e: never) => void, opts?: AddEventListenerOptions) => {
       t.addEventListener(type, fn as EventListener, opts);
       this.listeners.push([t, type, fn as EventListener, opts]);
     };
 
     on(window, 'keydown', (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
-      if (!e.repeat) {
-        if (e.code === 'Space') this.throwLatch = true;
-        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.dashLatch = true;
-        this.onKey?.(e.code);
-      }
-      this.keys.add(e.code);
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      const actions = actionsFor(this.bindings, e.code);
+      // Bound keys (Space, arrows, Tab...) shouldn't scroll or move focus.
+      if (actions.length || e.code === 'Tab') e.preventDefault();
+      if (!e.repeat) this.press(actions);
+      this.held.add(e.code);
       this.touchMode = false;
     });
-    on(window, 'keyup', (e: KeyboardEvent) => this.keys.delete(e.code));
-    on(window, 'blur', () => this.keys.clear());
+    on(window, 'keyup', (e: KeyboardEvent) => this.held.delete(e.code));
+    on(window, 'blur', () => this.held.clear());
 
     on(canvas, 'mousemove', (e: MouseEvent) => {
       this.mouseX = e.clientX;
@@ -73,9 +74,11 @@ export class Input {
     });
     on(canvas, 'mousedown', (e: MouseEvent) => {
       this.touchMode = false;
-      if (e.button === 0) this.throwLatch = true;
-      if (e.button === 2) this.dashLatch = true;
+      const code = `Mouse${e.button}`;
+      this.press(actionsFor(this.bindings, code));
+      this.held.add(code);
     });
+    on(window, 'mouseup', (e: MouseEvent) => this.held.delete(`Mouse${e.button}`));
     on(canvas, 'contextmenu', (e: Event) => e.preventDefault());
 
     on(canvas, 'touchstart', (e: TouchEvent) => this.touchStart(e), { passive: false });
@@ -94,6 +97,19 @@ export class Input {
     // Right edge, above where the aim thumb usually lands.
     const r = Math.max(28, Math.min(40, Math.min(w, h) * 0.07));
     this.dashButton = { x: w - r - 18, y: h - r * 5.6, r };
+  }
+
+  private press(actions: Action[]): void {
+    for (const a of actions) {
+      if (a === 'throw') this.throwLatch = true;
+      else if (a === 'dash') this.dashLatch = true;
+      else if (a === 'pause' || a === 'mute') this.onAction?.(a);
+    }
+  }
+
+  private isDown(action: Action): boolean {
+    const [a, b] = this.bindings[action];
+    return (!!a && this.held.has(a)) || (!!b && this.held.has(b));
   }
 
   // ---------------------------------------------------------------- touch
@@ -157,11 +173,10 @@ export class Input {
   sample(self: { sx: number; sy: number }): InputCmd {
     let mx = 0;
     let my = 0;
-    const k = this.keys;
-    if (k.has('KeyW') || k.has('ArrowUp')) my -= 1;
-    if (k.has('KeyS') || k.has('ArrowDown')) my += 1;
-    if (k.has('KeyA') || k.has('ArrowLeft')) mx -= 1;
-    if (k.has('KeyD') || k.has('ArrowRight')) mx += 1;
+    if (this.isDown('up')) my -= 1;
+    if (this.isDown('down')) my += 1;
+    if (this.isDown('left')) mx -= 1;
+    if (this.isDown('right')) mx += 1;
 
     let ax = 1;
     let ay = 0;
@@ -198,7 +213,7 @@ export class Input {
   /** Clear latched presses (e.g. a click on "Play" shouldn't throw). */
   reset(): void {
     this.throwLatch = this.dashLatch = this.autoAim = false;
-    this.keys.clear();
+    this.held.clear();
     this.moveStick = this.aimStick = null;
   }
 

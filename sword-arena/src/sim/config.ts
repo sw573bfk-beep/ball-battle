@@ -10,8 +10,8 @@ export const MAX_CATCHUP_TICKS = 5;
 export const PLAYER = {
   RADIUS: 22,
   HEALTH: 100,
-  ACCEL: 3400,
-  MAX_SPEED: 330,
+  ACCEL: 1700,
+  MAX_SPEED: 165,
   FRICTION: 8,
   /** Each held sword slows you by this fraction, so hoarding has a cost. */
   SLOW_PER_SWORD: 0.035,
@@ -44,6 +44,11 @@ export const SWORD = {
   /** One sword can only hit the same target this often (s). */
   HIT_COOLDOWN: 0.45,
   ORBIT_KNOCKBACK: 380,
+  /**
+   * A spinning blade that hits you knocks one of your swords off. It slides
+   * about 7 ball-widths away before stopping (px).
+   */
+  KNOCKOFF_DISTANCE: 7 * 44,
   /** Two enemy orbits touching shove both owners apart. */
   CLASH_PUSH: 260,
   CLASH_COOLDOWN: 0.25,
@@ -64,15 +69,16 @@ export const SWORD = {
   FLOOR_LIFETIME: 40,
   /** Floor swords slide (e.g. when scattered by a death) and slow down. */
   FLOOR_FRICTION: 5,
-  /** A freshly dropped sword can't be grabbed by its dropper for this long (s). */
-  DROP_PICKUP_DELAY: 0.5,
+  /** A knocked-off sword can't be grabbed until it has flown clear (s). */
+  KNOCKOFF_LOCK: 0.35,
   /** Past this many floor swords, the oldest start fading out. */
   FLOOR_CAP: 36,
   /** Fade time for swords over the cap (s). */
   FLOOR_FADE: 2.5,
   /**
-   * How much of a flying sword can be swatted by an orbit. Smaller than its
-   * hit radius so a big orbit is a partial shield, not a perfect one.
+   * How much of a flying sword can be caught by an orbiting blade (both
+   * swords break). Smaller than its hit radius so a big orbit is a partial
+   * shield, not a perfect one.
    */
   DEFLECT_RADIUS: 5,
 } as const;
@@ -86,11 +92,14 @@ export const TIERS = [
 export type Tier = 0 | 1 | 2;
 
 export const SPAWNER = {
-  /** How often the arena tries to add a floor sword (s). */
-  INTERVAL: 1.4,
+  /**
+   * How often the arena tries to add a floor sword (s). Fast, because hits
+   * break and knock off swords all the time.
+   */
+  INTERVAL: 0.5,
   /** Floor sword target = BASE + PER_PLAYER * players. */
-  BASE: 4,
-  PER_PLAYER: 1.2,
+  BASE: 6,
+  PER_PLAYER: 2,
   /** Don't spawn a sword this close to a player (px). */
   MIN_PLAYER_DIST: 160,
 } as const;

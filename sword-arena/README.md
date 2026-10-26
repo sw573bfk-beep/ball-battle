@@ -21,7 +21,7 @@ https://sw573bfk-beep.github.io/ball-battle/. One-time setup: repo
 
 ## Controls
 
-| Action | PC | Phone / tablet |
+| Action | PC (default) | Phone / tablet |
 | --- | --- | --- |
 | Move | `W` `A` `S` `D` / arrows | left-side stick |
 | Aim | mouse | right-side stick |
@@ -29,14 +29,22 @@ https://sw573bfk-beep.github.io/ball-battle/. One-time setup: repo
 | Dash | `Shift` / right click | DASH button |
 | Pause / mute | `Esc` / `M` | ❚❚ button |
 
+Every PC key can be changed under **Controls** (in the main menu or the pause
+screen). Each action has two slots, which can be keys or mouse buttons. Your
+choices are saved in your browser.
+
 ## Rules
 
 - Swords **orbit** you and damage enemies they touch. Hold up to 8.
-- **Throw** sends your best sword at your aim. It sticks where it lands, and
-  anyone can pick it up.
-- Each sword you carry slows you down a little.
-- Enemy blades can **block** a thrown sword. Blades that touch **clash** and
-  shove both players apart.
+- **Throw** sends your best sword at your aim. If it hits a wall it sticks
+  there, and anyone can pick it up.
+- A thrown sword that hits a player **breaks**, and breaks one of their
+  swords too. If it hits a spinning sword instead, both swords break and
+  nobody takes damage.
+- Getting cut by a spinning sword **knocks one of yours off**. It flies about
+  7 ball-widths away, and anyone can grab it.
+- Each sword you carry slows you down a little. Blades that touch **clash**
+  and shove both players apart.
 - Tiers: **Iron** (common), **Ruby** (rarer, hits harder), **Gold** (rare, hits hardest).
 - **Crates** break into a sword or a health pack. Green pads heal.
 - A knockout drops **all** the loser's swords and heals the winner a little.
