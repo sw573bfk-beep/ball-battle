@@ -1,0 +1,34 @@
+# Local development + tests only. Same as wrangler.toml minus the AI binding (which only works remotely).
+name = "quizclash"
+main = "src/worker.ts"
+compatibility_date = "2026-10-01"
+
+# Frontend (plain HTML/CSS/JS, no build step) served from the same origin as the API.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/ws"]
+
+# Accounts, question sets, coins, skins. The deploy script fills database_id in.
+[[d1_databases]]
+binding = "DB"
+database_name = "quizclash-db"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# One Durable Object per game PIN: the live game server.
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameRoom"]
+
+
+[observability]
+enabled = true
+
+[vars]
+MOCK_AI = "1"

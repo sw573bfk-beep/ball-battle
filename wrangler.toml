@@ -1,23 +1,33 @@
-name = "ball-battle-server"
-main = "src/index.ts"
-compatibility_date = "2026-01-01"
-compatibility_flags = ["nodejs_compat"]
+name = "quizclash"
+main = "src/worker.ts"
+compatibility_date = "2026-10-01"
 
-# The built client is served from the same origin as the room server.
-# Vercel also hosts the client; this keeps a zero-CORS fallback available.
+# Frontend (plain HTML/CSS/JS, no build step) served from the same origin as the API.
 [assets]
-directory = "../dist"
+directory = "./public"
 binding = "ASSETS"
-not_found_handling = "none"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/ws"]
 
+# Accounts, question sets, coins, skins. The deploy script fills database_id in.
+[[d1_databases]]
+binding = "DB"
+database_name = "quizclash-db"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# One Durable Object per game PIN: the live game server.
 [[durable_objects.bindings]]
 name = "GAME_ROOM"
 class_name = "GameRoom"
 
-# SQLite-backed Durable Objects work on the free plan.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GameRoom"]
+
+# Cloudflare Workers AI, used by "Generate with AI".
+[ai]
+binding = "AI"
 
 [observability]
 enabled = true
