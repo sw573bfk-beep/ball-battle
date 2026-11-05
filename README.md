@@ -58,3 +58,7 @@ npm run verify     # typecheck + sim tests + build + headless browser test
 - [ ] **M3** Death, respawn, scoreboard
 - [ ] **M4** Multiplayer (1v1, server-authoritative)
 - [ ] **M5**–**M18** Match system, teams, modes, maps, powerups, polish
+
+## Year 8 Maths Revision Hub
+
+`maths-revision/index.html` is a self-contained Year 8 maths revision site (no install, works offline). It has notes, unlimited practice, every question from the exam revision booklet with answers, a timed exam mode, interactive tools, flashcards, a glossary and a step-by-step solver. Download the file and open it in any browser.
