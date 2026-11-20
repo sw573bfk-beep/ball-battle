@@ -81,6 +81,8 @@ export class Game {
   private elapsed = 0;
   private textTimer = 120;
   private ready = false;
+  /** Test-only: ?norender skips drawing so automated tests run fast. */
+  private noRender = location.search.includes('norender');
   private transitioning = false;
   ctx: Ctx;
 
@@ -368,6 +370,7 @@ export class Game {
     this.sendPos(t);
     this.villaTexts(dt);
     tickWater(t);
+    if (this.noRender && !this.wantPhoto) return;
     this.gfx.render();
     if (this.wantPhoto) {
       const cb = this.wantPhoto;

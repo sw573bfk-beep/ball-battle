@@ -214,6 +214,7 @@ const floor3: Layout = {
     ...[24.5, 27.5, 30.5].map((x) => P('reformer', x, 2.4, 0)), ...[24.5, 27, 29.5, 32].map((x, i) => P('yogamat', x, 6.2, Math.PI / 2, { color: ['#b9a2e8', '#f6a6c8', '#bfe3f2', '#ffd36e'][i] })),
     on(F3.pilates, 'e', 0.5, 0.06, 'mirror'), label(F3.pilates, 'Pilates / Stretching', -0.4),
     ...[4, 8, 12, 16, 20].map((x) => P('sunbed', x, 9.4, Math.PI / 2, { color: '#ffffff', towel: '#bfe3f2' })),
+    P('hottub', 27, 12.6, 0, { r: 1.6 }),
     P('plant', 0.7, 16.3, 0, { kind: 'tall', seed: 2 }), P('plant', 23.5, 16.3, 0, { kind: 'tall', seed: 3 }), P('plant', 33.3, 16.3, 0, { seed: 5 }),
     P('label', 12, 16.3, 0, { text: 'Indoor Pool' }),
     ...[1.5, 3, 4.5].map((x) => on(F3.change, 's', x / 20, 0.6, 'closet', { w: 1.4, color: '#bfe3f2' })), on(F3.change, 's', 0.55, 0.6, 'bench'),

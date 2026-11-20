@@ -2,12 +2,7 @@ name = "maggakes-estate"
 main = "src/server/index.ts"
 compatibility_date = "2026-01-01"
 
-# The built game is served from the same address as the server.
-[assets]
-directory = "./dist"
-binding = "ASSETS"
-not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/ws"]
+# The built game is packed into the Worker by scripts/embed.mjs (npm run build).
 
 [[durable_objects.bindings]]
 name = "ESTATE"
@@ -20,3 +15,6 @@ new_sqlite_classes = ["Estate"]
 
 [observability]
 enabled = true
+
+workers_dev = true
+preview_urls = false

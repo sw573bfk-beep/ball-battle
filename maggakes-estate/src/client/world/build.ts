@@ -302,8 +302,14 @@ function backdrop(L: Layout): THREE.Group {
     const drop = L.backdrop === 'city' ? L.storey * 3.6 + 1 : -0.56;
     // Slab + tower body under the floor
     if (L.backdrop === 'city') {
-      box(g, L.w + 0.6, 0.5, L.d + 0.6, mat('#e9e4dc', 0.6), 0, -0.5, 0);
-      const body = box(g, L.w + 0.2, drop, L.d + 0.2, mat('#3a4656', 0.15, 0.6), 0, -drop - 0.5, 0);
+      // Floor slab sits below pool depth; a fascia band shows the slab edge from outside.
+      box(g, L.w + 0.6, 0.4, L.d + 0.6, mat('#e9e4dc', 0.6), 0, -2.1, 0);
+      const fascia = mat('#e9e4dc', 0.6);
+      box(g, L.w + 0.6, 2.1, 0.3, fascia, 0, -2.1, -L.d / 2 - 0.15);
+      box(g, L.w + 0.6, 2.1, 0.3, fascia, 0, -2.1, L.d / 2 + 0.15);
+      box(g, 0.3, 2.1, L.d + 0.6, fascia, -L.w / 2 - 0.15, -2.1, 0);
+      box(g, 0.3, 2.1, L.d + 0.6, fascia, L.w / 2 + 0.15, -2.1, 0);
+      const body = box(g, L.w + 0.2, Math.max(0.1, drop - 2.1), L.d + 0.2, mat('#3a4656', 0.15, 0.6), 0, -drop - 0.5, 0);
       body.castShadow = false;
       for (let i = 1; i <= L.storey; i++) box(g, L.w + 0.4, 0.25, L.d + 0.4, mat('#e9e4dc', 0.6), 0, -i * 3.6 - 0.4, 0);
     }
@@ -382,9 +388,16 @@ function backdrop(L: Layout): THREE.Group {
     foam.rotation.x = -Math.PI / 2;
     foam.position.set(0, -0.3, L.d / 2 + 0.2);
     g.add(foam);
-    const island = new THREE.Mesh(new THREE.CircleGeometry(220, 48), mat('#5d9a49', 0.95));
-    island.rotation.x = -Math.PI / 2;
-    island.position.set(0, -0.05, -150);
+    // Island ground around the villa, with a hole where the villa's own floor (and pool) is.
+    const shape = new THREE.Shape();
+    shape.absarc(0, 150, 220, 0, Math.PI * 2, false);
+    const hole = new THREE.Path();
+    hole.moveTo(-L.w / 2, L.d / 2); hole.lineTo(L.w / 2, L.d / 2); hole.lineTo(L.w / 2, -L.d / 2); hole.lineTo(-L.w / 2, -L.d / 2); hole.closePath();
+    shape.holes.push(hole);
+    const ig = new THREE.ShapeGeometry(shape, 48);
+    ig.rotateX(-Math.PI / 2);
+    const island = new THREE.Mesh(ig, mat('#5d9a49', 0.95));
+    island.position.set(0, -0.05, 0);
     island.receiveShadow = true;
     g.add(island);
     const rnd = seeded(9);

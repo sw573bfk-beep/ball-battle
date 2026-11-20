@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "wrangler dev --port 8787 --ip 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build && node scripts/embed.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "tsx tests/logic.test.ts",
-    "deploy": "vite build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "three": "0.180.0"
