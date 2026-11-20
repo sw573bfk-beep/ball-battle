@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#1b1420" />
+  <title>The Maggakes Estate</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏰</text></svg>" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud">
+    <div class="card top">
+      <div id="who"></div>
+      <div id="aura"></div>
+      <div id="goal"></div>
+    </div>
+    <div class="card floor">
+      <button id="b-tasks" class="zone-btn"><span id="zonename"></span><span class="caret">▾</span></button>
+      <ul id="tasklist"></ul>
+    </div>
+  </div>
+
+  <nav id="menu">
+    <button id="b-map" title="Mansion map (M)"><span>🗺️</span><small>Map</small></button>
+    <button id="b-shop" title="Shop (B)"><span>🛍️</span><small>Shop</small></button>
+    <button id="b-wardrobe" title="Wardrobe"><span>👗</span><small>Style</small></button>
+    <button id="b-daily" title="Daily challenges"><span>📅</span><small>Daily</small></button>
+    <button id="b-board" title="Leaderboard"><span>🏆</span><small>Ranks</small></button>
+    <button id="b-emote" title="Emotes (1-5)"><span>😀</span><small>Emote</small></button>
+    <button id="b-settings" title="Settings"><span>⚙️</span><small>More</small></button>
+    <i id="net" title="Connection"></i>
+  </nav>
+  <div id="emotes">
+    <button data-e="wave">👋<small>Wave</small></button>
+    <button data-e="dance">💃<small>Dance</small></button>
+    <button data-e="heart">💖<small>Heart</small></button>
+    <button data-e="sit">🪑<small>Sit</small></button>
+    <button data-e="pose">📸<small>Pose</small></button>
+  </div>
+
+  <div id="actions"></div>
+  <div id="collect"></div>
+  <div id="decor"></div>
+  <div id="joy"><div class="knob"></div></div>
+  <div id="chat">
+    <div id="chatlog"></div>
+    <div class="chatbar"><input id="chatin" placeholder="Say something… (Enter)" maxlength="140" autocomplete="off" /><button id="chatsend" aria-label="Send">➤</button></div>
+  </div>
+  <div id="text"></div>
+  <div id="toasts"></div>
+  <div id="fx"></div>
+  <div id="flash"></div>
+  <div id="modals"></div>
+  <div id="fade"><b></b></div>
+
+  <div id="login">
+    <div class="bg"><div class="tower"></div></div>
+    <div class="panel"><h1>The Maggakes Estate</h1><p class="sub">Opening the doors…</p></div>
+  </div>
+
+  <script type="module" src="/src/client/main.ts"></script>
+</body>
+</html>

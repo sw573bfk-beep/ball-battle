@@ -1,0 +1,22 @@
+name = "maggakes-estate"
+main = "src/server/index.ts"
+compatibility_date = "2026-01-01"
+
+# The built game is served from the same address as the server.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/ws"]
+
+[[durable_objects.bindings]]
+name = "ESTATE"
+class_name = "Estate"
+
+# SQLite-backed Durable Objects work on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Estate"]
+
+[observability]
+enabled = true
