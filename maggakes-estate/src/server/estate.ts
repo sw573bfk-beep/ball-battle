@@ -31,6 +31,20 @@ export class Estate extends DurableObject {
   private ceremony: { endsAt: number; picks: Map<string, string> } | null = null;
   private lastCeremony = 0;
 
+  constructor(ctx: DurableObjectState, env: unknown) {
+    super(ctx, env as never);
+    // One-time grants. Each runs once ever (a flag is stored), so admins can still remove VIP later.
+    ctx.blockConcurrencyWhile(async () => {
+      if (await ctx.storage.get('grant:vip-keola-milla')) return;
+      for (const name of ['Keola', 'Milla']) {
+        const save = await this.load(name);
+        save.vip = true;
+        await this.store(save);
+      }
+      await ctx.storage.put('grant:vip-keola-milla', true);
+    });
+  }
+
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
     try {
