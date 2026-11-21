@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { RESIDENTS, findResident, type ZoneId } from '../shared/people';
 import { ALL_ZONES } from '../shared/floors';
-import { CAR_PAINTS, shopItem } from '../shared/shop';
+import { CAR_PAINTS, SHOP, shopItem } from '../shared/shop';
 import {
   buy, bumpStat, canEnter, claimDaily, completeTask, migrate, newSave, placeItems, rollDaily, setLook,
   topFloor, zoneUnlocked, type Save,
@@ -43,6 +43,19 @@ export class Estate extends DurableObject {
         await this.store(save);
       }
       await ctx.storage.put('grant:vip-keola-milla', true);
+    });
+    // Testers: unlock every floor + Love Island, own every item, lots of Aura to spend.
+    ctx.blockConcurrencyWhile(async () => {
+      if (await ctx.storage.get('grant:testers-all')) return;
+      for (const name of ['Keola', 'Milla']) {
+        const save = await this.load(name);
+        save.vip = true;
+        save.totalAura = Math.max(save.totalAura, 8000);
+        save.aura += 50_000;
+        for (const item of SHOP) save.inventory[item.id] = Math.max(save.inventory[item.id] ?? 0, item.cat === 'furniture' ? 3 : 1);
+        await this.store(save);
+      }
+      await ctx.storage.put('grant:testers-all', true);
     });
   }
 
