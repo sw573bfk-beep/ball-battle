@@ -5,7 +5,9 @@ import { buildCar, Driving, type CarModel } from './engine/car';
 import { makeProp, sprite, stationMarker, type Prop } from './engine/props';
 import { emojiTexture, glowTexture } from './engine/tex';
 import { buildZone, roomAt, roomBox, type Zone } from './world/build';
-import { spawnIslanders, spawnPets, updateWanderers, type Wanderer } from './world/npc';
+import { spawnHost, spawnIslander, spawnPets, updateWanderers, type Wanderer } from './world/npc';
+import { openCast, showScene } from './ui/season';
+import { FINAL_DAY, nextStep, type SeasonAction } from '../shared/season';
 import { Input } from './input';
 import type { Net } from './net';
 import { h, sheet, toast, confetti, closeAllSheets, $, fill } from './ui/dom';
@@ -15,7 +17,7 @@ import { findResident, type ZoneId } from '../shared/people';
 import { floorById, zoneName, type TaskDef } from '../shared/floors';
 import { canEnter, zoneUnlocked, ROOM_LIMIT, type Look, type PlacedItem, type Save } from '../shared/save';
 import { SHOP, shopItem } from '../shared/shop';
-import { FINAL_POINTS, ISLANDERS, VILLA_CHALLENGES } from '../shared/villa';
+import { ISLANDERS, VILLA_CHALLENGES } from '../shared/villa';
 import type { BoardRow, PeerInfo, ServerMsg } from '../shared/protocol';
 
 const SPEED = 4.4;
@@ -174,10 +176,10 @@ export class Game {
     this.wanderers = [];
     if (L.pets) this.wanderers.push(...spawnPets(zone));
     if (z === 'villa') {
-      const isl = spawnIslanders(zone);
-      for (const w of isl) w.follow = () => (this.save.villa.partner === `npc:${w.name}` ? { x: this.pos.x, z: this.pos.y } : null);
-      this.wanderers.push(...isl);
-      if (!this.save.villa.look) setTimeout(() => this.villaIntro(), 600);
+      const pod = zone.layout.props.find((p) => p.t === 'podium');
+      if (pod) this.wanderers.push(spawnHost(zone, pod.x - zone.half.w, pod.z - zone.half.d - 0.55, 0));
+      this.syncCast(false);
+      if (!this.save.villa.look || !this.save.villa.season) setTimeout(() => this.villaIntro(), 700);
       this.me.setLook(this.save.villa.look ?? { ...this.save.look, outfit: 'fit_villa' });
     } else {
       this.me.setLook(this.save.look);
@@ -215,6 +217,8 @@ export class Game {
       else if (st.kind === 'villa') { emoji = VILLA_EMOJI[st.id!] ?? '💘'; color = '#ff4fa3'; key = `villa:${st.id}`; }
       else if (st.kind === 'firepit') { emoji = '🔥'; color = '#ff8a3a'; }
       else if (st.kind === 'dress') { emoji = '🌺'; color = '#ff6f91'; }
+      else if (st.kind === 'beachhut') { emoji = '🎥'; color = '#ff4fa3'; }
+      else if (st.kind === 'hideaway') { emoji = '🌌'; color = '#c77dff'; }
       else if (st.kind === 'portal') {
         emoji = this.zoneId === 'villa' ? '🏰' : '💘';
         color = this.zoneId === 'villa' || zoneUnlocked(s, 'villa') ? '#ff4fa3' : '#9a9aa5';
@@ -260,6 +264,7 @@ export class Game {
           this.buildParkedCars();
         }
         this.buildMarkers();
+        if (this.zoneId === 'villa') this.syncCast(true);
         this.renderHud();
         this.saveListeners.forEach((f) => f());
         return;
@@ -305,6 +310,7 @@ export class Game {
       }
       case 'room': this.buildDecor(m.owner, m.items); return;
       case 'board': this.boardListeners.forEach((f) => f(m.rows)); return;
+      case 'scene': showScene(m.scene, (choice) => this.seasonAct({ a: 'answer', choice }), this.save.villa.season); return;
       case 'coupleAsk': this.coupleAsk(m.from); return;
       case 'ceremony': this.ceremony(m.endsAt, m.options); return;
       case 'ceremonyResult': {
@@ -579,7 +585,8 @@ export class Game {
         const d = Math.hypot(this.pos.x - w.x, this.pos.y - w.z);
         if (d > 1.8) continue;
         if (w.kind === 'pet') consider(d, { key: `pat:${w.name}`, label: `🐾 Pat ${w.name}`, run: () => this.pat(w) });
-        else consider(d, { key: `talk:${w.name}`, label: `💬 Talk to ${w.name}`, run: () => this.talkIslander(w) });
+        else if (w.kind === 'host') consider(d, { key: 'host', label: '🎤 Talk to Jazz (host)', run: () => this.hostMenu() });
+        else consider(d, { key: `talk:${w.name}`, label: `💬 Chat with ${w.name}`, run: () => this.talkIslander(w) });
       }
       if (this.zoneId === 'villa') {
         for (const p of this.peers.values()) {
@@ -618,7 +625,9 @@ export class Game {
         const c = VILLA_CHALLENGES.find((v) => v.id === st.id)!;
         return { key: `villa:${c.id}`, label: `${VILLA_EMOJI[c.id]} ${c.label}`, run: () => this.villaChallenge(c.id) };
       }
-      case 'firepit': return { key: 'firepit', label: '🔥 Firepit', run: () => this.firepit() };
+      case 'firepit': return { key: 'firepit', label: '🔥 The Firepit', run: () => this.firepit() };
+      case 'beachhut': return { key: 'beachhut', label: '🎥 Sit in the Beach Hut', run: () => this.seasonAct({ a: 'hut' }) };
+      case 'hideaway': return { key: 'hideaway', label: '🌌 The Hideaway', run: () => this.hideaway() };
       case 'dress': return { key: 'dress', label: '🌺 Villa dressing room', run: () => openWardrobe(this.ctx, { villa: true }) };
       case 'portal':
         if (this.zoneId === 'villa') return { key: 'portal', label: '🏰 Back to the mansion', run: () => this.travel('f8') };
@@ -920,25 +929,106 @@ export class Game {
   // ================================================================== villa
 
   private villaIntro(): void {
-    sheet('💘 Welcome to the Villa!', h('div.villa-intro', {},
-      h('p', {}, 'You made it to the top of the estate! Love Island Mode is a whole new game:'),
-      h('ul', {},
-        h('li', {}, '🌺 Pick your villa look (boy or girl avatar)'),
-        h('li', {}, '💘 Couple up with other players or the islanders'),
-        h('li', {}, '💃 Win challenges for Villa Points'),
-        h('li', {}, '🔥 Recouple at the firepit'),
-        h('li', {}, `🏆 Reach ${FINAL_POINTS} Villa Points while coupled up to win the final!`)),
-      h('div.actions', {}, h('button.btn.big', { onclick: () => { closeAllSheets(); openWardrobe(this.ctx, { villa: true }); } }, '🌺 Choose my villa look'))));
+    const s = this.save;
+    if (!s.villa.look) {
+      sheet('💘 Welcome to the Villa!', h('div.villa-intro', {},
+        h('p', {}, "You made it to the top of the estate! Love Island Mode is a whole new game — a 10-day season full of bombshells, dates, challenges, recouplings and dumpings."),
+        h('p', {}, 'First, get villa-ready:'),
+        h('div.actions', {}, h('button.btn.big', { onclick: () => { closeAllSheets(); openWardrobe(this.ctx, { villa: true, onSaved: () => setTimeout(() => this.villaIntro(), 400) }); } }, '🌺 Choose my villa look'))));
+      return;
+    }
+    if (!s.villa.season) openCast(undefined, () => this.seasonAct({ a: 'start' }));
+  }
+
+  /** Sends a season action to the server; the reply arrives as a scene. */
+  seasonAct(act: SeasonAction): void {
+    if (this.zoneId !== 'villa') return;
+    this.net.send({ t: 'season', act });
+  }
+
+  /** Keeps the 3D islanders in step with the season cast. */
+  private syncCast(arrivals: boolean): void {
+    if (!this.zone || this.zoneId !== 'villa') return;
+    const season = this.save.villa.season;
+    const cast = new Set(season && season.phase !== 'over' ? season.cast : []);
+    // Gone (dumped / season over)
+    for (const w of this.wanderers.filter((x) => x.kind === 'islander' && !cast.has(x.name))) {
+      w.avatar?.dispose();
+      this.wanderers.splice(this.wanderers.indexOf(w), 1);
+    }
+    const arch = this.zone.layout.props.find((p) => p.t === 'arch');
+    const entrance = arch ? { x: arch.x - this.zone.half.w, z: arch.z - this.zone.half.d - 1 } : undefined;
+    for (const name of cast) {
+      if (this.wanderers.some((w) => w.name === name)) continue;
+      const w = spawnIslander(this.zone, name, arrivals ? entrance : undefined);
+      if (!w) continue;
+      w.follow = () => this.islanderTarget(w.name);
+      this.wanderers.push(w);
+    }
+  }
+
+  /** Where an islander should be: with you, with their partner, or at the firepit. */
+  private islanderTarget(name: string): { x: number; z: number; exact?: boolean; face?: number } | null {
+    const s = this.save.villa.season;
+    if (!s || !this.zone) return null;
+    if (s.phase === 'firepit' || s.phase === 'evening') {
+      const pit = this.zone.layout.props.find((p) => p.t === 'firepit');
+      if (pit) {
+        const i = s.cast.indexOf(name);
+        const a = Math.PI * 0.45 + (i / Math.max(1, s.cast.length)) * Math.PI * 1.6;
+        const cx = pit.x - this.zone.half.w, cz = pit.z - this.zone.half.d;
+        return { x: cx + Math.cos(a) * 2.5, z: cz + Math.sin(a) * 2.5, exact: true, face: Math.atan2(-Math.cos(a), -Math.sin(a)) };
+      }
+    }
+    if (s.partner === name) return { x: this.pos.x, z: this.pos.y };
+    for (const [a, b] of s.couples) {
+      if (b === name) { const w = this.wanderers.find((x) => x.name === a); if (w) return { x: w.x, z: w.z }; }
+    }
+    return null;
   }
 
   private talkIslander(w: Wanderer): void {
-    w.avatar?.say(w.line ?? 'Hey!');
     w.wait = 4;
-    const partner = this.save.villa.partner === `npc:${w.name}`;
-    sheet(`💬 ${w.name}`, h('div.mg', {}, h('p', {}, `“${w.line}”`),
-      h('div.actions', {},
-        partner ? h('p', {}, `💘 ${w.name} is your partner!`) : h('button.btn', { onclick: () => { closeAllSheets(); this.net.send({ t: 'couple', to: w.name }); } }, `💘 Couple up with ${w.name}`),
-        h('button.btn.ghost', { onclick: () => { closeAllSheets(); this.emote('wave'); } }, '👋 Wave'))));
+    const s = this.save.villa.season;
+    if (!s || s.phase === 'over') {
+      w.avatar?.say(w.line ?? 'Hey!');
+      toast('Start your season at the firepit to really get to know the islanders! 🔥');
+      return;
+    }
+    w.ry = Math.atan2(this.pos.x - w.x, this.pos.y - w.z);
+    this.seasonAct({ a: 'chat', who: w.name });
+  }
+
+  private hostMenu(): void {
+    const s = this.save.villa.season;
+    if (!s || s.phase === 'over') { openCast(s, () => this.seasonAct({ a: 'start' })); return; }
+    this.seasonAct({ a: 'status' });
+  }
+
+  private hideaway(): void {
+    const s = this.save.villa.season;
+    const p = s?.partner;
+    if (!s || !p) { toast('🌌 The Hideaway is for couples. Couple up first!'); return; }
+    if ((s.bonds[p] ?? 0) < 70) { toast(`🌌 You and ${p} need a stronger connection (bond 70+) to unlock the Hideaway. You're at ${s.bonds[p] ?? 0}.`); return; }
+    this.emote('sit');
+    confetti(50);
+    sheet('🌌 The Hideaway', h('div.mg', {}, h('p', {}, `You and ${p} spend the evening stargazing in the Hideaway, talking about everything. 🌠`), h('p', {}, '"This is the best night I\'ve had in the villa." 🥹')));
+  }
+
+  private firepit(): void {
+    const s = this.save.villa.season;
+    const players = [...this.peers.values()].length;
+    if (!s || s.phase === 'over') { openCast(s, () => this.seasonAct({ a: 'start' })); return; }
+    if (s.phase === 'morning' && s.actions > 0) {
+      sheet('🔥 The Firepit', h('div.mg', {},
+        h('p', {}, `It's still daytime — you have ${s.actions} chat${s.actions === 1 ? '' : 's'} left. Head to tonight's twist now?`),
+        h('div.actions', {},
+          h('button.btn', { onclick: () => { closeAllSheets(); this.seasonAct({ a: 'firepit' }); } }, "🌙 Yes, bring on tonight"),
+          h('button.btn.ghost', { onclick: () => closeAllSheets() }, 'Not yet')),
+        players ? h('div.actions', {}, h('button.btn.ghost', { onclick: () => { closeAllSheets(); this.net.send({ t: 'recouple' }); } }, '👯 Group recoupling with the players here')) : null));
+      return;
+    }
+    this.seasonAct({ a: 'firepit' });
   }
 
   private coupleAsk(from: string): void {
@@ -946,21 +1036,6 @@ export class Game {
       h('div.actions', {},
         h('button.btn', { onclick: () => { this.net.send({ t: 'coupleReply', from, yes: true }); close(); } }, '💘 Yes!'),
         h('button.btn.ghost', { onclick: () => { this.net.send({ t: 'coupleReply', from, yes: false }); close(); } }, 'Not right now'))));
-  }
-
-  private firepit(): void {
-    const s = this.save;
-    const partner = s.villa.partner?.replace(/^npc:/, '');
-    sheet('🔥 The Firepit', h('div.mg', {},
-      h('p', {}, partner ? `You're coupled up with ${partner} 💘` : "You're single right now."),
-      h('p', {}, `Villa Points: ${s.villa.points} / ${FINAL_POINTS} for the final`),
-      h('div.actions', {},
-        h('button.btn', { onclick: () => { closeAllSheets(); this.net.send({ t: 'recouple' }); } }, '🔥 Start a recoupling'),
-        h('button.btn' + (partner && s.villa.points >= FINAL_POINTS ? '' : '.ghost'), {
-          disabled: !(partner && s.villa.points >= FINAL_POINTS),
-          onclick: () => { closeAllSheets(); this.net.send({ t: 'final' }); },
-        }, '🏆 Enter the final')),
-      h('p.muted', {}, 'Everyone in the villa gets 25 seconds to choose who to couple up with.')));
   }
 
   private ceremony(endsAt: number, options: string[]): void {
@@ -1054,11 +1129,14 @@ export class Game {
     zEl.textContent = zoneName(this.zoneId);
     const list = $('#tasklist');
     if (this.zoneId === 'villa') {
-      const partner = s.villa.partner?.replace(/^npc:/, '');
-      fill(list, 
-        h('li', {}, `💘 ${partner ? `Coupled with ${partner}` : 'Single'}`),
-        h('li', {}, `🌴 Villa Points: ${s.villa.points} / ${FINAL_POINTS}`),
-        h('li', {}, `🏆 Wins: ${s.villa.wins}`),
+      const se = s.villa.season;
+      const p = se?.partner;
+      fill(list,
+        h('li', {}, se && se.phase !== 'over' ? `📺 Day ${Math.min(se.day, FINAL_DAY)}/${FINAL_DAY} · ${se.phase === 'morning' ? `☀️ ${se.actions} chats left` : '🌙 Tonight'}` : '📺 No season running'),
+        h('li', {}, p ? `💘 ${p} · bond ${se!.bonds[p] ?? 0}` : '💔 Single'),
+        se ? h('li', {}, `📈 Popularity ${se.popularity}/100`) : null,
+        h('li.next', {}, `👉 ${nextStep(se)}`),
+        h('li', {}, h('button.mini', { onclick: () => openCast(se, () => this.seasonAct({ a: 'start' })) }, '📺 Islanders & season'), ` 🏆 ${s.villa.wins}`),
       );
     } else {
       const tasks = taskList(s, this.zoneId);

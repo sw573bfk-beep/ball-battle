@@ -3,19 +3,10 @@ import { RESIDENTS, findResident } from './people';
 import { ALL_ZONES, FLOORS, REPLAY_AURA, TASK_AURA, floorById, zoneNeed } from './floors';
 import { FREE_ITEMS, shopItem, type WearSlot } from './shop';
 
-/** How a character looks. */
-export interface Look {
-  body: 'girl' | 'boy';
-  skin: string;
-  hair: string;       // style key
-  hairColor: string;
-  outfit: string;     // shop item id
-  glasses?: string;
-  bag?: string;
-  jewel?: string;
-  hat?: string;
-  perfume?: string;
-}
+import { BEARDS, BUILDS, EYE_COLORS, HAIR_COLORS, HAIR_STYLES, HEIGHTS, LIP_COLORS, SKINS, normalizeLook, type Look } from './look';
+export type { Look } from './look';
+export { HAIR_COLORS, HAIR_STYLES, SKINS } from './look';
+import type { Season } from './season';
 
 export interface PlacedItem {
   uid: string;
@@ -37,6 +28,7 @@ export interface VillaState {
   look?: Look;        // villa avatar
   wins: number;
   cooldowns: Record<string, number>;
+  season?: Season;
 }
 
 export interface Save {
@@ -55,21 +47,19 @@ export interface Save {
   lastZone: ZoneId;
 }
 
-export const SKINS = ['#ffe0cc', '#f6cba8', '#e2a77f', '#c68660', '#8d5a3b', '#5c3a26'];
-export const HAIR_STYLES = ['long', 'bun', 'ponytail', 'bob', 'short', 'curly', 'buzz'];
-export const HAIR_COLORS = ['#2b1d16', '#5a3825', '#a0673b', '#e6c27a', '#f3e2b3', '#d24b3e', '#f49ac1', '#9b7ede', '#111111'];
 
 export function defaultLook(name: string): Look {
   // A little variety so people don't all start identical.
   let h = 0;
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return {
-    body: name === 'Beau' || name === 'Keola' ? 'boy' : 'girl',
-    skin: SKINS[h % 4],
-    hair: name === 'Beau' || name === 'Keola' ? 'short' : HAIR_STYLES[h % 4],
-    hairColor: HAIR_COLORS[h % 5],
+  const boy = name === 'Beau' || name === 'Keola';
+  return normalizeLook({
+    body: boy ? 'boy' : 'girl',
+    skin: SKINS[1 + (h % 4)],
+    hair: boy ? ['crop', 'quiff', 'surfer'][h % 3] : ['long', 'waves', 'sleekpony', 'lob'][h % 4],
+    hairColor: HAIR_COLORS[1 + (h % 5)],
     outfit: ['fit_pink', 'fit_blue', 'fit_white'][h % 3],
-  };
+  });
 }
 
 export function today(now = Date.now()): string {
@@ -169,12 +159,19 @@ export function buy(save: Save, itemId: string): Result {
 
 /** Equips a look, but only with things the player owns. */
 export function setLook(save: Save, look: Look): Result {
+  const cur = normalizeLook(save.look);
+  const pick = <T,>(v: T | undefined, ok: readonly T[], fallback: T): T => (v !== undefined && ok.includes(v) ? v : fallback);
   const clean: Look = {
     body: look.body === 'boy' ? 'boy' : 'girl',
-    skin: SKINS.includes(look.skin) ? look.skin : save.look.skin,
-    hair: HAIR_STYLES.includes(look.hair) ? look.hair : save.look.hair,
-    hairColor: HAIR_COLORS.includes(look.hairColor) ? look.hairColor : save.look.hairColor,
-    outfit: save.inventory[look.outfit] ? look.outfit : save.look.outfit,
+    skin: pick(look.skin, SKINS, cur.skin),
+    hair: pick(look.hair, HAIR_STYLES, cur.hair),
+    hairColor: pick(look.hairColor, HAIR_COLORS, cur.hairColor),
+    outfit: save.inventory[look.outfit] ? look.outfit : cur.outfit,
+    build: pick(look.build, BUILDS.map((b) => b.id), cur.build!),
+    height: pick(look.height, HEIGHTS.map((b) => b.id), cur.height!),
+    eyes: pick(look.eyes, EYE_COLORS, cur.eyes!),
+    lips: pick(look.lips, [...LIP_COLORS, '#b07a6e'], cur.lips!),
+    beard: pick(look.beard, BEARDS.map((b) => b.id), cur.beard!),
   };
   const slots: WearSlot[] = ['glasses', 'bag', 'jewel', 'hat', 'perfume'];
   for (const s of slots) {
@@ -268,6 +265,8 @@ export function migrate(raw: Partial<Save> & { name: string }): Save {
   const s = { ...base, ...raw } as Save;
   s.villa = { ...base.villa, ...(raw.villa ?? {}) };
   s.daily = raw.daily ?? base.daily;
+  s.look = normalizeLook(s.look);
+  if (s.villa.look) s.villa.look = normalizeLook(s.villa.look);
   for (const id of FREE_ITEMS) if (!s.inventory[id]) s.inventory[id] = 1;
   return s;
 }

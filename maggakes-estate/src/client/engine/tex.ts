@@ -401,3 +401,33 @@ export function skylineTexture(night: boolean): THREE.Texture {
   cache.set(key, t);
   return t;
 }
+
+/** Fine strand texture for hair (white, tinted by the material colour). */
+export function hairTexture(): THREE.Texture {
+  const key = 'hair';
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const [c, g] = canvas(256, 256);
+  g.fillStyle = '#d8d8d8'; g.fillRect(0, 0, 256, 256);
+  const r = rand(42);
+  for (let i = 0; i < 1400; i++) {
+    const x = r() * 256;
+    const v = 150 + Math.floor(r() * 105);
+    g.strokeStyle = `rgba(${v},${v},${v},${0.35 + r() * 0.5})`;
+    g.lineWidth = 0.6 + r() * 1.4;
+    g.beginPath();
+    g.moveTo(x, 0);
+    g.bezierCurveTo(x + (r() - 0.5) * 10, 85, x + (r() - 0.5) * 10, 170, x + (r() - 0.5) * 6, 256);
+    g.stroke();
+  }
+  for (let i = 0; i < 300; i++) {
+    g.strokeStyle = `rgba(60,60,60,${0.15 + r() * 0.2})`;
+    g.lineWidth = 0.8;
+    const x = r() * 256;
+    g.beginPath(); g.moveTo(x, 0); g.lineTo(x + (r() - 0.5) * 8, 256); g.stroke();
+  }
+  const t = finish(c, 1);
+  t.repeat.set(3, 1);
+  cache.set(key, t);
+  return t;
+}

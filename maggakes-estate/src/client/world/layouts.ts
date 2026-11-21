@@ -4,7 +4,7 @@ import { P, bedroomKit, ensuiteKit, label, on, wardrobeKit, type PropDef, type R
 
 export interface RoomDef { id: string; name: string; r: Rect; floor: FloorMat; tint?: string; wall?: string }
 
-export type StationKind = 'task' | 'garage' | 'carwash' | 'cabana' | 'villa' | 'firepit' | 'dress' | 'portal';
+export type StationKind = 'task' | 'garage' | 'carwash' | 'cabana' | 'villa' | 'firepit' | 'dress' | 'portal' | 'beachhut' | 'hideaway';
 
 export interface StationDef { kind: StationKind; id?: string; x: number; z: number }
 
@@ -489,39 +489,100 @@ const park: Layout = {
 };
 
 // ===================================================================== Love Island villa
+const V = {
+  bedroom: [14, 0, 18, 11] as Rect,
+  dressing: [32, 0, 8, 11] as Rect,
+  kitchen: [40, 0, 10, 11] as Rect,
+  hut: [2, 2, 7, 7] as Rect,
+  hideaway: [46, 15, 9, 9] as Rect,
+};
+const ring = (cx: number, cz: number, r: number, n: number, t: string, o: Record<string, unknown> = {}, face = true) =>
+  Array.from({ length: n }, (_, i) => {
+    const a = (i / n) * Math.PI * 2;
+    return P(t, cx + Math.cos(a) * r, cz + Math.sin(a) * r, face ? -a - Math.PI / 2 : 0, o);
+  });
+
 const villa: Layout = {
-  id: 'villa', w: 46, d: 36, mood: 'golden', exterior: 'none', wall: '#f5efe6', backdrop: 'ocean', storey: 0,
+  id: 'villa', w: 56, d: 44, mood: 'golden', exterior: 'none', wall: '#fbf3ee', backdrop: 'ocean', storey: 0,
   rooms: [
-    { id: 'lawn', name: 'Villa Lawn', r: [0, 0, 46, 30], floor: 'grass' },
-    { id: 'pavilion', name: 'Villa Bedroom', r: [6, 0, 34, 8], floor: 'wood', tint: '#e2c9a6' },
-    { id: 'deck', name: 'Pool Deck', r: [9, 11, 28, 13], floor: 'stone' },
-    { id: 'beach', name: 'Beach', r: [0, 30, 46, 6], floor: 'sand' },
+    { id: 'lawn', name: 'Villa Lawn', r: [0, 0, 56, 36], floor: 'grass' },
+    { id: 'beach', name: 'Beach', r: [0, 36, 56, 8], floor: 'sand' },
+    { id: 'terrace', name: 'Terrace', r: [14, 11, 36, 4], floor: 'stone', tint: '#e8dccb' },
+    { id: 'deck', name: 'Pool Deck', r: [14, 15, 30, 15], floor: 'stone' },
+    { id: 'firepit', name: 'Firepit', r: [1, 16, 12, 13], floor: 'terrazzo', tint: '#e6d6c4' },
+    { id: 'arena', name: 'Challenge Arena', r: [44, 26, 11, 10], floor: 'terrazzo', tint: '#3a3446' },
+    { id: 'gym', name: 'Outdoor Gym', r: [50, 1, 6, 10], floor: 'rubber' },
+    { id: 'bedroom', name: 'The Bedroom', r: V.bedroom, floor: 'wood', tint: '#d9bf9e', wall: '#ffe3ec' },
+    { id: 'dressing', name: 'Dressing Room', r: V.dressing, floor: 'pinkcarpet', wall: '#fff0f5' },
+    { id: 'kitchen', name: 'Kitchen & Lounge', r: V.kitchen, floor: 'terrazzo', wall: '#f4fbf8' },
+    { id: 'hut', name: 'The Beach Hut', r: V.hut, floor: 'wood', tint: '#b98a5c', wall: '#ffd9e8' },
+    { id: 'hideaway', name: 'The Hideaway', r: V.hideaway, floor: 'darkwood', wall: '#2d2238' },
   ],
-  open: [['lawn', 'pavilion'], ['lawn', 'deck'], ['lawn', 'beach']],
-  doors: [],
+  open: [['lawn', 'beach'], ['lawn', 'terrace'], ['lawn', 'deck'], ['terrace', 'deck'], ['lawn', 'firepit'], ['lawn', 'arena'], ['lawn', 'gym'], ['deck', 'firepit']],
+  doors: [[19, 11], [27, 11], [32, 5.5], [36, 11], [40, 5.5], [45, 11], [5.5, 9], [46, 19.5]],
   props: [
-    ...[9, 12.5, 16, 19.5, 26.5, 30, 33.5, 37].map((x, i) => P('bed', x, 1.4, 0, { color: ['#ffffff', '#ffd6e7', '#bfe3f2', '#ffd36e'][i % 4], accent: '#ff6f91', frame: '#e2c9a6' })),
-    P('neon', 23, 0.1, 0, { text: '♥ THE VILLA ♥', color: '#ff4fa3', w: 4.2, y: 2.2 }), P('rack', 23, 5.6, 0, { w: 3 }),
-    P('label', 23, 7.2, 0, { text: 'Villa Bedroom', color: '#5a3b1e' }),
-    ...[12, 15, 18, 28, 31, 34].map((x, i) => P('sunbed', x, 22.5, Math.PI, { color: '#ffffff', towel: ['#ff6f91', '#4fd1c5', '#ffd36e'][i % 3] })),
-    P('umbrella', 23, 22.5, 0, { color: '#ff9fc4' }),
-    P('outdoorsofa', 40, 11, Math.PI / 2, { w: 3, accent: '#ff6f91' }), P('outdoorsofa', 43.6, 13.8, -Math.PI / 2, { w: 3, accent: '#4fd1c5' }), P('coffeetable', 41.8, 12.4, 0, { w: 1.2 }),
-    P('rug', 41.8, 12.4, 0, { w: 5, d: 4.5, color: '#f2e6cf' }), P('bar', 5, 13, Math.PI / 2, { w: 4 }),
-    P('firepit', 38, 25, 0), ...[0, 1, 2, 3, 4, 5].map((i) => P('outdoorsofa', 38 + Math.cos(i / 6 * Math.PI * 2) * 3.3, 25 + Math.sin(i / 6 * Math.PI * 2) * 3.3, -i / 6 * Math.PI * 2 - Math.PI / 2, { w: 1.6 })),
-    P('label', 38, 29.4, 0, { text: 'Firepit', color: '#5a3b1e' }),
-    P('discoball', 6, 21, 0), P('speaker', 3, 18, 0.6), P('speaker', 9, 18, -0.6), P('label', 6, 24.3, 0, { text: 'Dance Floor', color: '#5a3b1e' }),
-    ...[1, 45].flatMap((x) => [4, 10, 16, 22, 28].map((z, i) => P('palm', x, z, 0, { h: 4 + (i % 3) * 0.7, lean: x < 20 ? 0.12 : -0.12 }))),
-    ...[4, 12, 20, 26, 34, 42].map((x, i) => P('palm', x, 33.5, 0, { h: 4.5 + (i % 2), lean: (i % 2 ? 1 : -1) * 0.1 })),
-    P('hedge', 3, 9, 0, { w: 4 }), P('hedge', 43, 9, 0, { w: 4 }), P('planter', 23, 9.5, 0, { w: 4 }),
+    // The famous bedroom
+    ...[15.6, 18.4, 21.2, 24.8, 27.6, 30.4].map((x, i) => P('bed', x, 1.35, 0, { w: 1.6, color: ['#ffffff', '#ffd6e7', '#fff3d6'][i % 3], accent: '#ff3d7f', pillow: '#ffffff', frame: '#f6e9ef' })),
+    P('neon', 23, 0.08, 0, { text: '♥', color: '#ff2d75', w: 1.4, y: 2.1 }),
+    P('neon', 23, 10.9, Math.PI, { text: 'Good Vibes Only', color: '#ff7ab8', w: 3.4, y: 2.1 }),
+    P('rug', 23, 6.5, 0, { w: 9, d: 3, color: '#ffd6e7' }), P('beanbag', 16.2, 9.6, 0.5, { color: '#ff6f91' }), P('beanbag', 29.8, 9.6, -0.5, { color: '#ffffff' }),
+    P('fairylights', 14.5, 6, Math.PI / 2), P('plant', 31.4, 6, 0, { kind: 'tall', seed: 3 }), P('label', 23, 8.5, 0, { text: 'The Bedroom', color: '#8a3a5a' }),
+    // Dressing room
+    on(V.dressing, 'e', 0.3, 0.5, 'vanity'), on(V.dressing, 'e', 0.72, 0.5, 'vanity', { color: '#ffd6e7' }),
+    on(V.dressing, 'n', 0.5, 0.65, 'rack', { w: 5, colors: ['#ff7aa8', '#e8b7c8', '#d9c7ff', '#fff1c9', '#ffffff', '#111'] }),
+    on(V.dressing, 'w', 0.75, 0.35, 'mirror'), P('rug', 36, 7, 0, { round: true, w: 2.6, color: '#ffc2d4' }), P('label', 36, 9.8, 0, { text: 'Dressing Room', color: '#8a3a5a' }),
+    // Kitchen & lounge
+    on(V.kitchen, 'n', 0.5, 0.66, 'counter', { w: 7 }), P('island', 45, 4.6, 0, { w: 3.2, stool: '#ff6f91' }),
+    P('sofa', 45, 9.4, Math.PI, { w: 3, color: '#ffffff', accent: '#ff6f91', accent2: '#4fd1c5' }), P('plant', 49.3, 10.3, 0, { seed: 4 }),
+    P('label', 45, 7.3, 0, { text: 'Kitchen & Lounge', color: '#2f5a4a' }),
+    // Terrace
+    ...[16, 18.5, 41.5, 44].map((x, i) => P('eggchair', x, 12.9, 0, { color: '#ffffff', accent: ['#ff6f91', '#4fd1c5', '#ffd23f', '#ff6f91'][i] })),
+    P('neon', 32, 11.1, 0, { text: '♥ THE VILLA ♥', color: '#ff4fa3', w: 4.6, y: 2.4 }),
+    P('daybed', 24, 13.1, 0, { w: 2.4, accent: '#ff6f91' }), P('daybed', 36, 13.1, 0, { w: 2.4, accent: '#4fd1c5' }),
+    // Pool deck
+    P('flamingo', 22, 21, 0, { y: -0.12 }), P('flamingo', 33, 23.5, 1.4, { color: '#fff3b0', y: -0.12 }),
+    ...[17, 20, 23, 33, 36, 39].map((x, i) => P('sunbed', x, 28.2, Math.PI, { color: '#ffffff', towel: ['#ff6f91', '#4fd1c5', '#ffd23f'][i % 3] })),
+    P('umbrella', 28, 28.3, 0, { color: '#ff9fc4' }), P('umbrella', 41.5, 28, 0, { color: '#ffffff' }),
+    P('hottub', 41, 18.5, 0, { r: 1.3 }),
+    P('festoon', 28, 16.2, 0, { len: 26 }), P('festoon', 28, 29.4, 0, { len: 26 }),
+    P('label', 28, 27.1, 0, { text: 'Pool Deck', color: '#5a3b1e' }),
+    // Firepit
+    P('firepit', 7, 22.5, 0), ...ring(7, 22.5, 3.4, 5, 'outdoorsofa', { w: 1.8, accent: '#ff6f91' }).filter((_, i) => i !== 0),
+    ...ring(7, 22.5, 5.4, 8, 'tikitorch', {}, false), P('podium', 7, 17.6, 0),
+    P('label', 7, 28, 0, { text: 'Firepit', color: '#5a3b1e' }),
+    // Beach Hut (diary room)
+    on(V.hut, 'n', 0.5, 0.8, 'hutchair', { color: '#ff3d7f' }), P('camera', 5.5, 6.4, Math.PI),
+    on(V.hut, 'w', 0.4, 0.05, 'neon', { text: 'BEACH HUT', color: '#ff7ab8', w: 2.4, y: 2.1 }), P('plant', 8.3, 2.7, 0, { seed: 6 }),
+    // Hideaway (stargazing date spot)
+    on(V.hideaway, 'e', 0.5, 1.8, 'daybed', { w: 2.4, accent: '#c77dff' }), P('cushions', 49.5, 21.5, 0), P('telescope', 47.6, 16.5, 0.6),
+    P('fairylights', 54.4, 16.2, -Math.PI / 2), P('lantern', 47, 23, 0), P('lantern', 54, 23.2, 0),
+    on(V.hideaway, 'n', 0.5, 0.05, 'neon', { text: '♥', color: '#c77dff', w: 1.1, y: 2.0 }), P('label', 50.5, 18.2, 0, { text: 'The Hideaway', color: '#e9d7ff' }),
+    // Challenge arena
+    P('stage', 49.5, 34.3, Math.PI, { w: 9 }), P('speaker', 44.8, 34.6, Math.PI), P('speaker', 54.2, 34.6, Math.PI), P('discoball', 49.5, 30, 0),
+    P('label', 49.5, 27.2, 0, { text: 'Challenge Arena', color: '#ffd6f7' }),
+    // Outdoor gym
+    P('bench', 53, 3, 0), P('dumbbells', 53, 9.6, Math.PI), P('bike', 51, 6, Math.PI / 2),
+    // Beach
+    P('volleynet', 38, 40, 0), P('arch', 28, 35.6, 0),
+    ...[30.5, 25.5].flatMap((x) => [31, 33, 35].map((z) => P('lantern', x, z, 0, { h: 0.8 }))),
+    ...[8, 11, 14, 17].map((x, i) => P('sunbed', x, 41.5, Math.PI, { color: '#fff3d6', towel: ['#ff9fc4', '#7fd8ff'][i % 2] })),
+    P('umbrella', 12.5, 39.5, 0, { color: '#ff6f91' }), P('hammock', 50, 41, 0), P('surfboard', 21, 42.8, Math.PI, { color: '#ff9fc4' }),
+    // Greenery
+    ...[3, 9, 15, 33, 39, 45, 51].map((x, i) => P('palm', x, 35, 0, { h: 4.2 + (i % 3) * 0.7, lean: (i % 2 ? 1 : -1) * 0.1 })),
+    ...[1, 55].flatMap((x) => [3, 13, 31].map((z, i) => P('palm', x, z, 0, { h: 4.5 + (i % 2), lean: x < 20 ? 0.12 : -0.12 }))),
+    P('hedge', 11.5, 0.6, 0, { w: 4 }), P('hedge', 52.5, 13.5, 0, { w: 5 }), P('planter', 12, 13, Math.PI / 2, { w: 2.4 }),
+    P('plant', 12.8, 29.4, 0, { kind: 'tall', s: 1.4, seed: 8 }), P('plant', 43.3, 29.4, 0, { kind: 'tall', s: 1.4, seed: 9 }),
   ],
   stations: [
-    { kind: 'villa', id: 'dance', x: 6, z: 21 }, { kind: 'villa', id: 'coconut', x: 23, z: 27 },
-    { kind: 'villa', id: 'quiz', x: 41.8, z: 15.6 }, { kind: 'villa', id: 'volley', x: 23, z: 32.5 },
-    { kind: 'firepit', x: 38, z: 21 }, { kind: 'dress', x: 23, z: 4 }, { kind: 'portal', x: 2.5, z: 2.5 },
+    { kind: 'villa', id: 'dance', x: 49.5, z: 31.5 }, { kind: 'villa', id: 'coconut', x: 14, z: 38.5 },
+    { kind: 'villa', id: 'quiz', x: 45, z: 7.3 }, { kind: 'villa', id: 'volley', x: 38, z: 38.2 },
+    { kind: 'firepit', x: 11.6, z: 22.5 }, { kind: 'dress', x: 36, z: 5 }, { kind: 'beachhut', x: 5.5, z: 5.2 },
+    { kind: 'hideaway', x: 50.5, z: 20 }, { kind: 'portal', x: 3, z: 40.5 },
   ],
-  lift: [2.5, 0.3, 0],
-  spawn: [23, 10],
-  pools: [[13, 13, 20, 7]],
+  lift: [28, 33.2, Math.PI],
+  spawn: [28, 31.5],
+  pools: [[18, 18, 20, 8]],
+  tubs: [[41, 18.5, 1.3]],
 };
 
 export const LAYOUTS: Record<ZoneId, Layout> = {

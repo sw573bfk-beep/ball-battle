@@ -100,10 +100,10 @@ test('decorate task needs decorations placed first', () => {
 
 test('you can only wear things you own', () => {
   const s = newSave('Ava');
-  setLook(s, { ...s.look, outfit: 'fit_gown', glasses: 'gl_heart', hair: 'curly' });
+  setLook(s, { ...s.look, outfit: 'fit_gown', glasses: 'gl_heart', hair: 'curls' });
   assert.notEqual(s.look.outfit, 'fit_gown');
   assert.equal(s.look.glasses, undefined);
-  assert.equal(s.look.hair, 'curly');
+  assert.equal(s.look.hair, 'curls');
 });
 
 test('daily challenges: 3 a day, claim once when finished', () => {
@@ -137,4 +137,48 @@ test('every shop item has a unique id', () => {
   assert.equal(new Set(SHOP.map((i) => i.id)).size, SHOP.length);
 });
 
+
+
+import { seasonAct, FINAL_DAY, type Season } from '../src/shared/season';
+import { normalizeLook } from '../src/shared/look';
+
+test('old hairstyles are upgraded and get no fringe styles', () => {
+  assert.equal(normalizeLook({ body: 'boy', skin: '#ffe0cc', hair: 'short', hairColor: '#111111', outfit: 'fit_blue' }).hair, 'crop');
+  assert.equal(normalizeLook({ body: 'girl', skin: '#ffe0cc', hair: 'ponytail', hairColor: '#111111', outfit: 'fit_blue' }).hair, 'sleekpony');
+});
+
+test('500 random Love Island seasons all finish cleanly', () => {
+  const results: Record<string, number> = {};
+  let maxSteps = 0;
+  for (let n = 0; n < 500; n++) {
+    let s: Season | undefined;
+    let r = seasonAct(s, { a: 'start' });
+    s = r.season;
+    let steps = 0;
+    let aura = 0;
+    while (s!.phase !== 'over') {
+      assert.ok(++steps < 200, 'season got stuck');
+      const pend = s!.pending;
+      if (pend) {
+        const opts = pend.type === 'chat' || pend.type === 'hut' ? pend.tones : pend.type === 'game' ? ['win', 'lose'] : pend.options;
+        r = seasonAct(s, { a: 'answer', choice: opts[Math.floor(Math.random() * opts.length)] });
+      } else if (s!.phase === 'morning' && s!.actions > 0 && Math.random() < 0.8) {
+        r = Math.random() < 0.8 ? seasonAct(s, { a: 'chat', who: s!.cast[Math.floor(Math.random() * s!.cast.length)] }) : seasonAct(s, { a: 'hut' });
+      } else {
+        r = seasonAct(s, { a: 'firepit' });
+      }
+      assert.ok(r.ok, `action failed: ${r.msg} (phase ${s!.phase})`);
+      assert.ok(r.scene && r.scene.lines.length > 0, 'every action shows a scene');
+      aura += r.reward?.aura ?? 0;
+      s = r.season;
+      assert.ok(s!.day <= FINAL_DAY + 1);
+      for (const v of Object.values(s!.bonds)) assert.ok(v >= 0 && v <= 100);
+    }
+    maxSteps = Math.max(maxSteps, steps);
+    results[s!.result!] = (results[s!.result!] ?? 0) + 1;
+    assert.ok(aura > 0);
+  }
+  console.log('   results:', results, 'max steps', maxSteps);
+  assert.ok(results.won && results.runnerup && results.dumped, 'all endings are reachable');
+});
 console.log(`\n${n} tests passed`);

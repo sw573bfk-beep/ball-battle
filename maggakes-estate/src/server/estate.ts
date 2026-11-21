@@ -7,6 +7,7 @@ import {
   topFloor, zoneUnlocked, type Save,
 } from '../shared/save';
 import { ISLANDERS, npcAccepts, villaChallenge, winFinal } from '../shared/villa';
+import { seasonAct, type SeasonAction } from '../shared/season';
 import type { BoardRow, ClientMsg, PeerInfo, PeerPos, ServerMsg } from '../shared/protocol';
 
 interface Account { salt: string; hash: string; ver: number }
@@ -288,6 +289,7 @@ export class Estate extends DurableObject {
         return;
       }
       case 'final': await this.final(c); return;
+      case 'season': await this.season(c, m.act); return;
       case 'board': this.send(c, { t: 'board', rows: await this.board() }); return;
       case 'admin': await this.admin(c, m.action, String(m.target)); return;
     }
@@ -387,6 +389,23 @@ export class Estate extends DurableObject {
     }
     if (!lines.length) lines.push('Nobody chose anyone… the couples stay the same!');
     this.toZone('villa', { t: 'ceremonyResult', lines });
+  }
+
+  private async season(c: Conn, act: SeasonAction): Promise<void> {
+    if (!zoneUnlocked(c.save, 'villa')) { this.send(c, { t: 'toast', text: 'Reach the rooftop to unlock Love Island.' }); return; }
+    if (!act || !['start', 'chat', 'hut', 'evening', 'firepit', 'answer', 'status'].includes(act.a)) return;
+    const clean = { ...act } as SeasonAction & { who?: unknown; choice?: unknown };
+    if ('who' in clean) clean.who = String(clean.who).slice(0, 20);
+    if ('choice' in clean) clean.choice = String(clean.choice).slice(0, 20);
+    const res = seasonAct(c.save.villa.season, clean as SeasonAction);
+    c.save.villa.season = res.season;
+    if (res.reward) {
+      c.save.aura += res.reward.aura;
+      c.save.totalAura += res.reward.total;
+      if (res.reward.win) c.save.villa.wins += 1;
+    }
+    await this.saved(c, res.ok ? undefined : { ok: false, msg: res.msg ?? 'Not right now.' });
+    if (res.scene) this.send(c, { t: 'scene', scene: res.scene });
   }
 
   private async final(c: Conn): Promise<void> {

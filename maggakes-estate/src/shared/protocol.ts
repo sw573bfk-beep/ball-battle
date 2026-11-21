@@ -1,5 +1,6 @@
 import type { ZoneId } from './people';
 import type { Look, PlacedItem, Save } from './save';
+import type { Scene, SeasonAction } from './season';
 
 /** What a player looks like to everyone else. */
 export interface PeerInfo {
@@ -53,7 +54,8 @@ export type ClientMsg =
   | { t: 'final' }
   | { t: 'board' }
   | { t: 'admin'; action: 'vip' | 'unvip' | 'reset'; target: string }
-  | { t: 'room?'; owner: string };
+  | { t: 'room?'; owner: string }
+  | { t: 'season'; act: SeasonAction };
 
 export type ServerMsg =
   | { t: 'welcome'; save: Save; admin: boolean }
@@ -71,4 +73,5 @@ export type ServerMsg =
   | { t: 'ceremony'; endsAt: number; options: string[] }
   | { t: 'ceremonyResult'; lines: string[] }
   | { t: 'final'; winner: string; partner: string }
-  | { t: 'kicked'; reason: string };
+  | { t: 'kicked'; reason: string }
+  | { t: 'scene'; scene: Scene };

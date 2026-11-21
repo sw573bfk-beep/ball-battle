@@ -1,21 +1,12 @@
-import type { Look, Result, Save } from './save';
+import type { Result, Save } from './save';
+import type { Look } from './look';
 import { zoneUnlocked } from './save';
 
-/** Computer-controlled islanders so the villa is never empty. */
-export interface Islander {
-  name: string;
-  look: Look;
-  line: string;
-}
+import { CAST } from './season';
 
-export const ISLANDERS: Islander[] = [
-  { name: 'Kai', line: "I'm here to make friends and win challenges.", look: { body: 'boy', skin: '#c68660', hair: 'curly', hairColor: '#2b1d16', outfit: 'fit_beach' } },
-  { name: 'Sienna', line: "Honestly? I'm a loyal girl.", look: { body: 'girl', skin: '#f6cba8', hair: 'long', hairColor: '#e6c27a', outfit: 'fit_summer' } },
-  { name: 'Leo', line: "I'm a bit of a joker, not gonna lie.", look: { body: 'boy', skin: '#ffe0cc', hair: 'short', hairColor: '#a0673b', outfit: 'fit_white' } },
-  { name: 'Isla', line: 'Good vibes only in this villa!', look: { body: 'girl', skin: '#8d5a3b', hair: 'curly', hairColor: '#111111', outfit: 'fit_beach' } },
-  { name: 'Jayden', line: 'Gym, then pool, then firepit. Every day.', look: { body: 'boy', skin: '#e2a77f', hair: 'buzz', hairColor: '#111111', outfit: 'fit_gym' } },
-  { name: 'Mia', line: "I'll always be honest with you.", look: { body: 'girl', skin: '#e2a77f', hair: 'ponytail', hairColor: '#5a3825', outfit: 'fit_coastal' } },
-];
+/** Computer-controlled islanders (the season cast). */
+export interface Islander { name: string; look: Look; line: string }
+export const ISLANDERS: Islander[] = CAST.map((c) => ({ name: c.name, look: c.look, line: c.line }));
 
 export interface VillaChallenge {
   id: string;

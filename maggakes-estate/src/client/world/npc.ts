@@ -3,7 +3,7 @@ import { mat } from '../engine/props';
 import { Avatar } from '../engine/avatar';
 import { nameTexture } from '../engine/tex';
 import type { Zone } from './build';
-import { ISLANDERS } from '../../shared/villa';
+import { CAST, HOST, PERSONAS, islander } from '../../shared/season';
 
 export interface Wanderer {
   name: string;
@@ -13,11 +13,11 @@ export interface Wanderer {
   wait: number;
   speed: number;
   /** follow this point instead of wandering */
-  follow?: () => { x: number; z: number } | null;
+  follow?: () => { x: number; z: number; exact?: boolean; face?: number } | null;
   tick: (dt: number, t: number, moving: number) => void;
   line?: string;
   avatar?: Avatar;
-  kind: 'pet' | 'islander';
+  kind: 'pet' | 'islander' | 'host';
 }
 
 function pickTarget(zone: Zone, w: Wanderer, area?: (x: number, z: number) => boolean): void {
@@ -90,16 +90,27 @@ export function spawnPets(zone: Zone): Wanderer[] {
   return out;
 }
 
-export function spawnIslanders(zone: Zone): Wanderer[] {
-  return ISLANDERS.map((isl) => {
-    const av = new Avatar(isl.look, isl.name, false, 'Islander');
-    const w: Wanderer = { name: isl.name, obj: av.root, x: 0, z: 0, ry: 0, tx: 0, tz: 0, wait: Math.random() * 3, speed: 1.4, avatar: av, line: isl.line, kind: 'islander', tick: () => {} };
-    pickTarget(zone, w);
-    w.x = w.tx; w.z = w.tz;
-    av.root.position.set(w.x, 0, w.z);
-    zone.root.add(av.root);
-    return w;
-  });
+/** Spawns season islanders. `at` lets a bombshell make an entrance from a spot. */
+export function spawnIslander(zone: Zone, name: string, at?: { x: number; z: number }): Wanderer | null {
+  const isl = islander(name) ?? CAST.find((c) => c.name === name);
+  if (!isl) return null;
+  const per = PERSONAS[isl.persona];
+  const av = new Avatar(isl.look, isl.name, false, `${per.emoji} ${per.label}`);
+  const w: Wanderer = { name: isl.name, obj: av.root, x: 0, z: 0, ry: 0, tx: 0, tz: 0, wait: Math.random() * 3, speed: 1.3, avatar: av, line: isl.line, kind: 'islander', tick: () => {} };
+  if (at) { w.x = at.x; w.z = at.z; pickTarget(zone, w); w.wait = 0; }
+  else { pickTarget(zone, w); w.x = w.tx; w.z = w.tz; }
+  av.root.position.set(w.x, 0, w.z);
+  zone.root.add(av.root);
+  return w;
+}
+
+export function spawnHost(zone: Zone, x: number, z: number, ry: number): Wanderer {
+  const av = new Avatar(HOST.look, HOST.name, false, '🎤 Your host', 'mic');
+  const w: Wanderer = { name: HOST.name, obj: av.root, x, z, ry, tx: x, tz: z, wait: 1e9, speed: 0, avatar: av, line: 'Islaaanders!', kind: 'host', tick: () => {} };
+  av.root.position.set(x, 0, z);
+  av.root.rotation.y = ry;
+  zone.root.add(av.root);
+  return w;
 }
 
 export function updateWanderers(list: Wanderer[], zone: Zone, dt: number, t: number): void {
@@ -107,9 +118,11 @@ export function updateWanderers(list: Wanderer[], zone: Zone, dt: number, t: num
     const f = w.follow?.();
     if (f) {
       const dx = f.x - w.x, dz = f.z - w.z;
-      if (Math.hypot(dx, dz) > 2.2) { w.tx = f.x - dx * 0.3; w.tz = f.z - dz * 0.3; w.wait = 0; }
+      if (f.exact) { if (Math.hypot(dx, dz) > 0.25) { w.tx = f.x; w.tz = f.z; w.wait = 0; } else if (f.face !== undefined) w.ry = f.face; }
+      else if (Math.hypot(dx, dz) > 2.2) { w.tx = f.x - dx * 0.3; w.tz = f.z - dz * 0.3; w.wait = 0; }
     }
     let moving = 0;
+    if (w.kind === 'host') { w.avatar?.update(dt, t, 0, 'walk'); continue; }
     if (w.wait > 0) {
       w.wait -= dt;
     } else {
@@ -118,6 +131,7 @@ export function updateWanderers(list: Wanderer[], zone: Zone, dt: number, t: num
       if (d < 0.15) {
         w.wait = f ? 0.3 : 2 + Math.random() * 5;
         if (!f) pickTarget(zone, w);
+        else if (f && Math.hypot(f.x - w.x, f.z - w.z) < 0.6) w.wait = 0.5;
       } else {
         const step = Math.min(d, w.speed * (f ? 1.8 : 1) * dt);
         const nx = w.x + (dx / d) * step, nz = w.z + (dz / d) * step;

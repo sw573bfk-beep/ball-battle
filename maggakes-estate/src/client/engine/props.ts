@@ -1024,10 +1024,15 @@ function neon(o: Opts): Prop {
   const text = String(o.text ?? '♥');
   const col = c(o, 'color', '#ff4fa3');
   const w = o.w ?? Math.max(0.8, text.length * 0.42);
-  const tex = textTexture(text, { color: '#ffffff', glow: col, w: 512, h: 256, size: 190 });
+  // Short signs use a 2:1 canvas, long ones 4:1, with the font sized to fit.
+  const long = [...text].length > 4;
+  const cw = long ? 1024 : 512;
+  const size = Math.min(190, Math.floor((cw * 0.92) / Math.max(1, [...text].length * 0.62)));
+  const tex = textTexture(text, { color: '#ffffff', glow: col, w: cw, h: 256, size });
   const m = new THREE.MeshStandardMaterial({ map: tex, color: col, emissive: col, emissiveMap: tex, emissiveIntensity: 6, transparent: true, depthWrite: false });
-  plane(g, w, w * 0.5, m, 0, o.y ?? 1.8, 0.02);
-  box(g, w, w * 0.5, 0.02, glass('#ffffff', 0.08), 0, (o.y ?? 1.8) - w * 0.25, 0);
+  const hgt = w * (256 / cw);
+  plane(g, w, hgt, m, 0, o.y ?? 1.8, 0.02);
+  box(g, w, hgt, 0.02, glass('#ffffff', 0.08), 0, (o.y ?? 1.8) - hgt / 2, 0);
   return { obj: g };
 }
 
@@ -1271,6 +1276,217 @@ function stand(o: Opts): Prop {
   return { obj: g, solid: { w: 0.55, d: 0.55 } };
 }
 
+// ------------------------------------------------------------- villa
+
+function eggChair(o: Opts): Prop {
+  const g = G();
+  const rattan = mat('#c9a06a', 0.85);
+  cyl(g, 0.3, 0.35, 0.05, mat('#e9e2d8', 0.6), 0, 0, 0, 24);
+  cyl(g, 0.02, 0.02, 2.0, GOLD(), 0, 0, -0.35, 8);
+  const arm = box(g, 0.04, 0.04, 0.5, GOLD(), 0, 1.98, -0.12);
+  arm.castShadow = false;
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.48, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.72), rattan);
+  shell.rotation.x = -Math.PI / 2 - 0.4;
+  shell.position.set(0, 1.12, 0.05);
+  shell.scale.set(1, 1, 1.25);
+  (shell.material as THREE.Material).side = THREE.DoubleSide;
+  add(g, shell);
+  rbox(g, 0.5, 0.14, 0.45, mat(c(o, 'color', '#ffffff'), 0.95), 0, 0.82, 0.12, 0.07);
+  rbox(g, 0.32, 0.3, 0.1, mat(c(o, 'accent', '#ff6f91'), 0.95), 0, 0.95, -0.12, 0.05);
+  return { obj: g, solid: { w: 0.8, d: 0.8 } };
+}
+
+function daybed(o: Opts): Prop {
+  const g = G();
+  const w = o.w ?? 2.2;
+  rbox(g, w, 0.35, 1.8, mat('#e9e2d8', 0.7), 0, 0, 0, 0.06);
+  rbox(g, w - 0.1, 0.18, 1.7, mat(c(o, 'color', '#ffffff'), 0.95), 0, 0.35, 0, 0.08);
+  rbox(g, w, 0.55, 0.22, mat('#e9e2d8', 0.7), 0, 0.35, -0.8, 0.06);
+  const cols = [c(o, 'accent', '#ff6f91'), '#ffd23f', '#4fd1c5', '#ffffff'];
+  for (let i = 0; i < 4; i++) rbox(g, 0.42, 0.38, 0.14, mat(cols[i % 4], 0.95), -w / 2 + 0.35 + i * (w - 0.7) / 3, 0.5, -0.6, 0.07);
+  return { obj: g, solid: { w, d: 1.8 } };
+}
+
+function festoon(o: Opts): Prop {
+  const g = G();
+  const len = o.len ?? 8;
+  for (const x of [-len / 2, len / 2]) {
+    cyl(g, 0.05, 0.06, 3.4, mat('#4a3426', 0.8), x, 0, 0, 8);
+    cyl(g, 0.12, 0.14, 0.15, mat('#d9cfc2', 0.8), x, 0, 0, 12);
+  }
+  const bulbs = new THREE.Group();
+  const n = Math.round(len * 2.5);
+  const wire: THREE.Vector3[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = -len / 2 + t * len;
+    const y = 3.35 - Math.sin(t * Math.PI) * 0.7;
+    wire.push(new THREE.Vector3(x, y, 0));
+    if (i > 0 && i < n) {
+      const b = sph(bulbs, 0.055, glow(i % 3 === 0 ? '#ffd9a0' : '#fff1c9', 5), x, y - 0.08, 0, 0.8, 1.1, 0.8);
+      b.castShadow = false;
+    }
+  }
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(wire), 40, 0.01, 4), mat('#222', 0.6));
+  g.add(tube);
+  g.add(bulbs);
+  return { obj: g };
+}
+
+function tikiTorch(): Prop {
+  const g = G();
+  cyl(g, 0.03, 0.04, 1.6, mat('#8a6a4a', 0.9), 0, 0, 0, 6);
+  cyl(g, 0.09, 0.06, 0.22, mat('#b07a4f', 0.9), 0, 1.55, 0, 10);
+  const flames: THREE.Sprite[] = [];
+  for (let i = 0; i < 4; i++) {
+    const f = sprite(glowTexture(), 0.4, i % 2 ? 0xff8a2a : 0xffc860, true);
+    f.position.set(0, 1.85 + i * 0.06, 0);
+    g.add(f);
+    flames.push(f);
+  }
+  return {
+    obj: g, solid: { w: 0.2, d: 0.2 },
+    tick: (t) => flames.forEach((f, i) => { const k = (t * 2.2 + i * 0.27) % 1; f.position.y = 1.78 + k * 0.35; f.scale.setScalar(0.42 * (1 - k) + 0.08); f.material.opacity = 1 - k; }),
+  };
+}
+
+function flamingo(o: Opts): Prop {
+  const g = G();
+  const pink = mat(c(o, 'color', '#ff8fb8'), 0.35);
+  const ring = torus(g, 0.55, 0.2, pink, 0, 0, 0);
+  ring.rotation.x = Math.PI / 2;
+  const neck = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, -0.5), new THREE.Vector3(0, 0.5, -0.65), new THREE.Vector3(0, 0.95, -0.45), new THREE.Vector3(0, 1.0, -0.25)]), 20, 0.09, 10), pink);
+  add(g, neck);
+  sph(g, 0.15, pink, 0, 1.0, -0.22);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 8), mat('#222', 0.4));
+  beak.rotation.x = Math.PI / 2 + 0.4;
+  beak.position.set(0, 0.95, -0.06);
+  add(g, beak);
+  for (const x of [-0.07, 0.07]) sph(g, 0.025, mat('#111', 0.2), x, 1.05, -0.12);
+  const base = o.y ?? -0.1;
+  return { obj: g, tick: (t) => { g.position.y = base + Math.sin(t * 1.3) * 0.04; g.rotation.y = Math.sin(t * 0.2) * 0.6; } };
+}
+
+function hutChair(o: Opts): Prop {
+  const g = G();
+  const rattan = mat('#b98a52', 0.8);
+  rbox(g, 0.8, 0.45, 0.7, rattan, 0, 0, 0, 0.08);
+  const back = new THREE.Mesh(new THREE.CircleGeometry(0.95, 40, 0, Math.PI), rattan);
+  back.position.set(0, 0.5, -0.32);
+  (back.material as THREE.Material).side = THREE.DoubleSide;
+  add(g, back);
+  torus(g, 0.95, 0.04, mat('#8a6236', 0.8), 0, 0.5, -0.31, Math.PI);
+  rbox(g, 0.72, 0.14, 0.6, mat(c(o, 'color', '#ff6f91'), 0.95), 0, 0.45, 0.02, 0.06);
+  rbox(g, 0.5, 0.4, 0.12, mat('#ffffff', 0.95), 0, 0.6, -0.26, 0.06);
+  return { obj: g, solid: { w: 1.2, d: 0.8 } };
+}
+
+function camera(): Prop {
+  const g = G();
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const leg = cyl(g, 0.015, 0.015, 1.4, BLACKMETAL(), Math.cos(a) * 0.25, 0, Math.sin(a) * 0.25, 6);
+    leg.rotation.set(Math.sin(a) * 0.2, 0, -Math.cos(a) * 0.2);
+  }
+  rbox(g, 0.3, 0.22, 0.4, BLACKMETAL(), 0, 1.35, 0, 0.03);
+  cyl(g, 0.08, 0.09, 0.2, mat('#111', 0.2, 0.5), 0, 1.46, 0.28, 16).rotation.x = Math.PI / 2;
+  const rec = sph(g, 0.025, glow('#ff2030', 4), 0.1, 1.6, 0.1);
+  rec.castShadow = false;
+  return { obj: g, solid: { w: 0.5, d: 0.5 } };
+}
+
+function podium(): Prop {
+  const g = G();
+  rbox(g, 0.7, 1.05, 0.5, mat('#ffffff', 0.3), 0, 0, 0, 0.05);
+  box(g, 0.74, 0.04, 0.54, GOLD(), 0, 1.05, 0);
+  const heart = plane(g, 0.42, 0.42, new THREE.MeshStandardMaterial({ map: textTexture('♥', { color: '#ffffff', glow: '#ff2d75', w: 256, h: 256, size: 220 }), color: '#ff2d75', emissive: '#ff2d75', emissiveIntensity: 4, transparent: true }), 0, 0.6, 0.26);
+  heart.castShadow = false;
+  return { obj: g, solid: { w: 0.7, d: 0.5 } };
+}
+
+function stage(o: Opts): Prop {
+  const g = G();
+  const w = o.w ?? 8;
+  rbox(g, w, 0.5, 3, mat('#1d1b26', 0.4, 0.3), 0, 0, 0, 0.05);
+  const edge = box(g, w + 0.02, 0.06, 0.06, glow('#ff3df0', 4), 0, 0.46, 1.5);
+  edge.castShadow = false;
+  box(g, w * 0.7, 2.6, 0.2, BLACKMETAL(), 0, 0.5, -1.2);
+  const screen = plane(g, w * 0.66, 2.3, new THREE.MeshStandardMaterial({ map: textTexture(String(o.text ?? '♥ CHALLENGE ♥'), { color: '#ffffff', bg: '#ff2d75', w: 1024, h: 360, size: 120 }), emissive: '#ffffff', emissiveIntensity: 0.9, emissiveMap: textTexture(String(o.text ?? '♥ CHALLENGE ♥'), { color: '#ffffff', bg: '#ff2d75', w: 1024, h: 360, size: 120 }) }), 0, 1.95, -1.09);
+  screen.castShadow = false;
+  return { obj: g, solid: { w, d: 3 } };
+}
+
+function flowerArch(): Prop {
+  const g = G();
+  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(-1.4, 0, 0), new THREE.Vector3(-1.4, 2.2, 0), new THREE.Vector3(0, 3.1, 0), new THREE.Vector3(1.4, 2.2, 0), new THREE.Vector3(1.4, 0, 0)]);
+  add(g, new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.06, 8), mat('#ffffff', 0.5)));
+  const cols = ['#ff6f91', '#ffffff', '#ffb3c9', '#ffd23f', '#c77dff'];
+  for (let i = 0; i < 70; i++) {
+    const p = curve.getPoint(Math.random());
+    const leaf = i % 3 === 0;
+    const m = sph(g, leaf ? 0.12 : 0.09, leaf ? LEAF() : mat(cols[i % cols.length], 0.6), p.x + (Math.random() - 0.5) * 0.2, p.y + (Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.25);
+    m.castShadow = false;
+  }
+  return { obj: g };
+}
+
+function lantern(o: Opts): Prop {
+  const g = G();
+  const h = o.h ?? 0.6;
+  rbox(g, 0.3, 0.04, 0.3, mat('#2a2a2a', 0.5), 0, 0, 0, 0.01);
+  for (const [x, z] of [[-0.13, -0.13], [0.13, -0.13], [-0.13, 0.13], [0.13, 0.13]]) box(g, 0.02, h, 0.02, mat('#2a2a2a', 0.5), x, 0, z);
+  box(g, 0.26, h - 0.05, 0.26, glass('#fff3d6', 0.35), 0, 0.03, 0);
+  const flame = sph(g, 0.05, glow('#ffb347', 5), 0, h * 0.45, 0, 0.8, 1.4, 0.8);
+  flame.castShadow = false;
+  rbox(g, 0.3, 0.06, 0.3, mat('#2a2a2a', 0.5), 0, h, 0, 0.02);
+  return { obj: g };
+}
+
+function hammock(): Prop {
+  const g = G();
+  for (const x of [-1.6, 1.6]) cyl(g, 0.06, 0.07, 1.6, mat('#8a6a4a', 0.9), x, 0, 0, 8);
+  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(-1.55, 1.4, 0), new THREE.Vector3(0, 0.65, 0), new THREE.Vector3(1.55, 1.4, 0)]);
+  const net = new THREE.Mesh(new THREE.TubeGeometry(curve, 30, 0.38, 3, false), mat('#ffffff', 0.95));
+  net.scale.z = 0.1;
+  net.rotation.x = 0;
+  add(g, net);
+  rbox(g, 0.5, 0.12, 0.3, mat('#ff6f91', 0.95), 0, 0.78, 0, 0.05);
+  return { obj: g, solid: { w: 3.3, d: 0.6 } };
+}
+
+function telescope(): Prop {
+  const g = G();
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const leg = cyl(g, 0.012, 0.012, 1.1, GOLD(), Math.cos(a) * 0.2, 0, Math.sin(a) * 0.2, 6);
+    leg.rotation.set(Math.sin(a) * 0.18, 0, -Math.cos(a) * 0.18);
+  }
+  const tube = cyl(g, 0.07, 0.05, 0.9, mat('#1b3a5c', 0.3, 0.5), 0, 1.05, 0, 16);
+  tube.rotation.x = -0.9;
+  return { obj: g, solid: { w: 0.45, d: 0.45 } };
+}
+
+function floorCushions(): Prop {
+  const g = G();
+  const cols = ['#ff6f91', '#ffd23f', '#4fd1c5', '#ffffff', '#c77dff', '#ff9f1c'];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    rbox(g, 0.6, 0.18, 0.6, mat(cols[i], 0.95), Math.cos(a) * 0.9, 0, Math.sin(a) * 0.9, 0.08, a);
+  }
+  rug({ round: true, w: 2.6, color: '#f2e6cf' }).obj.children.forEach((m) => g.add(m.clone()));
+  return { obj: g };
+}
+
+function volleyNet(): Prop {
+  const g = G();
+  for (const x of [-4, 4]) cyl(g, 0.05, 0.05, 2.4, mat('#ffffff', 0.5), x, 0, 0, 8);
+  const net = plane(g, 8, 0.9, new THREE.MeshStandardMaterial({ color: '#222', transparent: true, opacity: 0.45, side: THREE.DoubleSide, wireframe: false }), 0, 1.95, 0);
+  net.castShadow = false;
+  box(g, 8, 0.06, 0.02, mat('#ffffff', 0.5), 0, 2.37, 0);
+  sph(g, 0.12, mat('#ffffff', 0.5), 1.5, 0.12, 1.5);
+  return { obj: g, solid: { w: 8.2, d: 0.2 } };
+}
+
 /** Icon used for a task or action station. */
 export function stationMarker(emoji: string, color: string): Prop {
   const g = G();
@@ -1309,6 +1525,8 @@ export const PROPS: Record<string, (o: Opts) => Prop> = {
   pillar, carwash: carWash, storage,
   teddy, beanbag, lavalamp: lavaLamp, fairylights: fairyLights, shark, surfboard, trident, gamingchair: gamingChair,
   recordplayer: recordPlayer, discoball: discoBall, aquarium, statue, minifridge: miniFridge, books, stand,
+  eggchair: eggChair, daybed, festoon, tikitorch: tikiTorch, flamingo, hutchair: hutChair, camera, podium, stage, arch: flowerArch,
+  lantern, hammock, telescope, cushions: floorCushions, volleynet: volleyNet,
 };
 
 export function makeProp(type: string, o: Opts = {}): Prop {

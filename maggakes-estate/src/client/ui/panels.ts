@@ -1,12 +1,13 @@
 import { h, sheet, toast, fill } from './dom';
 import { SHOP, CAR_PAINTS, shopItem, type ShopCat, type ShopItem } from '../../shared/shop';
 import { ALL_ZONES, FLOORS, TASK_AURA, floorById, zoneName, zoneNeed } from '../../shared/floors';
-import { HAIR_COLORS, HAIR_STYLES, SKINS, VIP_DAILY, canEnter, dailyFor, floorDone, zoneUnlocked, type Look, type Save } from '../../shared/save';
+import { HAIR_COLORS, SKINS, VIP_DAILY, canEnter, dailyFor, floorDone, zoneUnlocked, type Look, type Save } from '../../shared/save';
 import type { BoardRow } from '../../shared/protocol';
 import type { ZoneId } from '../../shared/people';
 import { findResident } from '../../shared/people';
 import type { Net } from '../net';
 import type { Quality } from '../engine/gfx';
+import { BEARDS, BUILDS, EYE_COLORS, HAIR, HEIGHTS, LIP_COLORS, normalizeLook } from '../../shared/look';
 
 export interface Ctx {
   save: () => Save;
@@ -72,7 +73,7 @@ export function openShop(ctx: Ctx, startTab: ShopCat = 'outfit'): void {
 
 export function openWardrobe(ctx: Ctx, opts: { villa?: boolean; onSaved?: () => void } = {}): void {
   const s0 = ctx.save();
-  const look: Look = { ...(opts.villa && s0.villa.look ? s0.villa.look : s0.look) };
+  const look: Look = normalizeLook({ ...(opts.villa && s0.villa.look ? s0.villa.look : s0.look) });
   if (opts.villa && !s0.villa.look) look.outfit = 'fit_villa';
   let saved = false;
   const body = h('div.wardrobe');
@@ -91,8 +92,13 @@ export function openWardrobe(ctx: Ctx, opts: { villa?: boolean; onSaved?: () => 
     fill(body, 
       h('section', {}, h('h4', {}, 'Avatar'), h('div.row', {}, chip(look.body === 'girl', '👧 Girl', () => { look.body = 'girl'; }), chip(look.body === 'boy', '👦 Boy', () => { look.body = 'boy'; }))),
       h('section', {}, h('h4', {}, 'Skin'), h('div.row', {}, ...SKINS.map((c) => sw(look.skin === c, c, () => { look.skin = c; })))),
-      h('section', {}, h('h4', {}, 'Hair'), h('div.row', {}, ...HAIR_STYLES.map((st) => chip(look.hair === st, st[0].toUpperCase() + st.slice(1), () => { look.hair = st; })))),
+      h('section', {}, h('h4', {}, 'Build'), h('div.row', {}, ...BUILDS.map((b) => chip(look.build === b.id, b.label, () => { look.build = b.id; })))),
+      h('section', {}, h('h4', {}, 'Height'), h('div.row', {}, ...HEIGHTS.map((b) => chip(look.height === b.id, b.label, () => { look.height = b.id; })))),
+      h('section', {}, h('h4', {}, 'Hairstyle'), h('div.row', {}, ...[...HAIR].sort((a, b) => Number(b.for === look.body) - Number(a.for === look.body)).map((st) => chip(look.hair === st.id, st.label, () => { look.hair = st.id; })))),
       h('section', {}, h('h4', {}, 'Hair colour'), h('div.row', {}, ...HAIR_COLORS.map((c) => sw(look.hairColor === c, c, () => { look.hairColor = c; })))),
+      h('section', {}, h('h4', {}, 'Eyes'), h('div.row', {}, ...EYE_COLORS.map((c) => sw(look.eyes === c, c, () => { look.eyes = c; })))),
+      h('section', {}, h('h4', {}, 'Lips'), h('div.row', {}, ...[...LIP_COLORS, '#b07a6e'].map((c) => sw(look.lips === c, c, () => { look.lips = c; })))),
+      look.body === 'boy' ? h('section', {}, h('h4', {}, 'Facial hair'), h('div.row', {}, ...BEARDS.map((b) => chip(look.beard === b.id, b.label, () => { look.beard = b.id; })))) : null,
       h('section', {}, h('h4', {}, 'Outfit'), h('div.row', {}, ...outfits.map((i) => chip(look.outfit === i.id, `${i.emoji} ${i.name}`, () => { look.outfit = i.id; })))),
       slotRow('glasses', 'Sunglasses'), slotRow('bag', 'Handbag'), slotRow('jewel', 'Jewellery'), slotRow('hat', 'Hat'), slotRow('perfume', 'Perfume (sparkle trail)'),
       h('div.actions', {}, h('button.btn.big', {
