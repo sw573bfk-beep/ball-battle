@@ -279,3 +279,21 @@ section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter
 .season-stats > div { background: #fff; border-radius: 14px; padding: 8px 10px; border: 2px solid #f3e6ee; }
 .season-stats small { display: block; font-size: 11px; color: #8a7b8d; text-transform: uppercase; letter-spacing: .05em; }
 #tasklist li.next { color: #c2185b; font-weight: 700; }
+
+/* ---------- Accounts ---------- */
+#menu button { position: relative; }
+.badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: #ff2d55; color: #fff; font-style: normal; font-size: 12px; font-weight: 800; line-height: 20px; box-shadow: 0 2px 6px rgba(255, 45, 85, .5); animation: pop .3s; }
+.accounts section h4 { margin-top: 6px; }
+.acct { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 14px; background: #fff; border: 2px solid #f3e6ee; margin-bottom: 6px; flex-wrap: wrap; }
+.acct.pend { border-color: #ffd23f; background: #fffbea; }
+.acct.banned { opacity: .6; }
+.acct-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.acct-main b { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.acct-main small { font-size: 12px; }
+.acct-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: #efe3f5; color: #6a4e7a; }
+.tag.adm { background: #e3ecff; color: #2b4ea8; }
+.tag.vipt { background: #fff1c2; color: #8a6400; }
+.tag.ban { background: #ffe0e0; color: #b02a2a; }
+#login .pending-box { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+#login .pending-box .big { font-size: 56px; }

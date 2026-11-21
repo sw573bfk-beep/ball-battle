@@ -13,8 +13,11 @@ import type { Net } from './net';
 import { h, sheet, toast, confetti, closeAllSheets, $, fill } from './ui/dom';
 import { choiceGame, holdGame, sequenceGame, simonGame, timingGame } from './ui/minigames';
 import { openBoard, openDaily, openGarage, openMap, openSettings, openShop, openWardrobe, nextGoal, taskList, type Ctx } from './ui/panels';
-import { findResident, type ZoneId } from '../shared/people';
-import { floorById, zoneName, type TaskDef } from '../shared/floors';
+import type { ZoneId } from '../shared/people';
+import { setResidences, getResidences } from './world/layouts';
+import { openAccounts } from './ui/accounts';
+import type { AccountRow, Residence } from '../shared/protocol';
+import { ALL_ZONES, floorById, zoneName, type TaskDef } from '../shared/floors';
 import { canEnter, zoneUnlocked, ROOM_LIMIT, type Look, type PlacedItem, type Save } from '../shared/save';
 import { SHOP, shopItem } from '../shared/shop';
 import { ISLANDERS, VILLA_CHALLENGES } from '../shared/villa';
@@ -88,7 +91,12 @@ export class Game {
   private transitioning = false;
   ctx: Ctx;
 
-  constructor(host: HTMLElement, save: Save, admin: boolean, public net: Net, private signOut: () => void) {
+  pending = 0;
+  private accountListeners = new Set<(r: AccountRow[]) => void>();
+
+  constructor(host: HTMLElement, save: Save, admin: boolean, public net: Net, private signOut: () => void, residences: Residence[] = [], pending = 0) {
+    setResidences(residences);
+    this.pending = pending;
     this.save = save;
     this.admin = admin;
     const q = (localStorage.getItem('quality') as Quality) || (matchMedia('(pointer: coarse)').matches ? 'medium' : 'high');
@@ -114,9 +122,22 @@ export class Game {
     this.input.onKey = (k) => this.onKey(k);
     this.bindHud();
     this.renderHud();
-    const start = canEnter(save, save.lastZone) ? save.lastZone : findResident(save.name)?.home ?? 'f1';
+    const start = canEnter(save, save.lastZone) && this.zoneExists(save.lastZone) ? save.lastZone : save.home?.zone ?? 'f1';
     this.travel(start, true);
     this.loop();
+  }
+
+  private zoneExists(z: ZoneId): boolean {
+    return ALL_ZONES.includes(z) || getResidences().some((r) => r.zone === z);
+  }
+
+  /** Shows the accounts button (VIPs + admins) with a badge for sign-ups waiting. */
+  renderBadge(): void {
+    const btn = $('#b-accounts');
+    btn.style.display = this.admin || this.save.vip ? '' : 'none';
+    const badge = btn.querySelector('.badge') as HTMLElement;
+    badge.textContent = this.pending > 0 ? String(this.pending) : '';
+    badge.style.display = this.admin && this.pending > 0 ? '' : 'none';
   }
 
   /** Called when the connection drops and comes back. */
@@ -310,6 +331,20 @@ export class Game {
       }
       case 'room': this.buildDecor(m.owner, m.items); return;
       case 'board': this.boardListeners.forEach((f) => f(m.rows)); return;
+      case 'accounts': this.accountListeners.forEach((f) => f(m.rows)); return;
+      case 'world': {
+        setResidences(m.residences);
+        if (this.zoneId.startsWith('r')) toast('🏠 Someone new moved into the mansion!');
+        this.saveListeners.forEach((f) => f());
+        return;
+      }
+      case 'role': {
+        this.admin = m.admin;
+        this.ctx.admin = m.admin;
+        this.pending = m.pending;
+        this.renderBadge();
+        return;
+      }
       case 'scene': showScene(m.scene, (choice) => this.seasonAct({ a: 'answer', choice }), this.save.villa.season); return;
       case 'coupleAsk': this.coupleAsk(m.from); return;
       case 'ceremony': this.ceremony(m.endsAt, m.options); return;
@@ -596,8 +631,8 @@ export class Game {
       }
       if (best) acts.push((best as { a: Action }).a);
       if (this.zoneId === 'park') acts.push({ key: 'drive', label: '🚗 Drive', run: () => this.startDriving() });
-      const home = findResident(this.save.name);
-      if (home && home.home === this.zoneId) {
+      const home = this.save.home;
+      if (home && home.zone === this.zoneId) {
         const b = roomBox(this.zone, home.room);
         if (b && this.pos.x > b.x0 && this.pos.x < b.x1 && this.pos.y > b.z0 && this.pos.y < b.z1) acts.push({ key: 'decor', label: '🖼️ Decorate my room', run: () => this.startDecor() });
       }
@@ -671,9 +706,9 @@ export class Game {
         const need = task.count ?? 1;
         if (this.save.room.length >= need) finish(true);
         else {
-          const home = findResident(this.save.name);
-          sheet(task.label, h('div.mg', {}, h('p', {}, task.hint), h('p.muted', {}, `You have ${this.save.room.length} placed. Go to your bedroom on ${home ? zoneName(home.home) : 'your floor'} and press “Decorate my room”.`),
-            h('div.actions', {}, home ? h('button.btn', { onclick: () => { closeAllSheets(); this.travel(home.home); } }, '🛗 Take me home') : null)));
+          const home = this.save.home;
+          sheet(task.label, h('div.mg', {}, h('p', {}, task.hint), h('p.muted', {}, `You have ${this.save.room.length} placed. Go to your bedroom on ${home ? zoneName(home.zone) : 'your floor'} and press “Decorate my room”.`),
+            h('div.actions', {}, home ? h('button.btn', { onclick: () => { closeAllSheets(); this.travel(home.zone); } }, '🛗 Take me home') : null)));
         }
         break;
       }
@@ -815,8 +850,8 @@ export class Game {
 
   private buildDecor(owner: string, items: PlacedItem[]): void {
     if (!this.zone) return;
-    const res = findResident(owner);
-    if (!res || res.home !== this.zoneId) return;
+    // The server only sends decorations for bedrooms on the floor you're on.
+    if (!this.zone) return;
     this.decorGroups.get(owner)?.removeFromParent();
     const g = new THREE.Group();
     for (const it of items) {
@@ -834,7 +869,7 @@ export class Game {
   }
 
   private startDecor(): void {
-    const res = findResident(this.save.name)!;
+    const res = this.save.home!;
     const box = roomBox(this.zone!, res.room)!;
     this.decor = { items: this.save.room.map((i) => ({ ...i })), pick: null, ghost: null, rot: this.ry + Math.PI, box };
     this.camDist = Math.max(this.camDist, 12);
@@ -1091,6 +1126,7 @@ export class Game {
     btn('#b-daily', () => openDaily(this.ctx));
     btn('#b-board', () => openBoard(this.ctx));
     btn('#b-settings', () => openSettings(this.ctx));
+    btn('#b-accounts', () => openAccounts({ net: this.net, admin: () => this.admin, me: this.save.name, onAccounts: (fn) => { this.accountListeners.add(fn); return () => this.accountListeners.delete(fn); } }));
     btn('#b-emote', () => $('#emotes').classList.toggle('on'));
     btn('#b-tasks', () => $('#hud').classList.toggle('collapsed'));
     document.querySelectorAll<HTMLButtonElement>('#emotes button').forEach((b) => {
@@ -1117,6 +1153,7 @@ export class Game {
   }
 
   renderHud(): void {
+    this.renderBadge();
     const s = this.save;
     const goal = nextGoal(s);
     fill($('#who'), h('b', {}, s.vip ? `⭐ ${s.name}` : s.name), s.vip ? h('span.vip', {}, 'VIP') : null);

@@ -1,5 +1,5 @@
 import type { ZoneId } from './people';
-import { RESIDENTS, findResident } from './people';
+import { RESIDENTS, findResident, type Home } from './people';
 import { ALL_ZONES, FLOORS, REPLAY_AURA, TASK_AURA, floorById, zoneNeed } from './floors';
 import { FREE_ITEMS, shopItem, type WearSlot } from './shop';
 
@@ -45,6 +45,8 @@ export interface Save {
   daily: DailyState;
   villa: VillaState;
   lastZone: ZoneId;
+  /** Your own bedroom (founders have fixed ones; newcomers get one when approved). */
+  home?: Home;
 }
 
 
@@ -67,7 +69,9 @@ export function today(now = Date.now()): string {
   return new Date(now + 10 * 3600_000).toISOString().slice(0, 10);
 }
 
-export function newSave(name: string): Save {
+export function newSave(name: string, home?: Home): Save {
+  const founder = findResident(name);
+  home ??= founder ? { zone: founder.home, room: founder.room } : undefined;
   const inventory: Record<string, number> = {};
   for (const id of FREE_ITEMS) inventory[id] = 1;
   return {
@@ -83,7 +87,8 @@ export function newSave(name: string): Save {
     car: 'car_hatch',
     daily: { date: today(), stats: {}, claimed: [] },
     villa: { points: 0, wins: 0, cooldowns: {} },
-    lastZone: findResident(name)?.home ?? 'b',
+    lastZone: home?.zone ?? 'f1',
+    home,
   };
 }
 
@@ -96,7 +101,7 @@ export function zoneUnlocked(save: Save, zone: ZoneId): boolean {
 /** Your home floor is always open so you can get to your own bedroom. */
 export function canEnter(save: Save, zone: ZoneId): boolean {
   if (zoneUnlocked(save, zone)) return true;
-  return findResident(save.name)?.home === zone;
+  return save.home?.zone === zone;
 }
 
 /** The highest floor the player has unlocked (for the leaderboard). */
@@ -261,10 +266,12 @@ export function claimDaily(save: Save, id: string): Result {
 
 /** Upgrades older saves so new fields always exist. */
 export function migrate(raw: Partial<Save> & { name: string }): Save {
-  const base = newSave(raw.name);
+  const founder = findResident(raw.name);
+  const base = newSave(raw.name, founder ? { zone: founder.home, room: founder.room } : raw.home);
   const s = { ...base, ...raw } as Save;
   s.villa = { ...base.villa, ...(raw.villa ?? {}) };
   s.daily = raw.daily ?? base.daily;
+  if (founder) s.home = { zone: founder.home, room: founder.room };
   s.look = normalizeLook(s.look);
   if (s.villa.look) s.villa.look = normalizeLook(s.villa.look);
   for (const id of FREE_ITEMS) if (!s.inventory[id]) s.inventory[id] = 1;

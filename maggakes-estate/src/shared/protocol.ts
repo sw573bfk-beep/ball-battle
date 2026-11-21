@@ -1,4 +1,4 @@
-import type { ZoneId } from './people';
+import type { Home, ZoneId } from './people';
 import type { Look, PlacedItem, Save } from './save';
 import type { Scene, SeasonAction } from './season';
 
@@ -33,6 +33,28 @@ export interface BoardRow {
   hasPassword: boolean;
 }
 
+/** A residence floor and who lives there (room a, room b). */
+export interface Residence { zone: ZoneId; owners: { name: string; room: string }[] }
+
+export type AccountStatus = 'pending' | 'approved' | 'banned';
+
+/** One row in the accounts list (visible to VIPs and admins). */
+export interface AccountRow {
+  name: string;
+  status: AccountStatus;
+  admin: boolean;
+  vip: boolean;
+  online: boolean;
+  founder: boolean;
+  totalAura: number;
+  home?: Home;
+  created: number;
+  lastSeen: number;
+  hasPassword: boolean;
+}
+
+export type AdminAction = 'vip' | 'unvip' | 'reset' | 'ban' | 'unban' | 'approve' | 'reject' | 'admin' | 'unadmin';
+
 export type ClientMsg =
   | { t: 'zone'; zone: ZoneId }
   | { t: 'pos'; x: number; z: number; ry: number; a: number }
@@ -53,12 +75,16 @@ export type ClientMsg =
   | { t: 'pick'; who: string }
   | { t: 'final' }
   | { t: 'board' }
-  | { t: 'admin'; action: 'vip' | 'unvip' | 'reset'; target: string }
+  | { t: 'admin'; action: AdminAction; target: string }
+  | { t: 'accounts' }
   | { t: 'room?'; owner: string }
   | { t: 'season'; act: SeasonAction };
 
 export type ServerMsg =
-  | { t: 'welcome'; save: Save; admin: boolean }
+  | { t: 'welcome'; save: Save; admin: boolean; residences: Residence[]; pending: number }
+  | { t: 'world'; residences: Residence[] }
+  | { t: 'accounts'; rows: AccountRow[] }
+  | { t: 'role'; admin: boolean; pending: number }
   | { t: 'save'; save: Save }
   | { t: 'toast'; text: string; good?: boolean }
   | { t: 'peers'; zone: ZoneId; list: PeerInfo[] }

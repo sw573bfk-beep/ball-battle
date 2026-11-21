@@ -8,26 +8,19 @@ decorating your own bedroom. When you reach the rooftop, **Love Island Mode** un
 
 ## Who can play
 
-Only the residents can sign in (any capitalisation). Anyone else is kicked at the door:
+**Anyone can make an account** — they pick a username (3–16 letters, numbers or _) and a password.
+New accounts wait until an **admin approves** them. Admins see a red badge on the 👥 **Admin** button
+and approve or reject from the Accounts page. Every two approved newcomers get a brand-new
+**Residence floor** with two bedrooms they can decorate.
 
-| Resident | Bedroom | Estate manager (gives VIP, resets passwords) |
-| --- | --- | --- |
-| Phoebe | Basement (brainrot room) | |
-| Serena | Basement (beachy room) | |
-| Beau | 1st floor, Guest Bedroom 1 | ✅ |
-| Keola | 4th floor (67 + ocean room) | ✅ |
-| Jess | 4th floor (concert room) | |
-| Ava | 5th floor (coastal + vinyls) | |
-| Grace | 5th floor (music room) | |
-| Charis | 6th floor | |
-| Gabby | 6th floor | |
-| Milla | 7th floor (private floor) | ✅ |
+- **Admins:** Beau (main admin — only Beau can ban, demote or reset Beau), Keola and Milla.
+  Admins can approve/reject sign-ups, give/remove VIP, reset passwords, ban/unban and make other admins.
+- **VIPs** can see every account but can't change anything.
+- Passwords are scrambled (hashed) — nobody can read them, only reset them.
 
-The first time a name signs in, that person makes their own password (at least 4 characters).
-If someone forgets it, Beau, Milla or Keola can press **Reset password** on the leaderboard,
-and the person makes a new one next time.
-
-To change the list, edit `src/shared/people.ts`.
+The 10 original residents keep their bedrooms on the original floor plan:
+Phoebe & Serena (Basement), Beau (1st floor guest room), Keola & Jess (4th), Ava & Grace (5th),
+Charis & Gabby (6th), Milla (7th).
 
 ## How it plays
 

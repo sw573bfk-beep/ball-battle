@@ -1,13 +1,14 @@
 import { buildZone } from './build';
 import { ALL_ZONES } from '../../shared/floors';
-import { LAYOUTS } from './layouts';
+import { getLayout } from './layouts';
+import type { ZoneId } from '../../shared/people';
 
 /** Debug check: every room, door and station must be reachable on foot. */
 export function checkZones(): string[] {
   const problems: string[] = [];
-  for (const id of ALL_ZONES) {
+  for (const id of [...ALL_ZONES, 'r1' as ZoneId]) {
     const z = buildZone(id);
-    const L = LAYOUTS[id];
+    const L = getLayout(id);
     const R = 0.3, step = 0.25;
     const ox = -L.w / 2, oz = -L.d / 2;
     const free = (x: number, zz: number) => {
@@ -55,9 +56,9 @@ export function checkZones(): string[] {
 }
 
 /** Debug: colliders within r of a floor-plan point. */
-export function near(id: (typeof ALL_ZONES)[number], px: number, pz: number, r = 1.5): string[] {
+export function near(id: ZoneId, px: number, pz: number, r = 1.5): string[] {
   const z = buildZone(id);
-  const L = LAYOUTS[id];
+  const L = getLayout(id);
   const x = px - L.w / 2, zz = pz - L.d / 2;
   return z.colliders.filter((c) => x + r > c.x0 && x - r < c.x1 && zz + r > c.z0 && zz - r < c.z1)
     .map((c) => `${(c.x0 + L.w / 2).toFixed(2)},${(c.z0 + L.d / 2).toFixed(2)} → ${(c.x1 + L.w / 2).toFixed(2)},${(c.z1 + L.d / 2).toFixed(2)}`);

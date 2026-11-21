@@ -4,7 +4,8 @@ import { ALL_ZONES, FLOORS, TASK_AURA, floorById, zoneName, zoneNeed } from '../
 import { HAIR_COLORS, SKINS, VIP_DAILY, canEnter, dailyFor, floorDone, zoneUnlocked, type Look, type Save } from '../../shared/save';
 import type { BoardRow } from '../../shared/protocol';
 import type { ZoneId } from '../../shared/people';
-import { findResident } from '../../shared/people';
+import { isResidence, residenceNumber } from '../../shared/people';
+import { getResidences } from '../world/layouts';
 import type { Net } from '../net';
 import type { Quality } from '../engine/gfx';
 import { BEARDS, BUILDS, EYE_COLORS, HAIR, HEIGHTS, LIP_COLORS, normalizeLook } from '../../shared/look';
@@ -121,22 +122,26 @@ export function openWardrobe(ctx: Ctx, opts: { villa?: boolean; onSaved?: () => 
 
 export function openMap(ctx: Ctx): void {
   const body = h('div.map');
-  const order: ZoneId[] = ['villa', 'f8', 'f7', 'f6', 'f5', 'f4', 'f3', 'f2', 'f1', 'b', 'park'];
   const render = () => {
     const s = ctx.save();
+    const res = getResidences();
+    const order: ZoneId[] = ['villa', ...res.map((r) => r.zone).reverse(), 'f8', 'f7', 'f6', 'f5', 'f4', 'f3', 'f2', 'f1', 'b', 'park'];
     fill(body, ...order.map((z) => {
       const here = ctx.zone() === z;
       const open = canEnter(s, z);
       const unlocked = zoneUnlocked(s, z);
       const f = floorById(z);
-      const home = findResident(s.name)?.home === z;
+      const home = s.home?.zone === z;
       let status: string;
-      if (!open) status = `🔒 Needs ${fmt(zoneNeed(z))} Total Aura (${fmt(Math.max(0, zoneNeed(z) - s.totalAura))} to go)`;
+      if (isResidence(z)) {
+        const who = res.find((r) => r.zone === z)?.owners.map((o) => o.name) ?? [];
+        status = `🏠 ${home ? 'Your floor! ' : ''}Bedrooms: ${who.join(' & ') || 'empty'}`;
+      } else if (!open) status = `🔒 Needs ${fmt(zoneNeed(z))} Total Aura (${fmt(Math.max(0, zoneNeed(z) - s.totalAura))} to go)`;
       else if (!unlocked && home) status = '🏠 Your home floor — tasks unlock later';
       else if (f && f.tasks.length) status = `${floorDone(s, z) === 5 ? '✅' : '📝'} ${floorDone(s, z)}/5 tasks done`;
       else status = z === 'villa' ? '💘 Love Island Mode unlocked!' : z === 'b' ? '🆓 Free level' : '🚗 Your car collection';
       return h('div.flr' + (open ? '' : '.locked') + (here ? '.here' : '') + (z === 'villa' ? '.villa' : ''), {},
-        h('div.lvl', {}, z === 'villa' ? '♥' : z === 'park' ? 'P' : f?.short ?? '?'),
+        h('div.lvl', {}, z === 'villa' ? '♥' : z === 'park' ? 'P' : isResidence(z) ? `R${residenceNumber(z)}` : f?.short ?? '?'),
         h('div.info', {}, h('b', {}, zoneName(z)), h('small', {}, status), f?.blurb ? h('small.muted', {}, f.blurb) : null),
         here ? h('span.pill', {}, 'You are here') : h('button.btn' + (open ? '' : '.ghost'), { disabled: !open, onclick: () => { close(); ctx.travel(z); } }, open ? 'Go ▸' : '🔒'));
     }));

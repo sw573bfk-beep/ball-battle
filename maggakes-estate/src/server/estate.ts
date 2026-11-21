@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { RESIDENTS, findResident, type ZoneId } from '../shared/people';
+import { RESIDENTS, checkUsername, isResidence, residenceHome, residenceNumber, type Home, type ZoneId } from '../shared/people';
 import { ALL_ZONES } from '../shared/floors';
 import { CAR_PAINTS, SHOP, shopItem } from '../shared/shop';
 import {
@@ -8,10 +8,13 @@ import {
 } from '../shared/save';
 import { ISLANDERS, npcAccepts, villaChallenge, winFinal } from '../shared/villa';
 import { seasonAct, type SeasonAction } from '../shared/season';
-import type { BoardRow, ClientMsg, PeerInfo, PeerPos, ServerMsg } from '../shared/protocol';
+import type { AccountRow, AccountStatus, AdminAction, BoardRow, ClientMsg, PeerInfo, PeerPos, Residence, ServerMsg } from '../shared/protocol';
 
 interface Account { salt: string; hash: string; ver: number }
 interface Token { name: string; ver: number; exp: number }
+interface Profile { name: string; status: AccountStatus; admin: boolean; founder: boolean; home?: Home; created: number; lastSeen: number }
+
+const MAX_PENDING = 50;
 
 interface Conn {
   ws: WebSocket;
@@ -31,9 +34,21 @@ export class Estate extends DurableObject {
   private fails = new Map<string, { n: number; until: number }>();
   private ceremony: { endsAt: number; picks: Map<string, string> } | null = null;
   private lastCeremony = 0;
+  /** All accounts, by lowercase name. */
+  private profiles = new Map<string, Profile>();
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never);
+    // Load accounts; make sure the 10 founders exist (Beau, Keola and Milla are admins).
+    ctx.blockConcurrencyWhile(async () => {
+      for (const [, p] of await ctx.storage.list<Profile>({ prefix: 'prof:' })) this.profiles.set(p.name.toLowerCase(), p);
+      for (const r of RESIDENTS) {
+        if (this.profiles.has(r.name.toLowerCase())) continue;
+        const p: Profile = { name: r.name, status: 'approved', admin: !!r.admin, founder: true, home: { zone: r.home, room: r.room }, created: Date.now(), lastSeen: 0 };
+        this.profiles.set(r.name.toLowerCase(), p);
+        await ctx.storage.put(`prof:${r.name.toLowerCase()}`, p);
+      }
+    });
     // One-time grants. Each runs once ever (a flag is stored), so admins can still remove VIP later.
     ctx.blockConcurrencyWhile(async () => {
       if (await ctx.storage.get('grant:vip-keola-milla')) return;
@@ -73,41 +88,73 @@ export class Estate extends DurableObject {
 
   // ------------------------------------------------------------- sign in
 
+  private profile(name: string): Profile | undefined {
+    return this.profiles.get(String(name).trim().toLowerCase());
+  }
+
+  private async putProfile(p: Profile): Promise<void> {
+    this.profiles.set(p.name.toLowerCase(), p);
+    await this.ctx.storage.put(`prof:${p.name.toLowerCase()}`, p);
+  }
+
+  private pendingCount(): number {
+    return [...this.profiles.values()].filter((p) => p.status === 'pending').length;
+  }
+
   private async check(body: { name?: string }) {
-    const r = findResident(String(body.name ?? ''));
-    if (!r) return { kicked: true };
-    const acct = await this.ctx.storage.get<Account>(`acct:${r.name}`);
-    return { name: r.name, hasPassword: !!acct };
+    const raw = String(body.name ?? '');
+    const p = this.profile(raw);
+    if (p) {
+      if (p.status === 'banned') return { banned: true };
+      const acct = await this.ctx.storage.get<Account>(`acct:${p.name}`);
+      return { name: p.name, hasPassword: !!acct, status: p.status };
+    }
+    const v = checkUsername(raw);
+    if (!v.ok) return { invalid: v.reason };
+    return { name: v.name, isNew: true };
   }
 
   private async login(body: { name?: string; password?: string }) {
-    const r = findResident(String(body.name ?? ''));
-    if (!r) return { kicked: true };
+    const raw = String(body.name ?? '');
     const password = String(body.password ?? '');
-    const f = this.fails.get(r.name);
+    let p = this.profile(raw);
+    if (p?.status === 'banned') return { banned: true };
+    const key = p?.name ?? raw.trim();
+    const f = this.fails.get(key.toLowerCase());
     if (f && f.until > Date.now()) {
       return { error: `Too many wrong passwords. Wait ${Math.ceil((f.until - Date.now()) / 1000)} seconds.` };
     }
-    let acct = await this.ctx.storage.get<Account>(`acct:${r.name}`);
-    let firstTime = false;
+    let created = false;
+    if (!p) {
+      const v = checkUsername(raw);
+      if (!v.ok) return { error: v.reason };
+      if (this.pendingCount() >= MAX_PENDING) return { error: 'Lots of people are waiting to be approved right now. Try again later!' };
+      p = { name: v.name, status: 'pending', admin: false, founder: false, created: Date.now(), lastSeen: 0 };
+      created = true;
+    }
+    let acct = await this.ctx.storage.get<Account>(`acct:${p.name}`);
     if (!acct) {
       if (password.length < 4) return { error: 'Make a password with at least 4 characters.' };
       if (password.length > 64) return { error: 'That password is too long.' };
       const salt = randomHex(16);
-      const prev = await this.ctx.storage.get<number>(`ver:${r.name}`) ?? 0;
+      const prev = await this.ctx.storage.get<number>(`ver:${p.name}`) ?? 0;
       acct = { salt, hash: await hashPassword(password, salt), ver: prev + 1 };
-      await this.ctx.storage.put(`acct:${r.name}`, acct);
-      await this.ctx.storage.put(`ver:${r.name}`, acct.ver);
-      firstTime = true;
+      await this.ctx.storage.put(`acct:${p.name}`, acct);
+      await this.ctx.storage.put(`ver:${p.name}`, acct.ver);
     } else if (!timingSafeEqual(await hashPassword(password, acct.salt), acct.hash)) {
       const n = (f?.n ?? 0) + 1;
-      this.fails.set(r.name, { n, until: n >= 5 ? Date.now() + 60_000 : 0 });
+      this.fails.set(key.toLowerCase(), { n, until: n >= 5 ? Date.now() + 60_000 : 0 });
       return { error: 'Wrong password.' };
     }
-    this.fails.delete(r.name);
+    this.fails.delete(key.toLowerCase());
+    if (created) {
+      await this.putProfile(p);
+      this.notifyAdmins(`🆕 ${p.name} just signed up and is waiting for approval.`);
+    }
+    if (p.status === 'pending') return { pending: true, name: p.name };
     const token = randomHex(24);
-    await this.ctx.storage.put<Token>(`tok:${token}`, { name: r.name, ver: acct.ver, exp: Date.now() + TOKEN_DAYS * 86400_000 });
-    return { token, name: r.name, firstTime };
+    await this.ctx.storage.put<Token>(`tok:${token}`, { name: p.name, ver: acct.ver, exp: Date.now() + TOKEN_DAYS * 86400_000 });
+    return { token, name: p.name };
   }
 
   private async tokenName(token: string): Promise<string | null> {
@@ -116,7 +163,30 @@ export class Estate extends DurableObject {
     if (!t || t.exp < Date.now()) return null;
     const acct = await this.ctx.storage.get<Account>(`acct:${t.name}`);
     if (!acct || acct.ver !== t.ver) return null;
+    if (this.profile(t.name)?.status !== 'approved') return null;
     return t.name;
+  }
+
+  /** Residence floors and who lives on them. */
+  private residences(): Residence[] {
+    const map = new Map<string, Residence>();
+    for (const p of this.profiles.values()) {
+      if (!p.home || !isResidence(p.home.zone)) continue;
+      const r = map.get(p.home.zone) ?? { zone: p.home.zone, owners: [] };
+      r.owners.push({ name: p.name, room: p.home.room });
+      map.set(p.home.zone, r);
+    }
+    return [...map.values()].sort((a, b) => residenceNumber(a.zone) - residenceNumber(b.zone));
+  }
+
+  private notifyAdmins(text?: string): void {
+    const pending = this.pendingCount();
+    for (const c of this.conns.values()) {
+      const p = this.profile(c.name);
+      if (!p?.admin) continue;
+      this.send(c, { t: 'role', admin: true, pending });
+      if (text) this.send(c, { t: 'toast', text, good: true });
+    }
   }
 
   // ------------------------------------------------------------- saves
@@ -125,7 +195,11 @@ export class Estate extends DurableObject {
     const live = this.conns.get(name);
     if (live) return live.save;
     const raw = await this.ctx.storage.get<Save>(`save:${name}`);
-    return raw ? migrate(raw) : newSave(name);
+    const home = this.profile(name)?.home;
+    if (!raw) return newSave(name, home);
+    const s = migrate(raw);
+    if (home && !s.home) s.home = home;
+    return s;
   }
 
   private async store(save: Save): Promise<void> {
@@ -155,7 +229,8 @@ export class Estate extends DurableObject {
     rollDaily(save);
     const conn: Conn = { ws: server, name, save, zone: null, pos: { name, x: 0, z: 0, ry: 0, a: 0 }, car: null, lastChat: 0 };
     this.conns.set(name, conn);
-    this.send(conn, { t: 'welcome', save, admin: !!findResident(name)?.admin });
+    const prof = this.profile(name);
+    this.send(conn, { t: 'welcome', save, admin: !!prof?.admin, residences: this.residences(), pending: prof?.admin ? this.pendingCount() : 0 });
 
     server.addEventListener('message', (ev) => {
       let msg: ClientMsg;
@@ -170,6 +245,8 @@ export class Estate extends DurableObject {
 
   private drop(conn: Conn): void {
     this.conns.delete(conn.name);
+    const p = this.profile(conn.name);
+    if (p) { p.lastSeen = Date.now(); this.putProfile(p).catch(() => {}); }
     if (conn.zone) this.toZone(conn.zone, { t: 'gone', name: conn.name }, conn.name);
     this.store(conn.save).catch(() => {});
   }
@@ -199,7 +276,7 @@ export class Estate extends DurableObject {
   private async handle(c: Conn, m: ClientMsg): Promise<void> {
     switch (m.t) {
       case 'zone': {
-        if (!ALL_ZONES.includes(m.zone)) return;
+        if (!ALL_ZONES.includes(m.zone) && !(isResidence(m.zone) && this.residences().some((r) => r.zone === m.zone))) return;
         if (!canEnter(c.save, m.zone)) { this.send(c, { t: 'toast', text: 'That floor is still locked.' }); return; }
         if (c.zone) this.toZone(c.zone, { t: 'gone', name: c.name }, c.name);
         c.zone = m.zone;
@@ -210,9 +287,9 @@ export class Estate extends DurableObject {
         this.send(c, { t: 'peers', zone: m.zone, list: list.map((o) => this.info(o)) });
         for (const o of list) this.send(c, { t: 'pos', p: o.pos });
         this.toZone(m.zone, { t: 'peer', info: this.info(c) }, c.name);
-        for (const r of RESIDENTS.filter((r) => r.home === m.zone)) {
-          const s = await this.load(r.name);
-          this.send(c, { t: 'room', owner: r.name, items: s.room });
+        for (const p of [...this.profiles.values()].filter((p) => p.home?.zone === m.zone && p.status !== 'banned')) {
+          const s = await this.load(p.name);
+          this.send(c, { t: 'room', owner: p.name, items: s.room });
         }
         await this.saved(c);
         return;
@@ -264,13 +341,13 @@ export class Estate extends DurableObject {
       case 'room': {
         const r = placeItems(c.save, Array.isArray(m.items) ? m.items : []);
         await this.saved(c, r.ok ? undefined : r);
-        const home = findResident(c.name)?.home;
+        const home = c.save.home?.zone;
         if (r.ok && home) this.toZone(home, { t: 'room', owner: c.name, items: c.save.room });
         return;
       }
       case 'room?': {
-        const r = findResident(String(m.owner));
-        if (r) this.send(c, { t: 'room', owner: r.name, items: (await this.load(r.name)).room });
+        const p = this.profile(String(m.owner));
+        if (p) this.send(c, { t: 'room', owner: p.name, items: (await this.load(p.name)).room });
         return;
       }
       case 'stat': {
@@ -305,6 +382,7 @@ export class Estate extends DurableObject {
       case 'season': await this.season(c, m.act); return;
       case 'board': this.send(c, { t: 'board', rows: await this.board() }); return;
       case 'admin': await this.admin(c, m.action, String(m.target)); return;
+      case 'accounts': await this.sendAccounts(c); return;
     }
   }
 
@@ -441,36 +519,117 @@ export class Estate extends DurableObject {
 
   private async board(): Promise<BoardRow[]> {
     const rows: BoardRow[] = [];
-    const accts = await this.ctx.storage.get<Account>(RESIDENTS.map((r) => `acct:${r.name}`));
-    for (const r of RESIDENTS) {
-      const s = await this.load(r.name);
+    const people = [...this.profiles.values()].filter((p) => p.status === 'approved');
+    const accts = await this.ctx.storage.get<Account>(people.map((p) => `acct:${p.name}`));
+    for (const p of people) {
+      const s = await this.load(p.name);
       rows.push({
-        name: r.name, totalAura: s.totalAura, top: zoneUnlocked(s, 'f8') ? 'f8' : topFloor(s), vip: s.vip,
-        online: this.conns.has(r.name), villaWins: s.villa.wins, villaPoints: s.villa.points,
-        partner: s.villa.partner?.replace(/^npc:/, ''), hasPassword: accts.has(`acct:${r.name}`),
+        name: p.name, totalAura: s.totalAura, top: zoneUnlocked(s, 'f8') ? 'f8' : topFloor(s), vip: s.vip,
+        online: this.conns.has(p.name), villaWins: s.villa.wins, villaPoints: s.villa.points,
+        partner: s.villa.partner?.replace(/^npc:/, ''), hasPassword: accts.has(`acct:${p.name}`),
       });
     }
     return rows.sort((a, b) => b.totalAura - a.totalAura);
   }
 
-  private async admin(c: Conn, action: string, target: string): Promise<void> {
-    if (!findResident(c.name)?.admin) { this.send(c, { t: 'toast', text: 'Only Beau, Milla and Keola can do that.' }); return; }
-    const r = findResident(target);
-    if (!r) return;
-    if (action === 'vip' || action === 'unvip') {
-      const s = await this.load(r.name);
-      s.vip = action === 'vip';
-      await this.store(s);
-      this.pushSave(r.name);
-      this.send(c, { t: 'toast', text: `${r.name} ${s.vip ? 'is now VIP ⭐' : 'is no longer VIP'}`, good: true });
-      const t = this.conns.get(r.name);
-      if (t && s.vip) this.send(t, { t: 'toast', text: `⭐ ${c.name} gave you VIP access!`, good: true });
-    } else if (action === 'reset') {
-      await this.ctx.storage.delete(`acct:${r.name}`);
-      this.send(c, { t: 'toast', text: `${r.name}'s password was reset. They can pick a new one next sign in.`, good: true });
-      const t = this.conns.get(r.name);
-      if (t && t !== c) { this.send(t, { t: 'kicked', reason: 'Your password was reset. Sign in to pick a new one.' }); t.ws.close(4003, 'reset'); }
+  /** Everyone, including people waiting for approval. VIPs and admins only. */
+  private async sendAccounts(c: Conn): Promise<void> {
+    const me = this.profile(c.name);
+    if (!me?.admin && !c.save.vip) { this.send(c, { t: 'toast', text: 'Only VIPs and admins can see all accounts.' }); return; }
+    const all = [...this.profiles.values()];
+    const accts = await this.ctx.storage.get<Account>(all.map((p) => `acct:${p.name}`));
+    const rows: AccountRow[] = [];
+    for (const p of all) {
+      const s = p.status === 'approved' ? await this.load(p.name) : null;
+      rows.push({
+        name: p.name, status: p.status, admin: p.admin, vip: !!s?.vip, online: this.conns.has(p.name), founder: p.founder,
+        totalAura: s?.totalAura ?? 0, home: p.home, created: p.created, lastSeen: this.conns.has(p.name) ? Date.now() : p.lastSeen,
+        hasPassword: accts.has(`acct:${p.name}`),
+      });
     }
+    const order: Record<AccountStatus, number> = { pending: 0, approved: 1, banned: 2 };
+    rows.sort((a, b) => order[a.status] - order[b.status] || Number(b.online) - Number(a.online) || b.totalAura - a.totalAura);
+    this.send(c, { t: 'accounts', rows });
+  }
+
+  private kick(name: string, reason: string): void {
+    const t = this.conns.get(name);
+    if (!t) return;
+    this.send(t, { t: 'kicked', reason });
+    try { t.ws.close(4003, 'kicked'); } catch { /* closed */ }
+  }
+
+  private async admin(c: Conn, action: AdminAction, target: string): Promise<void> {
+    const me = this.profile(c.name);
+    if (!me?.admin) { this.send(c, { t: 'toast', text: 'Only admins can do that.' }); return; }
+    const p = this.profile(target);
+    if (!p) return;
+    const say = (text: string) => this.send(c, { t: 'toast', text, good: true });
+    const self = p.name === me.name;
+    if (self && ['ban', 'unadmin', 'reject'].includes(action)) { this.send(c, { t: 'toast', text: "You can't do that to yourself." }); return; }
+    if (p.name === 'Beau' && me.name !== 'Beau' && ['ban', 'unadmin', 'reset'].includes(action)) { this.send(c, { t: 'toast', text: 'Only Beau can change the main admin.' }); return; }
+    switch (action) {
+      case 'approve': {
+        if (p.status !== 'pending') return;
+        const seq = (await this.ctx.storage.get<number>('resSeq')) ?? 0;
+        p.status = 'approved';
+        p.home = residenceHome(seq);
+        await this.ctx.storage.put('resSeq', seq + 1);
+        await this.putProfile(p);
+        const save = await this.load(p.name);
+        save.home = p.home;
+        save.lastZone = p.home.zone;
+        await this.store(save);
+        say(`✅ ${p.name} approved! Their bedroom is on Residence ${residenceNumber(p.home.zone)}.`);
+        const world: ServerMsg = { t: 'world', residences: this.residences() };
+        for (const o of this.conns.values()) this.send(o, world);
+        break;
+      }
+      case 'reject': {
+        if (p.status !== 'pending') return;
+        this.profiles.delete(p.name.toLowerCase());
+        await this.ctx.storage.delete([`prof:${p.name.toLowerCase()}`, `acct:${p.name}`, `save:${p.name}`]);
+        say(`${p.name}'s sign-up was rejected.`);
+        break;
+      }
+      case 'ban':
+        p.status = 'banned';
+        await this.putProfile(p);
+        this.kick(p.name, 'Your account has been banned by an admin.');
+        say(`⛔ ${p.name} is banned.`);
+        break;
+      case 'unban':
+        p.status = 'approved';
+        await this.putProfile(p);
+        say(`${p.name} is unbanned.`);
+        break;
+      case 'admin':
+      case 'unadmin':
+        p.admin = action === 'admin';
+        await this.putProfile(p);
+        say(`${p.name} ${p.admin ? 'is now an admin 🛡️' : 'is no longer an admin'}`);
+        if (this.conns.has(p.name)) this.send(this.conns.get(p.name)!, { t: 'role', admin: p.admin, pending: p.admin ? this.pendingCount() : 0 });
+        break;
+      case 'vip':
+      case 'unvip': {
+        if (p.status !== 'approved') return;
+        const s = await this.load(p.name);
+        s.vip = action === 'vip';
+        await this.store(s);
+        this.pushSave(p.name);
+        say(`${p.name} ${s.vip ? 'is now VIP ⭐' : 'is no longer VIP'}`);
+        const t = this.conns.get(p.name);
+        if (t && s.vip) this.send(t, { t: 'toast', text: `⭐ ${c.name} gave you VIP access!`, good: true });
+        break;
+      }
+      case 'reset':
+        await this.ctx.storage.delete(`acct:${p.name}`);
+        say(`${p.name}'s password was reset. They can pick a new one next sign in.`);
+        if (!self) this.kick(p.name, 'Your password was reset. Sign in to pick a new one.');
+        break;
+    }
+    this.notifyAdmins();
+    await this.sendAccounts(c);
     this.send(c, { t: 'board', rows: await this.board() });
   }
 }

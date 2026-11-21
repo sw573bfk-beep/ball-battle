@@ -1,4 +1,4 @@
-import type { ZoneId } from './people';
+import { isResidence, residenceNumber, type ZoneId } from './people';
 
 /** The kinds of mini-game a task can open. */
 export type TaskKind =
@@ -270,15 +270,18 @@ export function floorById(id: ZoneId): FloorDef | undefined {
 }
 
 export function zoneName(id: ZoneId): string {
+  if (isResidence(id)) return `Residence ${residenceNumber(id)}`;
   if (id === 'park') return PARK.name;
   if (id === 'villa') return VILLA.name;
   return floorById(id)?.name ?? id;
 }
 
 export function zoneNeed(id: ZoneId): number {
+  if (isResidence(id)) return 0;
   if (id === 'park') return PARK.need;
   if (id === 'villa') return VILLA.need;
   return floorById(id)?.need ?? Infinity;
 }
 
+/** The fixed zones. Residence floors (r1, r2, …) are added as people join. */
 export const ALL_ZONES: ZoneId[] = ['park', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'villa'];

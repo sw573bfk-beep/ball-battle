@@ -181,4 +181,29 @@ test('500 random Love Island seasons all finish cleanly', () => {
   console.log('   results:', results, 'max steps', maxSteps);
   assert.ok(results.won && results.runnerup && results.dumped, 'all endings are reachable');
 });
+
+
+import { checkUsername, residenceHome, isResidence } from '../src/shared/people';
+import { zoneName, zoneNeed } from '../src/shared/floors';
+
+test('usernames: 3-16 letters/numbers/_, no rude or reserved names', () => {
+  assert.ok(checkUsername('Coco_22').ok);
+  assert.equal(checkUsername('ab').ok, false);
+  assert.equal(checkUsername('has space').ok, false);
+  assert.equal(checkUsername('admin').ok, false);
+  assert.equal(checkUsername('xxshitxx').ok, false);
+  assert.equal(checkUsername('a'.repeat(17)).ok, false);
+});
+
+test('new players get 2 per residence floor, always open', () => {
+  assert.deepEqual(residenceHome(0), { zone: 'r1', room: 'a' });
+  assert.deepEqual(residenceHome(1), { zone: 'r1', room: 'b' });
+  assert.deepEqual(residenceHome(2), { zone: 'r2', room: 'a' });
+  assert.ok(isResidence('r12') && !isResidence('f1'));
+  assert.equal(zoneName('r3'), 'Residence 3');
+  assert.equal(zoneNeed('r3'), 0);
+  const s = newSave('Coco', residenceHome(4));
+  assert.ok(canEnter(s, 'r3'));
+  assert.equal(s.lastZone, 'r3');
+});
 console.log(`\n${n} tests passed`);

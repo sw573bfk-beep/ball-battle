@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { LAYOUTS, type Layout, type StationDef } from './layouts';
+import { getLayout, type Layout, type StationDef } from './layouts';
 import { makeProp, mat, glass, box, cyl, glow, type Prop } from '../engine/props';
 import { floorTexture, skylineTexture, textTexture, type FloorMat } from '../engine/tex';
 import { waterMaterial, clearWater } from '../engine/gfx';
@@ -38,7 +38,7 @@ const ROUGH: Partial<Record<FloorMat, number>> = { marble: 0.12, tile: 0.25, woo
 
 export function buildZone(id: ZoneId): Zone {
   clearWater();
-  const L = LAYOUTS[id];
+  const L = getLayout(id);
   const ox = -L.w / 2, oz = -L.d / 2;
   const root = new THREE.Group();
   const staticGroup = new THREE.Group();

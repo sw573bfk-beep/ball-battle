@@ -1,4 +1,5 @@
-import type { ZoneId } from '../../shared/people';
+import { isResidence, residenceNumber, type FixedZone, type ZoneId } from '../../shared/people';
+import type { Residence } from '../../shared/protocol';
 import type { FloorMat } from '../engine/tex';
 import { P, bedroomKit, ensuiteKit, label, on, wardrobeKit, type PropDef, type Rect } from './kit';
 
@@ -585,6 +586,64 @@ const villa: Layout = {
   tubs: [[41, 18.5, 1.3]],
 };
 
-export const LAYOUTS: Record<ZoneId, Layout> = {
+export const LAYOUTS: Record<FixedZone, Layout> = {
   b: basement, f1: floor1, f2: floor2, f3: floor3, f4: floor4, f5: floor5, f6: floor6, f7: floor7, f8: floor8, park, villa,
 };
+
+// ===================================================================== Residence floors
+// A new two-bedroom floor for every two approved newcomers.
+
+let residences: Residence[] = [];
+export function setResidences(r: Residence[]): void { residences = r; }
+export function getResidences(): Residence[] { return residences; }
+
+const THEMES = [
+  { bed: '#bfe3f2', accent: '#4fd1c5', rug: '#e6f6fb', wall: '#eaf7fb', posters: ['beach', 'sunset'] },
+  { bed: '#f7c6d9', accent: '#ff6f91', rug: '#ffe3ec', wall: '#fff0f5', posters: ['flower', 'star'] },
+  { bed: '#c9b7ff', accent: '#ffd23f', rug: '#ece4ff', wall: '#f3eeff', posters: ['music', 'vinyl'] },
+  { bed: '#2b6cff', accent: '#33e1ff', rug: '#d6e8ff', wall: '#e6efff', posters: ['ocean', 'sixseven'] },
+  { bed: '#ffd36e', accent: '#ff9f1c', rug: '#fff3d6', wall: '#fff8e8', posters: ['sunset', 'abstract'] },
+  { bed: '#141414', accent: '#ff3df0', rug: '#5c1a5e', wall: '#2a2236', posters: ['concert', 'star'] },
+] as const;
+
+export function getLayout(id: ZoneId): Layout {
+  if (!isResidence(id)) return LAYOUTS[id as FixedZone];
+  const n = residenceNumber(id);
+  const owners = residences.find((r) => r.zone === id)?.owners ?? [];
+  const who = (room: string) => owners.find((o) => o.room === room)?.name;
+  const ta = THEMES[(n * 2) % THEMES.length], tb = THEMES[(n * 2 + 1) % THEMES.length];
+  const R = {
+    a: [0, 0, 11, 10] as Rect, ward: [11, 0, 8, 14] as Rect, b: [19, 0, 11, 10] as Rect,
+    aEns: [0, 10, 6, 8] as Rect, hall: [6, 10, 5, 8] as Rect, strip: [11, 14, 8, 4] as Rect, bEns: [19, 10, 6, 8] as Rect, lounge: [25, 10, 5, 8] as Rect,
+  };
+  const name = (room: string) => (who(room) ? `${who(room)}'s Bedroom` : 'Empty Bedroom');
+  return {
+    id, w: 30, d: 18, mood: n % 2 ? 'golden' : 'day', exterior: 'glass', wall: '#f7f1ec', backdrop: 'city', storey: 8 + n,
+    rooms: [
+      { id: 'a', name: name('a'), r: R.a, floor: 'carpet', tint: ta.rug, wall: ta.wall },
+      { id: 'ward', name: 'Walk-in Wardrobe', r: R.ward, floor: 'wood' },
+      { id: 'b', name: name('b'), r: R.b, floor: 'carpet', tint: tb.rug, wall: tb.wall },
+      { id: 'aens', name: 'Ensuite', r: R.aEns, floor: 'tile' },
+      { id: 'hall', name: 'Hall', r: R.hall, floor: 'marble' },
+      { id: 'strip', name: 'Landing', r: R.strip, floor: 'marble' },
+      { id: 'bens', name: 'Ensuite', r: R.bEns, floor: 'tile' },
+      { id: 'lounge', name: 'Lounge', r: R.lounge, floor: 'wood' },
+    ],
+    open: [['hall', 'strip']],
+    doors: [[8.5, 10], [3, 10], [11, 2.5], [19, 2.5], [22, 10], [27.5, 10], [15, 14], [25, 14]],
+    props: [
+      ...bedroomKit(R.a, 'n', { bed: ta.bed, accent: ta.accent, frame: '#f6efe8', rug: ta.rug, posters: [...ta.posters] }),
+      P('label', 5.5, 8.2, 0, { text: name('a') }), P('plant', 10.4, 9.4, 0, { seed: n }),
+      ...bedroomKit(R.b, 'n', { bed: tb.bed, accent: tb.accent, frame: '#f6efe8', rug: tb.rug, posters: [...tb.posters] }),
+      P('label', 24.5, 8.2, 0, { text: name('b') }), P('plant', 19.6, 9.4, 0, { seed: n + 3 }),
+      ...wardrobeKit(R.ward, 'w'), ...wardrobeKit(R.ward, 'e'), on(R.ward, 'n', 0.5, 0.35, 'mirror'),
+      P('rug', 15, 7.5, 0, { round: true, w: 3, color: '#f3e6ee' }), P('label', 15, 12.4, 0, { text: `Residence ${n}` }),
+      ...ensuiteKit(R.aEns, 's'), ...ensuiteKit(R.bEns, 's'),
+      P('sofa', 27.5, 16.9, Math.PI, { w: 2.2, color: '#efe7dd', accent: tb.accent }), P('plant', 29.3, 10.7, 0, { seed: n + 5 }),
+      P('plant', 6.6, 17.3, 0, { kind: 'tall', seed: 5 }), P('plant', 18.4, 17.3, 0, { kind: 'tall', seed: 6 }),
+    ],
+    stations: [],
+    lift: [15, 17.75, Math.PI],
+    spawn: [15, 15.6],
+  };
+}
