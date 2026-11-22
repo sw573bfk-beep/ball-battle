@@ -21,8 +21,8 @@ import { openAdopt, openFun } from './ui/fun';
 import { openReportDialog, openReports, recentErrors } from './ui/report';
 import type { Report } from '../shared/protocol';
 import type { AccountRow, Residence } from '../shared/protocol';
-import { ALL_ZONES, floorById, zoneName, type TaskDef } from '../shared/floors';
-import { canEnter, zoneUnlocked, ROOM_LIMIT, type Look, type PlacedItem, type Save } from '../shared/save';
+import { ALL_ZONES, FLOORS, floorById, zoneName, type TaskDef } from '../shared/floors';
+import { canEnter, floorDone, zoneUnlocked, ROOM_LIMIT, type Look, type PlacedItem, type Save } from '../shared/save';
 import { SHOP, shopItem } from '../shared/shop';
 import { ISLANDERS, VILLA_CHALLENGES } from '../shared/villa';
 import type { BoardRow, PeerInfo, ServerMsg } from '../shared/protocol';
@@ -139,6 +139,26 @@ export class Game {
     this.loop();
   }
 
+  /** Where your Aura came from and went. */
+  openAuraHistory(): void {
+    const s = this.save;
+    const log = s.auraLog ?? [];
+    const when = (t: number) => {
+      const m = Math.round((Date.now() - t) / 60000);
+      return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+    };
+    sheet('💎 Your Aura', h('div.aurahist', {},
+      h('div.aura-explain', {},
+        h('div', {}, h('b', {}, `⭐ ${s.totalAura.toLocaleString('en-AU')} Total`), h('small', {}, 'Everything you\'ve ever earned from tasks, daily challenges and Love Island wins. It never goes down and unlocks floors (1,000 per floor).')),
+        h('div', {}, h('b', {}, `💎 ${s.aura.toLocaleString('en-AU')} Available`), h('small', {}, 'What you can spend in the shop. Replays, spins, shells, parties and games add to it. Buying things takes from it — but never from your Total.'))),
+      h('h4', {}, 'Recent changes'),
+      log.length ? h('ul.aura-log', {}, ...log.map((e) => h('li', {},
+        h('span.amt' + (e.d < 0 ? '.neg' : ''), {}, `${e.d >= 0 ? '+' : ''}${e.d.toLocaleString('en-AU')} 💎`),
+        e.t ? h('span.amt.tot', {}, `+${e.t.toLocaleString('en-AU')} ⭐`) : null,
+        h('span.why', {}, e.why), h('small.muted', {}, when(e.at))))) : h('p.muted', {}, 'Your Aura changes will show up here from now on.'),
+      h('p.muted', {}, '🐞 Something not adding up? Report it in ⚙️ More, or message Beau on Teams.')));
+  }
+
   openReport(): void {
     openReportDialog(this.net, () => this.reportInfo());
   }
@@ -152,6 +172,7 @@ export class Game {
       `aura: ${s.totalAura} total / ${s.aura} available`, `driving: ${!!this.car}`,
       se ? `season: day ${se.day}, phase ${se.phase}, pending ${se.pending ? se.pending.type : 'none'}, partner ${se.partner ?? 'none'}` : 'season: none',
       `villa partner: ${s.villa.partner ?? 'none'}`,
+      `aura history: ${(s.auraLog ?? []).slice(0, 8).map((e) => `${e.d >= 0 ? '+' : ''}${e.d}/${e.t ? '+' + e.t : '0'} ${e.why}`).join(' | ') || 'none'}`,
       `screen: ${innerWidth}x${innerHeight}`, `device: ${navigator.userAgent}`,
       recentErrors.length ? `recent errors:\n${recentErrors.join('\n')}` : 'recent errors: none',
     ].join('\n');
@@ -192,6 +213,8 @@ export class Game {
     this.net.send({ t: 'zone', zone: this.zoneId });
     this.renderHud();
     this.buildMarkers();
+    this.fun.onSave();
+    this.saveListeners.forEach((f) => f());
   }
 
   // ================================================================== zones
@@ -801,11 +824,10 @@ export class Game {
     this.cancelCollect();
     const zone = this.zone!;
     for (let i = 0; i < n; i++) {
-      let x = 0, z = 0;
-      for (let k = 0; k < 80; k++) {
-        x = (Math.random() - 0.5) * zone.half.w * 1.9; z = (Math.random() - 0.5) * zone.half.d * 1.9;
-        if (zone.walkable(x, z, 0.5) && Math.hypot(x - this.pos.x, z - this.pos.y) > 3) break;
-      }
+      // Only hide items where you can actually walk to.
+      const ok = zone.spots.filter((p) => zone.walkable(p.x, p.z, 0.45) && Math.hypot(p.x - this.pos.x, p.z - this.pos.y) > 3 && !this.pickups.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 2.5));
+      const pick = ok[Math.floor(Math.random() * ok.length)] ?? zone.spots[Math.floor(Math.random() * zone.spots.length)] ?? { x: this.pos.x + 1, z: this.pos.y };
+      const x = pick.x, z = pick.z;
       const s = sprite(emojiTexture(emoji), 0.75);
       const glowS = sprite(glowTexture(), 1.4, 0xfff2a8, true);
       glowS.position.y = -0.1;
@@ -1253,6 +1275,8 @@ export class Game {
       h('div.stat', { title: 'Total Aura Earned — unlocks floors and never goes down' }, h('span', {}, '⭐'), h('b', {}, s.totalAura.toLocaleString('en-AU')), h('small', {}, 'Total')),
       h('div.stat', { title: 'Available Aura — spend it in the shop' }, h('span', {}, '💎'), h('b', {}, s.aura.toLocaleString('en-AU')), h('small', {}, 'Available')),
     );
+    $('#aura').onclick = () => this.openAuraHistory();
+    $('#aura').title = 'Tap to see your Aura history';
     fill($('#goal'), h('div.bar', {}, h('i', { style: { width: `${Math.round(goal.frac * 100)}%` } })), h('small', {}, goal.text));
     const zEl = $('#zonename');
     zEl.textContent = zoneName(this.zoneId);
@@ -1273,6 +1297,12 @@ export class Game {
       fill(list, ...(tasks.length
         ? tasks.map((t) => h('li' + (t.done ? '.done' : ''), {}, `${t.done ? '✅' : unlocked ? '⬜' : '🔒'} ${t.label}`))
         : [h('li', {}, this.zoneId === 'b' ? '🆓 Free level — explore and decorate!' : this.zoneId === 'park' ? '🚗 Drive your cars and visit the garage' : '')]));
+      // Point the way to the next floor with tasks left to do.
+      const here = tasks.length && unlocked && tasks.some((t) => !t.done);
+      if (!here) {
+        const next = FLOORS.find((f) => f.tasks.length && zoneUnlocked(s, f.id) && floorDone(s, f.id) < f.tasks.length);
+        if (next) list.append(h('li.next', {}, h('button.mini', { onclick: () => this.travel(next.id) }, `👉 Next tasks: ${next.name.split(' – ')[0]} ▸`)));
+      }
     }
     const room = this.zone && roomAt(this.zone, this.pos.x, this.pos.y);
     void room;

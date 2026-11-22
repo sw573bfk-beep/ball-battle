@@ -31,6 +31,10 @@ export interface Zone {
   half: { w: number; d: number };
   /** Walkable test grid for spawning pickups. */
   walkable: (x: number, z: number, r?: number) => boolean;
+  /** True if you can actually get to this spot on foot from the lift. */
+  reach: (x: number, z: number) => boolean;
+  /** Reachable open spots (not in pools), for hiding pickups. */
+  spots: { x: number; z: number }[];
 }
 
 const WALL_H = 3.0;
@@ -220,6 +224,48 @@ export function buildZone(id: ZoneId): Zone {
   root.add(staticGroup);
   mergeStatic(staticGroup);
 
+  // Flood-fill from the lift so pickups are never hidden somewhere you can't get to.
+  const RS = 0.5, R = 0.34;
+  const rw = Math.ceil(L.w / RS), rd = Math.ceil(L.d / RS);
+  const reached = new Uint8Array(rw * rd);
+  const free = (x: number, z: number) => {
+    if (Math.abs(x) > L.w / 2 - R || Math.abs(z) > L.d / 2 - R) return false;
+    if (cell(Math.floor((x - ox) / RES), Math.floor((z - oz) / RES)) < 0) return false;
+    for (const c of colliders) if (x + R > c.x0 && x - R < c.x1 && z + R > c.z0 && z - R < c.z1) return false;
+    return true;
+  };
+  const ci = (x: number, z: number) => [Math.floor((x - ox) / RS), Math.floor((z - oz) / RS)];
+  {
+    const lx = W(L.lift[0]) + Math.sin(L.lift[2]) * 1.8, lz = Z(L.lift[1]) + Math.cos(L.lift[2]) * 1.8;
+    const starts = [[lx, lz], [W(L.spawn[0]), Z(L.spawn[1])]];
+    const q: number[] = [];
+    for (const [sx, sz] of starts) {
+      const [i, j] = ci(sx, sz);
+      if (i >= 0 && j >= 0 && i < rw && j < rd && free(sx, sz) && !reached[j * rw + i]) { reached[j * rw + i] = 1; q.push(i, j); }
+    }
+    while (q.length) {
+      const j = q.pop()!, i = q.pop()!;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const a = i + di, b = j + dj;
+        if (a < 0 || b < 0 || a >= rw || b >= rd || reached[b * rw + a]) continue;
+        if (!free(ox + (a + 0.5) * RS, oz + (b + 0.5) * RS)) continue;
+        reached[b * rw + a] = 1;
+        q.push(a, b);
+      }
+    }
+  }
+  const reach = (x: number, z: number) => {
+    const [i, j] = ci(x, z);
+    return i >= 0 && j >= 0 && i < rw && j < rd && !!reached[j * rw + i];
+  };
+  const spots: { x: number; z: number }[] = [];
+  for (let j = 0; j < rd; j++) for (let i = 0; i < rw; i++) {
+    if (!reached[j * rw + i]) continue;
+    const x = ox + (i + 0.5) * RS, z = oz + (j + 0.5) * RS;
+    if (pools.some((p) => x > p.x0 - 0.3 && x < p.x1 + 0.3 && z > p.z0 - 0.3 && z < p.z1 + 0.3)) continue;
+    spots.push({ x, z });
+  }
+
   const zone: Zone = {
     id, layout: L, root, colliders, walls, pools,
     tubs: (L.tubs ?? []).map(([x, z, r]) => ({ x: W(x), z: Z(z), r })),
@@ -228,6 +274,8 @@ export function buildZone(id: ZoneId): Zone {
     spawn: { x: W(L.spawn[0]), z: Z(L.spawn[1]) },
     rooms: L.rooms.map((r) => ({ id: r.id, name: r.name, box: { x0: W(r.r[0]), z0: Z(r.r[1]), x1: W(r.r[0] + r.r[2]), z1: Z(r.r[1] + r.r[3]) } })),
     ticks,
+    reach,
+    spots,
     half: { w: L.w / 2, d: L.d / 2 },
     walkable: (x, z, r = 0.35) => {
       if (Math.abs(x) > L.w / 2 - r || Math.abs(z) > L.d / 2 - r) return false;

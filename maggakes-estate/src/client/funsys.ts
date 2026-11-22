@@ -132,7 +132,7 @@ export class Fun {
     const spots: { x: number; z: number }[] = [];
     for (let tries = 0; spots.length < count && tries < 3000; tries++) {
       const x = (rnd() - 0.5) * zone.half.w * 1.9, z = (rnd() - 0.5) * zone.half.d * 1.9;
-      if (!zone.walkable(x, z, 0.45)) continue;
+      if (!zone.walkable(x, z, 0.45) || !zone.reach(x, z)) continue;
       if (Math.hypot(x - zone.lift.x, z - zone.lift.z) < 5) continue;
       if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < 6)) continue;
       spots.push({ x, z });

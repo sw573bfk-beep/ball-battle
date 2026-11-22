@@ -1,0 +1,12 @@
+import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
+const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const p = await b.newPage({ viewport: { width: 1280, height: 800 } });
+const errors = [];
+p.on('pageerror', (e) => errors.push(String(e)));
+p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+await p.goto('http://127.0.0.1:8787/?debug&norender');
+await p.waitForFunction(() => window.__checkZones, null, { timeout: 30000 });
+const res = await p.evaluate(() => window.__checkZones());
+console.log(JSON.stringify(res, null, 1));
+console.log('errors', errors.slice(0, 10));
+await b.close();

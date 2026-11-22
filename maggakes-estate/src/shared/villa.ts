@@ -1,6 +1,6 @@
 import type { Result, Save } from './save';
 import type { Look } from './look';
-import { zoneUnlocked } from './save';
+import { earn, zoneUnlocked } from './save';
 
 import { CAST } from './season';
 
@@ -49,7 +49,7 @@ export function villaChallenge(save: Save, id: string, now = Date.now()): Result
   save.villa.cooldowns[id] = now;
   const bonus = save.villa.partner ? 50 : 0;
   save.villa.points += c.points + bonus;
-  save.aura += 50;
+  earn(save, 50, 0, `Villa: ${c.label}`);
   return { ok: true, msg: `+${c.points + bonus} Villa Points${bonus ? ' (couple bonus!)' : ''} and +50 Aura` };
 }
 
@@ -66,7 +66,6 @@ export function winFinal(save: Save): Result {
   if (save.villa.points < FINAL_POINTS) return { ok: false, msg: `You need ${FINAL_POINTS} Villa Points for the final.` };
   save.villa.wins += 1;
   save.villa.points = 0;
-  save.aura += FINAL_REWARD;
-  save.totalAura += FINAL_REWARD;
+  earn(save, FINAL_REWARD, FINAL_REWARD, 'Won the Love Island final');
   return { ok: true, msg: `🏆 You won Love Island! +${FINAL_REWARD} Aura` };
 }

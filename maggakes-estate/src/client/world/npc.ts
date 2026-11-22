@@ -23,7 +23,7 @@ export interface Wanderer {
 function pickTarget(zone: Zone, w: Wanderer, area?: (x: number, z: number) => boolean): void {
   for (let i = 0; i < 30; i++) {
     const x = (Math.random() - 0.5) * zone.half.w * 2, z = (Math.random() - 0.5) * zone.half.d * 2;
-    if (zone.walkable(x, z, 0.45) && (!area || area(x, z))) { w.tx = x; w.tz = z; return; }
+    if (zone.walkable(x, z, 0.45) && zone.reach(x, z) && (!area || area(x, z))) { w.tx = x; w.tz = z; return; }
   }
   w.tx = w.x; w.tz = w.z;
 }

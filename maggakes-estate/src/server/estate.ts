@@ -3,7 +3,7 @@ import { RESIDENTS, checkUsername, isResidence, residenceHome, residenceNumber, 
 import { ALL_ZONES } from '../shared/floors';
 import { CAR_PAINTS, SHOP, shopItem } from '../shared/shop';
 import {
-  adoptPet, buy, bumpStat, canEnter, claimDaily, collectShell, completeTask, migrate, newSave, placeItems, recordLap, rollDaily, setLook, spin,
+  adoptPet, buy, bumpStat, earn, canEnter, claimDaily, collectShell, completeTask, migrate, newSave, placeItems, recordLap, rollDaily, setLook, spin,
   topFloor, zoneUnlocked, type Save,
 } from '../shared/save';
 import { ISLANDERS, npcAccepts, villaChallenge, winFinal } from '../shared/villa';
@@ -359,7 +359,7 @@ export class Estate extends DurableObject {
         c.lastChat = Date.now();
         bumpStat(c.save, 'chat', 1);
         this.toZone(c.zone, { t: 'chat', from: c.name, text });
-        this.send(c, { t: 'save', save: c.save });
+        await this.saved(c);
         return;
       }
       case 'emote': {
@@ -369,10 +369,10 @@ export class Estate extends DurableObject {
         const party = this.parties.get(c.zone);
         if (m.e === 'dance' && party && party.until > Date.now() && (party.earned.get(c.name) ?? 0) < 50) {
           party.earned.set(c.name, (party.earned.get(c.name) ?? 0) + 10);
-          c.save.aura += 10;
+          earn(c.save, 10, 0, 'Danced at a party');
           this.send(c, { t: 'toast', text: '💃 +10 Aura for dancing at the party!', good: true });
         }
-        this.send(c, { t: 'save', save: c.save });
+        await this.saved(c);
         return;
       }
       case 'task': {
@@ -410,7 +410,7 @@ export class Estate extends DurableObject {
       case 'stat': {
         if (!STAT_KEYS.has(m.stat)) return;
         bumpStat(c.save, m.stat, Math.max(0, Math.min(30, Number(m.by) || 0)));
-        this.send(c, { t: 'save', save: c.save });
+        await this.saved(c);
         return;
       }
       case 'daily': await this.saved(c, claimDaily(c.save, String(m.id))); return;
@@ -616,8 +616,7 @@ export class Estate extends DurableObject {
     const res = seasonAct(c.save.villa.season, clean as SeasonAction);
     c.save.villa.season = res.season;
     if (res.reward) {
-      c.save.aura += res.reward.aura;
-      c.save.totalAura += res.reward.total;
+      earn(c.save, res.reward.aura, res.reward.total, res.reward.win ? 'Won Love Island!' : res.reward.total ? 'Love Island' : 'Love Island day');
       if (res.reward.win) c.save.villa.wins += 1;
     }
     await this.saved(c, res.ok ? undefined : { ok: false, msg: res.msg ?? 'Not right now.' });
@@ -632,7 +631,7 @@ export class Estate extends DurableObject {
       const ps = await this.load(partner);
       ps.villa.wins += 1;
       ps.villa.points = 0;
-      ps.aura += 1000; ps.totalAura += 1000;
+      earn(ps, 1000, 1000, 'Won the Love Island final');
       await this.store(ps);
       this.pushSave(partner);
     }
@@ -691,7 +690,8 @@ export class Estate extends DurableObject {
     const winners = this.zonePlayers(zone).map((o) => o.name).filter((n) => n !== tag.it);
     for (const n of winners) {
       const o = this.conns.get(n)!;
-      o.save.aura += 30;
+      earn(o.save, 30, 0, 'Won a game of tag');
+      this.store(o.save).catch(() => {});
       this.send(o, { t: 'save', save: o.save });
     }
     this.toZone(zone, { t: 'tagEnd', it: tag.it, winners });

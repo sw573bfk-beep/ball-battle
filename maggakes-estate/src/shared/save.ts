@@ -10,6 +10,18 @@ import type { Season } from './season';
 
 export type PetKind = 'dog' | 'cat' | 'bunny';
 
+/** One line of a player's Aura history. d = Available change, t = Total change. */
+export interface AuraEntry { at: number; d: number; t: number; why: string }
+
+/** The one place Aura changes — also writes the player's Aura history. */
+export function earn(save: Save, d: number, t: number, why: string): void {
+  save.aura = Math.max(0, save.aura + d);
+  save.totalAura = Math.max(0, save.totalAura + t);
+  save.auraLog ??= [];
+  save.auraLog.unshift({ at: Date.now(), d, t, why: why.slice(0, 60) });
+  if (save.auraLog.length > 40) save.auraLog.length = 40;
+}
+
 export interface PlacedItem {
   uid: string;
   item: string;
@@ -53,6 +65,7 @@ export interface Save {
   spinDate?: string;
   shells?: string[];
   bestLap?: number;
+  auraLog?: AuraEntry[];
 }
 
 
@@ -136,13 +149,12 @@ export function completeTask(save: Save, zone: ZoneId, taskId: string): Result {
   const key = `${zone}:${taskId}`;
   bumpStat(save, 'tasks', 1);
   if (save.tasks[key]) {
-    save.aura += REPLAY_AURA;
+    earn(save, REPLAY_AURA, 0, `Replayed: ${task.label}`);
     return { ok: true, msg: `+${REPLAY_AURA} Aura (replay bonus)` };
   }
   const before = ALL_ZONES.filter((z) => zoneUnlocked(save, z));
   save.tasks[key] = true;
-  save.totalAura += TASK_AURA;
-  save.aura += TASK_AURA;
+  earn(save, TASK_AURA, TASK_AURA, `Task: ${task.label}`);
   const after = ALL_ZONES.filter((z) => zoneUnlocked(save, z) && !before.includes(z));
   const unlocked = after.length ? ` — unlocked ${after.map(label).join(' & ')}!` : '';
   return { ok: true, msg: `+${TASK_AURA} Aura: ${task.label}${unlocked}` };
@@ -162,7 +174,7 @@ export function buy(save: Save, itemId: string): Result {
   const owned = save.inventory[itemId] ?? 0;
   if (!stackable(item) && owned > 0) return { ok: false, msg: 'You already own this.' };
   if (save.aura < item.price) return { ok: false, msg: `You need ${item.price - save.aura} more Aura.` };
-  save.aura -= item.price;
+  earn(save, -item.price, 0, `Bought ${item.name}`);
   save.inventory[itemId] = owned + 1;
   bumpStat(save, 'buys', 1);
   return { ok: true, msg: `Bought ${item.name}!` };
@@ -265,8 +277,7 @@ export function claimDaily(save: Save, id: string): Result {
   if (save.daily.claimed.includes(id)) return { ok: false, msg: 'Already claimed today.' };
   if ((save.daily.stats[def.stat] ?? 0) < def.goal) return { ok: false, msg: 'Not finished yet.' };
   save.daily.claimed.push(id);
-  save.totalAura += def.reward;
-  save.aura += def.reward;
+  earn(save, def.reward, def.reward, `Daily: ${def.label}`);
   return { ok: true, msg: `+${def.reward} Aura: daily challenge done!` };
 }
 
@@ -308,10 +319,10 @@ export function spin(save: Save, roll: number, pickRoll = Math.random()): Result
   while (index < SPIN_PRIZES.length - 1 && r >= SPIN_PRIZES[index].w) { r -= SPIN_PRIZES[index].w; index++; }
   const prize = SPIN_PRIZES[index];
   save.spinDate = d;
-  if (prize.aura) { save.aura += prize.aura; return { ok: true, msg: `🎡 You won ${prize.label}!`, index }; }
+  if (prize.aura) { earn(save, prize.aura, 0, 'Daily spin'); return { ok: true, msg: `🎡 You won ${prize.label}!`, index }; }
   if (prize.item) { save.inventory[prize.item] = (save.inventory[prize.item] ?? 0) + (prize.n ?? 1); return { ok: true, msg: `🎡 You won ${prize.label}!`, index }; }
   const pool = SHOP.filter((i) => (i.cat === 'accessory' || i.cat === 'furniture') && !i.vip && !i.free && i.price <= 600 && !save.inventory[i.id]);
-  if (!pool.length) { save.aura += 300; return { ok: true, msg: '🎡 Surprise! You already own everything, so here\'s 300 Aura.', index }; }
+  if (!pool.length) { earn(save, 300, 0, 'Daily spin'); return { ok: true, msg: '🎡 Surprise! You already own everything, so here\'s 300 Aura.', index }; }
   const it = pool[Math.floor(pickRoll * pool.length)];
   save.inventory[it.id] = (save.inventory[it.id] ?? 0) + 1;
   return { ok: true, msg: `🎡 Surprise! You won ${it.emoji} ${it.name}!`, index };
@@ -330,9 +341,9 @@ export function collectShell(save: Save, id: string): Result {
   save.shells ??= [];
   if (save.shells.includes(id)) return { ok: false, msg: 'You already found this one!' };
   save.shells.push(id);
-  save.aura += SHELL_AURA;
+  earn(save, SHELL_AURA, 0, 'Golden shell');
   if (save.shells.length >= SHELL_TOTAL) {
-    save.aura += SHELL_BONUS;
+    earn(save, SHELL_BONUS, 0, 'Found all golden shells!');
     return { ok: true, msg: `🐚 ALL ${SHELL_TOTAL} GOLDEN SHELLS FOUND! +${SHELL_BONUS} Aura bonus! 🏆` };
   }
   return { ok: true, msg: `🐚 Golden shell ${save.shells.length}/${SHELL_TOTAL}! +${SHELL_AURA} Aura` };
@@ -345,7 +356,7 @@ export function recordLap(save: Save, ms: number): Result {
   const t = Math.round(ms);
   const best = !save.bestLap || t < save.bestLap;
   if (best) save.bestLap = t;
-  save.aura += 20;
+  earn(save, 20, 0, 'Kart lap');
   return { ok: true, msg: `🏁 Lap ${(t / 1000).toFixed(2)}s${best ? ' — new personal best! 🏆' : ''} (+20 Aura)` };
 }
 
