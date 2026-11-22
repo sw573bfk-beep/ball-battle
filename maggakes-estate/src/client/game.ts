@@ -16,6 +16,8 @@ import { openBoard, openDaily, openGarage, openMap, openSettings, openShop, open
 import type { ZoneId } from '../shared/people';
 import { setResidences, getResidences } from './world/layouts';
 import { openAccounts } from './ui/accounts';
+import { Fun } from './funsys';
+import { openAdopt, openFun } from './ui/fun';
 import type { AccountRow, Residence } from '../shared/protocol';
 import { ALL_ZONES, floorById, zoneName, type TaskDef } from '../shared/floors';
 import { canEnter, zoneUnlocked, ROOM_LIMIT, type Look, type PlacedItem, type Save } from '../shared/save';
@@ -92,6 +94,10 @@ export class Game {
   ctx: Ctx;
 
   pending = 0;
+  fun!: Fun;
+  /** Set while racing countdowns / the water slide take over movement. */
+  lockMove = false;
+  private wantLaps = false;
   private accountListeners = new Set<(r: AccountRow[]) => void>();
 
   constructor(host: HTMLElement, save: Save, admin: boolean, public net: Net, private signOut: () => void, residences: Residence[] = [], pending = 0) {
@@ -103,6 +109,7 @@ export class Game {
     this.gfx = new Gfx(host, q);
     this.input = new Input(this.gfx.renderer.domElement, $('#joy'));
     this.me = new Avatar(save.look, save.name, save.vip);
+    this.fun = new Fun(this);
     this.ctx = {
       save: () => this.save,
       admin,
@@ -125,6 +132,21 @@ export class Game {
     const start = canEnter(save, save.lastZone) && this.zoneExists(save.lastZone) ? save.lastZone : save.home?.zone ?? 'f1';
     this.travel(start, true);
     this.loop();
+  }
+
+  openFunMenu(): void {
+    openFun({
+      save: () => this.save,
+      driving: () => !!this.car,
+      kart: () => this.startKart(),
+      spin: () => this.fun.openSpin(),
+      party: () => this.net.send({ t: 'party' }),
+      tag: () => this.net.send({ t: 'tag' }),
+      fireworks: () => this.fun.launchFireworks(),
+      callPet: () => this.fun.callPet(),
+      shellsHere: () => this.fun.shellsHere(),
+      music: this.fun.music,
+    });
   }
 
   private zoneExists(z: ZoneId): boolean {
@@ -207,6 +229,7 @@ export class Game {
     }
     if (z === 'park') this.buildParkedCars();
     this.buildMarkers();
+    this.fun.onZone();
     this.net.send({ t: 'zone', zone: z });
     this.renderHud();
     this.ready = true;
@@ -240,6 +263,9 @@ export class Game {
       else if (st.kind === 'dress') { emoji = '🌺'; color = '#ff6f91'; }
       else if (st.kind === 'beachhut') { emoji = '🎥'; color = '#ff4fa3'; }
       else if (st.kind === 'hideaway') { emoji = '🌌'; color = '#c77dff'; }
+      else if (st.kind === 'adopt') { emoji = '🐾'; color = '#ff9a6f'; }
+      else if (st.kind === 'race') { emoji = '🏁'; color = '#ffd23f'; }
+      else if (st.kind === 'slide') { emoji = '🌊'; color = '#33c4ff'; }
       else if (st.kind === 'portal') {
         emoji = this.zoneId === 'villa' ? '🏰' : '💘';
         color = this.zoneId === 'villa' || zoneUnlocked(s, 'villa') ? '#ff4fa3' : '#9a9aa5';
@@ -288,8 +314,15 @@ export class Game {
         if (this.zoneId === 'villa') this.syncCast(true);
         this.renderHud();
         this.saveListeners.forEach((f) => f());
+        this.fun.onSave();
         return;
       }
+      case 'spun': this.fun.onSpun(m.index, m.msg); return;
+      case 'laps': if (this.wantLaps) { this.wantLaps = false; this.fun.openRace(m.rows); } return;
+      case 'fireworks': this.fun.onFireworks(m.x, m.z, m.from); return;
+      case 'party': this.fun.onParty(m.until, m.by); return;
+      case 'tag': this.fun.onTag(m.it, m.until); return;
+      case 'tagEnd': this.fun.onTagEnd(m.it, m.winners); return;
       case 'toast': toast(m.text, m.good); if (m.good && m.text.includes('unlocked')) confetti(); return;
       case 'peers': {
         for (const p of this.peers.values()) p.avatar.dispose();
@@ -410,6 +443,7 @@ export class Game {
     this.updateActions();
     this.sendPos(t);
     this.villaTexts(dt);
+    this.fun.update(dt, t);
     tickWater(t);
     if (this.noRender && !this.wantPhoto) return;
     this.gfx.render();
@@ -426,8 +460,9 @@ export class Game {
 
   private updatePlayer(dt: number, t: number): void {
     const zone = this.zone!;
-    const mv = this.blocked() ? { x: 0, y: 0 } : this.input.move();
+    const mv = this.blocked() || this.lockMove ? { x: 0, y: 0 } : this.input.move();
     if (this.car) { this.updateCar(dt, mv); return; }
+    if (this.lockMove) return;
     const fx = -Math.sin(this.camYaw), fz = -Math.cos(this.camYaw);
     const rx = Math.cos(this.camYaw), rz = -Math.sin(this.camYaw);
     const dx = rx * mv.x + fx * mv.y, dz = rz * mv.x + fz * mv.y;
@@ -495,14 +530,20 @@ export class Game {
     c.heading += c.drive.steer * dt * 2.2 * Math.max(-1, Math.min(1, c.drive.speed / 6));
     this.pos.x = c.x + Math.sin(c.heading) * c.drive.speed * dt;
     this.pos.y = c.z + Math.cos(c.heading) * c.drive.speed * dt;
-    if (this.collide(1.0)) c.drive.speed *= 0.6;
+    const kart = c.model.length < 2;
+    if (this.collide(kart ? 0.55 : 1.0)) c.drive.speed *= 0.6;
+    // Cars don't drive into pools.
+    for (const p of this.zone!.pools) {
+      if (this.pos.x > p.x0 - 0.4 && this.pos.x < p.x1 + 0.4 && this.pos.y > p.z0 - 0.4 && this.pos.y < p.z1 + 0.4) { this.pos.set(c.x, c.z); c.drive.speed *= -0.3; }
+    }
     c.x = this.pos.x; c.z = this.pos.y;
     c.model.obj.position.set(c.x, 0, c.z);
     c.model.obj.rotation.y = c.heading;
     for (const w of c.model.wheels) w.rotation.x += (c.drive.speed * dt) / 0.34;
     for (const f of c.model.front) f.rotation.y = c.drive.steer * 0.45;
     this.ry = c.heading;
-    this.me.root.position.set(c.x + Math.cos(c.heading) * -0.38, c.model.seat - 0.55, c.z - Math.sin(c.heading) * -0.38);
+    const side = kart ? 0 : -0.38, back = kart ? -0.12 : 0;
+    this.me.root.position.set(c.x + Math.cos(c.heading) * side + Math.sin(c.heading) * back, c.model.seat - 0.55, c.z - Math.sin(c.heading) * side + Math.cos(c.heading) * back);
     this.me.root.rotation.y = c.heading;
     this.me.update(dt, this.elapsed, 0, 'drive');
     // Camera swings behind the car while moving.
@@ -532,7 +573,8 @@ export class Game {
         p.car.obj.visible = true;
         p.car.obj.position.set(p.x, 0, p.z);
         p.car.obj.rotation.y = p.ry;
-        p.avatar.root.position.set(p.x + Math.cos(p.ry) * -0.38, p.car.seat - 0.55, p.z - Math.sin(p.ry) * -0.38);
+        const side = p.car.length < 2 ? 0 : -0.38;
+        p.avatar.root.position.set(p.x + Math.cos(p.ry) * side, p.car.seat - 0.55, p.z - Math.sin(p.ry) * side);
       } else {
         if (p.car) p.car.obj.visible = false;
         p.avatar.root.position.set(p.x, mode === 'soak' ? 0.15 : 0, p.z);
@@ -663,6 +705,9 @@ export class Game {
       case 'firepit': return { key: 'firepit', label: '🔥 The Firepit', run: () => this.firepit() };
       case 'beachhut': return { key: 'beachhut', label: '🎥 Sit in the Beach Hut', run: () => this.seasonAct({ a: 'hut' }) };
       case 'hideaway': return { key: 'hideaway', label: '🌌 The Hideaway', run: () => this.hideaway() };
+      case 'adopt': return { key: 'adopt', label: s.pet ? `🐾 Swap or rename ${s.pet.name}` : '🐾 Adopt a pet', run: () => openAdopt(s.pet, (kind, name) => this.net.send({ t: 'pet', kind, name })) };
+      case 'race': return { key: 'race', label: '🏁 Kart race', run: () => { this.wantLaps = true; this.net.send({ t: 'laps' }); } };
+      case 'slide': return { key: 'slide', label: '🌊 Go down the water slide!', run: () => this.fun.startSlide() };
       case 'dress': return { key: 'dress', label: '🌺 Villa dressing room', run: () => openWardrobe(this.ctx, { villa: true }) };
       case 'portal':
         if (this.zoneId === 'villa') return { key: 'portal', label: '🏰 Back to the mansion', run: () => this.travel('f8') };
@@ -677,6 +722,7 @@ export class Game {
     if (k === 'enter') { ($('#chatin') as HTMLInputElement).focus(); return; }
     if (k === 'm') openMap(this.ctx);
     if (k === 'b') openShop(this.ctx);
+    if (k === 'f') this.openFunMenu();
     if (k === 'r' && this.decor) this.decor.rot += Math.PI / 4;
     const emo: Emote[] = ['wave', 'dance', 'heart', 'sit', 'pose'];
     const n = Number(k);
@@ -821,22 +867,37 @@ export class Game {
 
   // ================================================================== cars
 
-  private startDriving(): void {
-    if (this.zoneId !== 'park' || this.car) return;
-    const item = shopItem(this.save.car) ?? shopItem('car_hatch')!;
+  /** Big cars in the car park; the mini kart anywhere. */
+  private startDriving(kind: 'auto' | 'kart' = 'auto'): void {
+    if (this.car || !this.zone) return;
+    const useKart = kind === 'kart' || this.zoneId !== 'park';
+    const item = useKart ? shopItem('car_kart')! : shopItem(this.save.car) ?? shopItem('car_hatch')!;
     const paint = this.save.carPaint[item.id] ?? String(item.r.color);
     const model = buildCar(String(item.r.model), paint);
-    this.zone!.root.add(model.obj);
+    this.zone.root.add(model.obj);
     let x = this.pos.x, z = this.pos.y;
-    // Find space for the car.
-    for (let i = 0; i < 40 && !this.zone!.walkable(x, z, 1.1); i++) { x = this.pos.x + (Math.random() - 0.5) * i * 0.6; z = this.pos.y + Math.random() * i * 0.5; }
-    this.car = { model, drive: new Driving(), x, z, heading: this.ry };
+    const r = useKart ? 0.6 : 1.1;
+    for (let i = 0; i < 40 && !this.zone.walkable(x, z, r); i++) { x = this.pos.x + (Math.random() - 0.5) * i * 0.6; z = this.pos.y + (Math.random() - 0.5) * i * 0.6; }
+    this.car = { model, drive: new Driving(useKart ? 8 : 14), x, z, heading: this.ry };
     this.pos.set(x, z);
     this.net.send({ t: 'car', car: item.id });
-    toast('🚗 W/S or joystick to drive, A/D to steer, Shift to boost');
+    toast(`${useKart ? '🏎️' : '🚗'} W/S or joystick to drive, A/D to steer, Shift to boost`);
   }
 
-  private stopDriving(announce: boolean): void {
+  isDriving(): boolean { return !!this.car; }
+
+  startKart(): void { if (this.car) this.stopDriving(true); else this.startDriving('kart'); }
+
+  /** Puts you in a kart (or your current car) at a spot, e.g. the race start line. */
+  placeCar(x: number, z: number, heading: number): void {
+    if (this.car) this.stopDriving(true);
+    this.pos.set(x, z);
+    this.ry = heading;
+    this.startDriving(this.zoneId === 'park' ? 'auto' : 'kart');
+    if (this.car) { this.car.x = x; this.car.z = z; this.car.heading = heading; this.pos.set(x, z); this.camYaw = heading + Math.PI; }
+  }
+
+  stopDriving(announce = true): void {
     if (!this.car) return;
     this.car.model.obj.removeFromParent();
     const c = this.car;
@@ -1126,6 +1187,7 @@ export class Game {
     btn('#b-daily', () => openDaily(this.ctx));
     btn('#b-board', () => openBoard(this.ctx));
     btn('#b-settings', () => openSettings(this.ctx));
+    btn('#b-fun', () => this.openFunMenu());
     btn('#b-accounts', () => openAccounts({ net: this.net, admin: () => this.admin, me: this.save.name, onAccounts: (fn) => { this.accountListeners.add(fn); return () => this.accountListeners.delete(fn); } }));
     btn('#b-emote', () => $('#emotes').classList.toggle('on'));
     btn('#b-tasks', () => $('#hud').classList.toggle('collapsed'));

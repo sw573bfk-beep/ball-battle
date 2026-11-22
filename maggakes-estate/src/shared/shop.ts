@@ -1,6 +1,6 @@
 import type { ZoneId } from './people';
 
-export type ShopCat = 'outfit' | 'accessory' | 'furniture' | 'car';
+export type ShopCat = 'outfit' | 'accessory' | 'furniture' | 'car' | 'fun';
 export type WearSlot = 'outfit' | 'glasses' | 'bag' | 'jewel' | 'hat' | 'perfume';
 
 export interface ShopItem {
@@ -94,6 +94,7 @@ export const SHOP: ShopItem[] = [
   { id: 'd_statue', name: 'Gold Statue', emoji: '🗿', cat: 'furniture', price: 1500, vip: true, r: { model: 'statue' } },
 
   // ---------- Cars ----------
+  { id: 'car_kart', name: 'Mini Kart', emoji: '🏎️', cat: 'car', price: 0, free: true, r: { model: 'kart', color: '#ff3d7f' } },
   { id: 'car_hatch', name: 'City Hatch', emoji: '🚗', cat: 'car', price: 0, free: true, r: { model: 'hatch', color: '#f4a6c6' } },
   { id: 'car_buggy', name: 'Golf Buggy', emoji: '🛺', cat: 'car', price: 800, r: { model: 'buggy', color: '#ffffff' } },
   { id: 'car_conv', name: 'Convertible', emoji: '🏎️', cat: 'car', price: 1500, r: { model: 'convertible', color: '#d7263d' } },
@@ -102,6 +103,12 @@ export const SHOP: ShopItem[] = [
   { id: 'car_super', name: 'Supercar', emoji: '⚡', cat: 'car', price: 4000, floor: 'f7', r: { model: 'super', color: '#ff9f1c' } },
   { id: 'car_limo', name: 'Gold VIP Limo', emoji: '🥂', cat: 'car', price: 5000, vip: true, r: { model: 'limo', color: '#d4af37' } },
 ];
+
+// ---------- Fun ----------
+SHOP.push({ id: 'fx_fireworks', name: 'Fireworks', emoji: '🎆', cat: 'fun', price: 150, r: {} });
+
+/** Items you can own more than one of. */
+export const stackable = (i: ShopItem) => i.cat === 'furniture' || i.cat === 'fun';
 
 export const CAR_PAINTS = ['#f4a6c6', '#ffffff', '#111418', '#d7263d', '#2b6cff', '#4fd1c5', '#ff9f1c', '#b9a2e8', '#d4af37', '#6b8f71'];
 

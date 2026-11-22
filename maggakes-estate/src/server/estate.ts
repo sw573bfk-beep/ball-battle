@@ -3,7 +3,7 @@ import { RESIDENTS, checkUsername, isResidence, residenceHome, residenceNumber, 
 import { ALL_ZONES } from '../shared/floors';
 import { CAR_PAINTS, SHOP, shopItem } from '../shared/shop';
 import {
-  buy, bumpStat, canEnter, claimDaily, completeTask, migrate, newSave, placeItems, rollDaily, setLook,
+  adoptPet, buy, bumpStat, canEnter, claimDaily, collectShell, completeTask, migrate, newSave, placeItems, recordLap, rollDaily, setLook, spin,
   topFloor, zoneUnlocked, type Save,
 } from '../shared/save';
 import { ISLANDERS, npcAccepts, villaChallenge, winFinal } from '../shared/villa';
@@ -34,6 +34,8 @@ export class Estate extends DurableObject {
   private fails = new Map<string, { n: number; until: number }>();
   private ceremony: { endsAt: number; picks: Map<string, string> } | null = null;
   private lastCeremony = 0;
+  private parties = new Map<ZoneId, { until: number; next: number; earned: Map<string, number> }>();
+  private tags = new Map<ZoneId, { it: string; until: number; last: number; timer: ReturnType<typeof setTimeout> }>();
   /** All accounts, by lowercase name. */
   private profiles = new Map<string, Profile>();
 
@@ -245,6 +247,7 @@ export class Estate extends DurableObject {
 
   private drop(conn: Conn): void {
     this.conns.delete(conn.name);
+    if (conn.zone) this.leftZone(conn.name, conn.zone);
     const p = this.profile(conn.name);
     if (p) { p.lastSeen = Date.now(); this.putProfile(p).catch(() => {}); }
     if (conn.zone) this.toZone(conn.zone, { t: 'gone', name: conn.name }, conn.name);
@@ -264,7 +267,7 @@ export class Estate extends DurableObject {
 
   private info(c: Conn): PeerInfo {
     const look = c.zone === 'villa' && c.save.villa.look ? c.save.villa.look : c.save.look;
-    return { name: c.name, zone: c.zone ?? 'b', look, vip: c.save.vip, car: c.car, partner: c.save.villa.partner };
+    return { name: c.name, zone: c.zone ?? 'b', look, vip: c.save.vip, car: c.car, partner: c.save.villa.partner, pet: c.save.pet };
   }
 
   private async saved(conn: Conn, toast?: { ok: boolean; msg: string }): Promise<void> {
@@ -278,7 +281,7 @@ export class Estate extends DurableObject {
       case 'zone': {
         if (!ALL_ZONES.includes(m.zone) && !(isResidence(m.zone) && this.residences().some((r) => r.zone === m.zone))) return;
         if (!canEnter(c.save, m.zone)) { this.send(c, { t: 'toast', text: 'That floor is still locked.' }); return; }
-        if (c.zone) this.toZone(c.zone, { t: 'gone', name: c.name }, c.name);
+        if (c.zone) { this.toZone(c.zone, { t: 'gone', name: c.name }, c.name); this.leftZone(c.name, c.zone); }
         c.zone = m.zone;
         c.car = null;
         c.save.lastZone = m.zone;
@@ -292,6 +295,10 @@ export class Estate extends DurableObject {
           this.send(c, { t: 'room', owner: p.name, items: s.room });
         }
         await this.saved(c);
+        const party = this.parties.get(m.zone);
+        if (party && party.until > Date.now()) this.send(c, { t: 'party', until: party.until, by: '' });
+        const tag = this.tags.get(m.zone);
+        if (tag) this.send(c, { t: 'tag', it: tag.it, until: tag.until });
         return;
       }
       case 'pos': {
@@ -315,6 +322,12 @@ export class Estate extends DurableObject {
         if (!c.zone || !['wave', 'dance', 'heart', 'sit', 'pose'].includes(m.e)) return;
         bumpStat(c.save, 'emote', 1);
         this.toZone(c.zone, { t: 'emote', from: c.name, e: m.e });
+        const party = this.parties.get(c.zone);
+        if (m.e === 'dance' && party && party.until > Date.now() && (party.earned.get(c.name) ?? 0) < 50) {
+          party.earned.set(c.name, (party.earned.get(c.name) ?? 0) + 10);
+          c.save.aura += 10;
+          this.send(c, { t: 'toast', text: '💃 +10 Aura for dancing at the party!', good: true });
+        }
         this.send(c, { t: 'save', save: c.save });
         return;
       }
@@ -383,6 +396,53 @@ export class Estate extends DurableObject {
       case 'board': this.send(c, { t: 'board', rows: await this.board() }); return;
       case 'admin': await this.admin(c, m.action, String(m.target)); return;
       case 'accounts': await this.sendAccounts(c); return;
+      case 'pet': {
+        await this.saved(c, adoptPet(c.save, String(m.kind), String(m.name ?? '')));
+        if (c.zone) this.toZone(c.zone, { t: 'peer', info: this.info(c) }, c.name);
+        return;
+      }
+      case 'spin': {
+        const r = spin(c.save, Math.random());
+        if (!r.ok) { this.send(c, { t: 'toast', text: r.msg }); return; }
+        await this.saved(c);
+        this.send(c, { t: 'spun', index: r.index ?? 0, msg: r.msg });
+        return;
+      }
+      case 'shell': {
+        const id = String(m.id);
+        if (!c.zone || !id.startsWith(`${c.zone}:`)) return;
+        const r = collectShell(c.save, id);
+        if (r.ok) await this.saved(c, r);
+        return;
+      }
+      case 'lap': {
+        if (c.zone !== 'park') return;
+        await this.saved(c, recordLap(c.save, Number(m.ms)));
+        this.toZone('park', { t: 'laps', rows: await this.laps() });
+        return;
+      }
+      case 'laps': this.send(c, { t: 'laps', rows: await this.laps() }); return;
+      case 'fireworks': {
+        if (!c.zone || !(c.save.inventory.fx_fireworks > 0)) { this.send(c, { t: 'toast', text: 'Buy fireworks in the shop first! 🎆' }); return; }
+        if (![m.x, m.z].every(Number.isFinite)) return;
+        c.save.inventory.fx_fireworks -= 1;
+        await this.saved(c);
+        this.toZone(c.zone, { t: 'fireworks', x: r2(m.x), z: r2(m.z), from: c.name });
+        return;
+      }
+      case 'party': {
+        if (!c.zone) return;
+        const now = Date.now();
+        const cur = this.parties.get(c.zone);
+        if (cur && cur.until > now) { this.send(c, { t: 'toast', text: "There's already a party here! 💃" }); return; }
+        if (cur && cur.next > now) { this.send(c, { t: 'toast', text: `The DJ needs a break — try again in ${Math.ceil((cur.next - now) / 1000)}s.` }); return; }
+        const until = now + 120_000;
+        this.parties.set(c.zone, { until, next: until + 120_000, earned: new Map() });
+        this.toZone(c.zone, { t: 'party', until, by: c.name });
+        return;
+      }
+      case 'tag': this.startTag(c); return;
+      case 'tagged': this.tagged(c, String(m.who)); return;
     }
   }
 
@@ -516,6 +576,73 @@ export class Estate extends DurableObject {
   }
 
   // ------------------------------------------------------------- board + admin
+
+  private async laps(): Promise<{ name: string; ms: number }[]> {
+    const rows: { name: string; ms: number }[] = [];
+    for (const p of this.profiles.values()) {
+      if (p.status !== 'approved') continue;
+      const s = await this.load(p.name);
+      if (s.bestLap) rows.push({ name: p.name, ms: s.bestLap });
+    }
+    return rows.sort((a, b) => a.ms - b.ms).slice(0, 10);
+  }
+
+  private zonePlayers(zone: ZoneId): Conn[] {
+    return [...this.conns.values()].filter((o) => o.zone === zone);
+  }
+
+  private startTag(c: Conn): void {
+    if (!c.zone) return;
+    const zone = c.zone;
+    if (this.tags.has(zone)) { this.send(c, { t: 'toast', text: "There's already a game of tag on this floor!" }); return; }
+    const players = this.zonePlayers(zone);
+    if (players.length < 2) { this.send(c, { t: 'toast', text: 'You need at least 2 players on this floor to play tag. 🏃' }); return; }
+    const it = players[Math.floor(Math.random() * players.length)].name;
+    const until = Date.now() + 90_000;
+    const timer = setTimeout(() => this.endTag(zone), 90_500);
+    this.tags.set(zone, { it, until, last: Date.now(), timer });
+    this.toZone(zone, { t: 'tag', it, until });
+    this.toZone(zone, { t: 'toast', text: `🏃 ${c.name} started TAG! ${it} is IT — run!`, good: true });
+  }
+
+  private tagged(c: Conn, who: string): void {
+    const zone = c.zone;
+    const tag = zone ? this.tags.get(zone) : undefined;
+    if (!zone || !tag || tag.it !== c.name || who === c.name) return;
+    const o = this.conns.get(who);
+    if (!o || o.zone !== zone) return;
+    if (Date.now() - tag.last < 1500) return;
+    if (Math.hypot(o.pos.x - c.pos.x, o.pos.z - c.pos.z) > 2.5) return;
+    tag.it = who;
+    tag.last = Date.now();
+    this.toZone(zone, { t: 'tag', it: who, until: tag.until });
+  }
+
+  private endTag(zone: ZoneId): void {
+    const tag = this.tags.get(zone);
+    if (!tag) return;
+    clearTimeout(tag.timer);
+    this.tags.delete(zone);
+    const winners = this.zonePlayers(zone).map((o) => o.name).filter((n) => n !== tag.it);
+    for (const n of winners) {
+      const o = this.conns.get(n)!;
+      o.save.aura += 30;
+      this.send(o, { t: 'save', save: o.save });
+    }
+    this.toZone(zone, { t: 'tagEnd', it: tag.it, winners });
+  }
+
+  /** Someone left a floor: keep tag going if they were "it". */
+  private leftZone(name: string, zone: ZoneId): void {
+    const tag = this.tags.get(zone);
+    if (!tag) return;
+    const left = this.zonePlayers(zone).filter((o) => o.name !== name);
+    if (left.length < 2) { this.endTag(zone); return; }
+    if (tag.it === name) {
+      tag.it = left[Math.floor(Math.random() * left.length)].name;
+      this.toZone(zone, { t: 'tag', it: tag.it, until: tag.until }, name);
+    }
+  }
 
   private async board(): Promise<BoardRow[]> {
     const rows: BoardRow[] = [];

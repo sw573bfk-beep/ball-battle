@@ -140,6 +140,69 @@ export class Gfx {
     this.renderer.shadowMap.needsUpdate = true;
   }
 
+  // ------------------------------------------------------------ day & night
+
+  private stars?: THREE.Points;
+  /** 0..1 how "night" it is right now (for lamps, stars, HUD). */
+  night = 0;
+
+  /**
+   * Shared day/night cycle. `phase` 0..1 (0 = sunrise, 0.58 = sunset, 0.66–0.92 = night).
+   * `indoor` floors keep a little more ambient light so rooms stay readable at night.
+   */
+  setTimeOfDay(phase: number, span: number, indoor: boolean): void {
+    type K = { p: number; sun: number; col: number; int: number; amb: number; sky: number; gnd: number; exp: number; fog: number; moon: number };
+    const keys: K[] = [
+      { p: 0.0, sun: 5, col: 0xffb38a, int: 1.4, amb: 0.55, sky: 0xffc9a8, gnd: 0x6a4a5a, exp: 1.05, fog: 0xf3c4a8, moon: 0 },
+      { p: 0.08, sun: 45, col: 0xfff1dc, int: 1.9, amb: 0.75, sky: 0xdfeaff, gnd: 0xf1e3d3, exp: 1.0, fog: 0xcfe3f5, moon: 0 },
+      { p: 0.5, sun: 40, col: 0xfff1dc, int: 1.9, amb: 0.75, sky: 0xdfeaff, gnd: 0xf1e3d3, exp: 1.0, fog: 0xcfe3f5, moon: 0 },
+      { p: 0.58, sun: 4, col: 0xff8a4c, int: 1.8, amb: 0.45, sky: 0xffb08a, gnd: 0x4a2a40, exp: 1.0, fog: 0xe8956f, moon: 0 },
+      { p: 0.66, sun: -10, col: 0x8fa8ff, int: 0.22, amb: 0.16, sky: 0x2a3560, gnd: 0x0d0b18, exp: 0.95, fog: 0x0e1426, moon: 1 },
+      { p: 0.92, sun: -10, col: 0x8fa8ff, int: 0.22, amb: 0.16, sky: 0x2a3560, gnd: 0x0d0b18, exp: 0.95, fog: 0x0e1426, moon: 1 },
+      { p: 1.0, sun: 5, col: 0xffb38a, int: 1.4, amb: 0.55, sky: 0xffc9a8, gnd: 0x6a4a5a, exp: 1.05, fog: 0xf3c4a8, moon: 0 },
+    ];
+    let i = 0;
+    while (i < keys.length - 2 && phase > keys[i + 1].p) i++;
+    const a = keys[i], b = keys[i + 1];
+    const t = THREE.MathUtils.smoothstep(phase, a.p, b.p);
+    const lerp = (x: number, y: number) => x + (y - x) * t;
+    const col = (x: number, y: number) => new THREE.Color(x).lerp(new THREE.Color(y), t);
+    const moon = lerp(a.moon, b.moon);
+    this.night = moon;
+    // Sky uses the real sun (below the horizon at night = dark sky); lighting uses sun or moon.
+    const sunEl = lerp(a.sun, b.sun);
+    const az = THREE.MathUtils.degToRad(140 + phase * 180);
+    const skyDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - sunEl), az);
+    this.sky.material.uniforms.sunPosition.value.copy(skyDir);
+    const lightEl = moon > 0.5 ? 40 : Math.max(8, sunEl);
+    const lightDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - lightEl), moon > 0.5 ? az + Math.PI : az);
+    this.sun.position.copy(lightDir.multiplyScalar(60));
+    this.sun.color.copy(col(a.col, b.col));
+    this.sun.intensity = lerp(a.int, b.int);
+    this.hemi.color.copy(col(a.sky, b.sky));
+    this.hemi.groundColor.copy(col(a.gnd, b.gnd));
+    this.hemi.intensity = Math.max(lerp(a.amb, b.amb), indoor ? 0.6 - moon * 0.12 : 0);
+    this.renderer.toneMappingExposure = lerp(a.exp, b.exp);
+    this.scene.environmentIntensity = 0.35 * (1 - moon * (indoor ? 0.55 : 0.88));
+    this.scene.fog = new THREE.FogExp2(col(a.fog, b.fog), 0.004);
+    const cam = this.sun.shadow.camera;
+    const half = span / 2 + 4;
+    if (cam.right !== half) { cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half; cam.near = 1; cam.far = 160; cam.updateProjectionMatrix(); }
+    if (!this.stars) {
+      const pts = new Float32Array(900 * 3);
+      for (let k = 0; k < 900; k++) {
+        const v = new THREE.Vector3().setFromSphericalCoords(450, Math.acos(Math.random() * 0.95), Math.random() * Math.PI * 2);
+        pts.set([v.x, v.y, v.z], k * 3);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+      this.stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, depthWrite: false, fog: false }));
+      this.scene.add(this.stars);
+    }
+    (this.stars.material as THREE.PointsMaterial).opacity = moon;
+    this.stars.visible = moon > 0.02;
+  }
+
   render(): void {
     if (this.quality === 'low') this.renderer.render(this.scene, this.camera);
     else this.composer.render();

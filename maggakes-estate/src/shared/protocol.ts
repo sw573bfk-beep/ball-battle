@@ -1,5 +1,5 @@
 import type { Home, ZoneId } from './people';
-import type { Look, PlacedItem, Save } from './save';
+import type { Look, PetKind, PlacedItem, Save } from './save';
 import type { Scene, SeasonAction } from './season';
 
 /** What a player looks like to everyone else. */
@@ -10,6 +10,7 @@ export interface PeerInfo {
   vip: boolean;
   car?: { id: string; paint: string } | null;
   partner?: string;
+  pet?: { kind: PetKind; name: string };
 }
 
 export interface PeerPos {
@@ -77,6 +78,15 @@ export type ClientMsg =
   | { t: 'board' }
   | { t: 'admin'; action: AdminAction; target: string }
   | { t: 'accounts' }
+  | { t: 'pet'; kind: string; name: string }
+  | { t: 'spin' }
+  | { t: 'shell'; id: string }
+  | { t: 'lap'; ms: number }
+  | { t: 'laps' }
+  | { t: 'fireworks'; x: number; z: number }
+  | { t: 'party' }
+  | { t: 'tag' }
+  | { t: 'tagged'; who: string }
   | { t: 'room?'; owner: string }
   | { t: 'season'; act: SeasonAction };
 
@@ -100,4 +110,10 @@ export type ServerMsg =
   | { t: 'ceremonyResult'; lines: string[] }
   | { t: 'final'; winner: string; partner: string }
   | { t: 'kicked'; reason: string }
-  | { t: 'scene'; scene: Scene };
+  | { t: 'scene'; scene: Scene }
+  | { t: 'spun'; index: number; msg: string }
+  | { t: 'laps'; rows: { name: string; ms: number }[] }
+  | { t: 'fireworks'; x: number; z: number; from: string }
+  | { t: 'party'; until: number; by: string }
+  | { t: 'tag'; it: string; until: number }
+  | { t: 'tagEnd'; it: string; winners: string[] };

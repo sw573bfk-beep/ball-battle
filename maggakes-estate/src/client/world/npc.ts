@@ -28,11 +28,11 @@ function pickTarget(zone: Zone, w: Wanderer, area?: (x: number, z: number) => bo
   w.tx = w.x; w.tz = w.z;
 }
 
-function petModel(kind: 'dog' | 'cat', name: string): { obj: THREE.Group; tick: Wanderer['tick'] } {
+export function petModel(kind: 'dog' | 'cat' | 'bunny', name: string): { obj: THREE.Group; tick: Wanderer['tick'] } {
   const g = new THREE.Group();
-  const fur = mat(kind === 'dog' ? '#d9a35c' : '#b8b8c0', 0.95);
+  const fur = mat(kind === 'dog' ? '#d9a35c' : kind === 'bunny' ? '#f4efe9' : '#b8b8c0', 0.95);
   const light = mat(kind === 'dog' ? '#f3dcb8' : '#ffffff', 0.95);
-  const s = kind === 'dog' ? 1 : 0.75;
+  const s = kind === 'dog' ? 1 : kind === 'bunny' ? 0.6 : 0.75;
   const sph = (r: number, m: THREE.Material, x: number, y: number, z: number, sx = 1, sy = 1, sz = 1) => {
     const me = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 12), m);
     me.position.set(x, y, z); me.scale.set(sx, sy, sz); me.castShadow = true; g.add(me); return me;
@@ -47,9 +47,10 @@ function petModel(kind: 'dog' | 'cat', name: string): { obj: THREE.Group; tick: 
   const nose = new THREE.Mesh(new THREE.SphereGeometry(0.025 * s, 8, 6), mat('#222', 0.3)); nose.position.set(0, -0.02 * s, 0.22 * s); head.add(nose);
   for (const x of [-0.06, 0.06]) {
     const e = new THREE.Mesh(new THREE.SphereGeometry(0.022 * s, 8, 6), mat('#111', 0.2)); e.position.set(x * s, 0.04 * s, 0.13 * s); head.add(e);
-    const ear = new THREE.Mesh(kind === 'dog' ? new THREE.SphereGeometry(0.07 * s, 10, 8) : new THREE.ConeGeometry(0.06 * s, 0.12 * s, 4), kind === 'dog' ? mat('#a8763c', 0.95) : fur);
-    ear.position.set(x * 1.8 * s, kind === 'dog' ? 0.02 * s : 0.15 * s, -0.02 * s);
+    const ear = new THREE.Mesh(kind === 'dog' ? new THREE.SphereGeometry(0.07 * s, 10, 8) : kind === 'bunny' ? new THREE.CapsuleGeometry(0.035 * s, 0.22 * s, 4, 8) : new THREE.ConeGeometry(0.06 * s, 0.12 * s, 4), kind === 'dog' ? mat('#a8763c', 0.95) : fur);
+    ear.position.set(x * (kind === 'bunny' ? 0.9 : 1.8) * s, kind === 'dog' ? 0.02 * s : kind === 'bunny' ? 0.24 * s : 0.15 * s, -0.02 * s);
     if (kind === 'dog') ear.scale.set(0.6, 1.4, 0.4);
+    if (kind === 'bunny') { ear.rotation.z = x * -2; const inner = new THREE.Mesh(new THREE.CapsuleGeometry(0.018 * s, 0.16 * s, 4, 6), mat('#ffb3c1', 0.9)); inner.position.z = 0.02 * s; ear.add(inner); }
     head.add(ear);
   }
   const legs: THREE.Mesh[] = [];
@@ -59,9 +60,11 @@ function petModel(kind: 'dog' | 'cat', name: string): { obj: THREE.Group; tick: 
   }
   const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.03 * s, 0.22 * s, 4, 8), fur);
   tail.position.set(0, 0.48 * s, -0.33 * s); tail.rotation.x = -0.8; g.add(tail);
+  if (kind === 'bunny') { tail.scale.set(2.5, 0.6, 2.5); tail.position.set(0, 0.38 * s, -0.3 * s); }
   const collar = new THREE.Mesh(new THREE.TorusGeometry(0.11 * s, 0.02 * s, 6, 16), mat(kind === 'dog' ? '#ff4f9a' : '#4fd1c5', 0.5));
   collar.position.set(0, 0.47 * s, 0.25 * s); collar.rotation.x = 1.2; g.add(collar);
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(name, false), transparent: true, depthWrite: false, depthTest: false }));
+  tag.visible = name.length > 0;
   tag.scale.set(1.1, 0.34, 1); tag.position.y = 1.0; tag.renderOrder = 10; g.add(tag);
   let ph = 0;
   return {

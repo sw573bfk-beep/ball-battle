@@ -336,6 +336,7 @@ function backdrop(L: Layout): THREE.Group {
     }
     const sky = new THREE.Mesh(new THREE.CylinderGeometry(320, 320, 70, 64, 1, true), new THREE.MeshBasicMaterial({ map: skylineTexture(false), transparent: true, side: THREE.BackSide, depthWrite: false, fog: false, opacity: 0.85 }));
     sky.position.y = -drop + 25;
+    sky.name = 'skyline';
     g.add(sky);
     if (L.backdrop === 'tower') {
       // The mansion itself, towering over the car park.

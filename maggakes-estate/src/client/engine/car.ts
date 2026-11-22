@@ -22,7 +22,46 @@ const SPECS: Record<string, Spec> = {
   limo: { l: 6.6, w: 2.0, h: 0.75, cab: 0.6, cabL: 4.6, cabZ: -0.3, wheel: 0.38, seat: 0.5 },
 };
 
+/** A little go-kart that fits through doorways. */
+function buildKart(paint: string): CarModel {
+  const g = new THREE.Group();
+  const body = new THREE.MeshPhysicalMaterial({ color: paint, roughness: 0.3, metalness: 0.4, clearcoat: 1, clearcoatRoughness: 0.1 });
+  rbox(g, 0.9, 0.12, 1.45, mat('#1b1c1f', 0.5, 0.6), 0, 0.12, 0, 0.04);
+  rbox(g, 0.62, 0.22, 0.55, body, 0, 0.2, 0.42, 0.08);
+  rbox(g, 0.95, 0.08, 0.2, body, 0, 0.16, 0.78, 0.04);
+  rbox(g, 0.5, 0.12, 0.42, mat('#141414', 0.6), 0, 0.24, -0.15, 0.06);
+  rbox(g, 0.5, 0.42, 0.1, mat('#141414', 0.6), 0, 0.3, -0.38, 0.05);
+  rbox(g, 0.8, 0.22, 0.3, body, 0, 0.18, -0.6, 0.06);
+  box(g, 0.75, 0.05, 0.18, mat('#1b1c1f', 0.5), 0, 0.55, -0.62);
+  for (const x of [-0.3, 0.3]) box(g, 0.04, 0.2, 0.04, mat('#1b1c1f', 0.5), x, 0.36, -0.62);
+  const num = box(g, 0.2, 0.14, 0.01, glow('#ffffff', 0.6), 0, 0.24, 0.705);
+  num.castShadow = false;
+  const sw = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 8, 20), mat('#222', 0.5));
+  sw.position.set(0, 0.48, 0.18);
+  sw.rotation.x = -1.0;
+  g.add(sw);
+  cyl(g, 0.015, 0.015, 0.25, mat('#222', 0.5), 0, 0.3, 0.25, 6).rotation.x = 0.6;
+  const wheels: THREE.Object3D[] = [];
+  const front: THREE.Object3D[] = [];
+  const tyre = mat('#141414', 0.85);
+  for (const [x, z, r] of [[-0.48, 0.5, 0.15], [0.48, 0.5, 0.15], [-0.5, -0.5, 0.19], [0.5, -0.5, 0.19]]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(x, r, z);
+    const spin = new THREE.Group();
+    pivot.add(spin);
+    const t = cyl(spin, r, r, 0.16, tyre, 0, -0.08, 0, 20);
+    t.rotation.z = Math.PI / 2; t.position.set(0, 0, 0);
+    sph(spin, r * 0.5, mat(paint, 0.3, 0.6), Math.sign(x) * 0.07, 0, 0);
+    g.add(pivot);
+    wheels.push(spin);
+    if (z > 0) front.push(pivot);
+  }
+  g.traverse((o) => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return { obj: g, wheels, front, seat: 0.26, length: 1.5 };
+}
+
 export function buildCar(model: string, paint: string): CarModel {
+  if (model === 'kart') return buildKart(paint);
   const s = SPECS[model] ?? SPECS.hatch;
   const g = new THREE.Group();
   const paintM = new THREE.MeshPhysicalMaterial({ color: paint, roughness: 0.25, metalness: 0.6, clearcoat: 1, clearcoatRoughness: 0.05 });
@@ -87,8 +126,9 @@ export function buildCar(model: string, paint: string): CarModel {
 export class Driving {
   speed = 0;
   steer = 0;
+  constructor(private top = 14) {}
   update(dt: number, throttle: number, turn: number, boost: boolean): void {
-    const max = boost ? 22 : 14;
+    const max = boost ? this.top * 1.55 : this.top;
     const accel = throttle > 0 ? 9 : throttle < 0 ? 12 : 0;
     if (throttle !== 0) this.speed += throttle * accel * dt;
     else this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), 6 * dt);

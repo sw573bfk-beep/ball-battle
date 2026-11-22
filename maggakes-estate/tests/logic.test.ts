@@ -206,4 +206,51 @@ test('new players get 2 per residence floor, always open', () => {
   assert.ok(canEnter(s, 'r3'));
   assert.equal(s.lastZone, 'r3');
 });
+
+
+import { spin, SPIN_PRIZES, collectShell, SHELL_TOTAL, recordLap, adoptPet } from '../src/shared/save';
+
+test('daily spin: once a day, every prize reachable', () => {
+  const seen = new Set<number>();
+  for (let i = 0; i < 400; i++) {
+    const s = newSave('Ava');
+    const r = spin(s, i / 400);
+    assert.ok(r.ok);
+    seen.add(r.index!);
+    assert.equal(spin(s, 0.5).ok, false, 'second spin same day is refused');
+  }
+  assert.equal(seen.size, SPIN_PRIZES.length);
+});
+
+test('golden shells: 30 total, no duplicates or fakes, bonus at the end', () => {
+  assert.equal(SHELL_TOTAL, 30);
+  const s = newSave('Ava');
+  assert.equal(collectShell(s, 'f9:0').ok, false);
+  assert.equal(collectShell(s, 'b:7').ok, false);
+  assert.ok(collectShell(s, 'b:0').ok);
+  assert.equal(collectShell(s, 'b:0').ok, false);
+  const ids = Object.entries({ b: 2, f1: 3, f2: 3, f3: 3, f4: 3, f5: 3, f6: 3, f7: 3, f8: 3, park: 2, villa: 2 }).flatMap(([z, n]) => Array.from({ length: n }, (_, i) => `${z}:${i}`));
+  for (const id of ids) collectShell(s, id);
+  assert.equal(s.shells!.length, 30);
+  assert.ok(s.aura >= 30 * 25 + 1000);
+});
+
+test('kart laps: impossible times refused, personal best kept', () => {
+  const s = newSave('Ava');
+  assert.equal(recordLap(s, 2000).ok, false);
+  assert.ok(recordLap(s, 31000).ok);
+  assert.ok(recordLap(s, 40000).ok);
+  assert.equal(s.bestLap, 31000);
+});
+
+test('pets: puppy/kitten/bunny with a clean name; fireworks stack in the shop', () => {
+  const s = newSave('Ava');
+  assert.equal(adoptPet(s, 'dragon', 'x').ok, false);
+  assert.ok(adoptPet(s, 'bunny', '<b>Fluffy</b>!!').ok);
+  assert.deepEqual(s.pet, { kind: 'bunny', name: 'bFluffyb' });
+  s.aura = 1000;
+  assert.ok(buy(s, 'fx_fireworks').ok && buy(s, 'fx_fireworks').ok);
+  assert.equal(s.inventory.fx_fireworks, 2);
+  assert.equal(s.inventory.car_kart, 1, 'everyone owns a mini kart');
+});
 console.log(`\n${n} tests passed`);

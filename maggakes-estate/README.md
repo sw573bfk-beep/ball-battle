@@ -38,6 +38,13 @@ Charis & Gabby (6th), Milla (7th).
 - **Love Island Mode:** couple up with friends or the islanders, win challenges for Villa Points,
   recouple at the firepit, and reach 1,500 Villa Points while coupled to win the final.
 
+- **🎉 Fun menu (F):** hop in a **mini kart** and drive on any floor, **daily spin wheel**, **party**
+  (disco lights + music; dancing earns Aura), **tag** with friends, **fireworks** (buy in the shop),
+  your **pet** (adopt a puppy, kitten or bunny at the 2nd floor Pet Room — it follows you everywhere),
+  **golden shell** tracker (30 hidden around the mansion, +1,000 Aura for finding them all) and **music**.
+- **🏁 Kart race** at the car park (lap timer + best-lap board) and a **🌊 water slide** on the rooftop.
+- **Day & night:** a shared 20-minute day — sunrise, sunset and starry nights for everyone at once.
+
 Controls: WASD / arrows (or the joystick on phones) to move, drag to turn the camera,
 scroll / pinch to zoom, **E** to interact, **Enter** to chat, **1–5** for emotes.
 

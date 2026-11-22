@@ -1,12 +1,14 @@
 import type { ZoneId } from './people';
 import { RESIDENTS, findResident, type Home } from './people';
 import { ALL_ZONES, FLOORS, REPLAY_AURA, TASK_AURA, floorById, zoneNeed } from './floors';
-import { FREE_ITEMS, shopItem, type WearSlot } from './shop';
+import { FREE_ITEMS, SHOP, shopItem, stackable, type WearSlot } from './shop';
 
 import { BEARDS, BUILDS, EYE_COLORS, HAIR_COLORS, HAIR_STYLES, HEIGHTS, LIP_COLORS, SKINS, normalizeLook, type Look } from './look';
 export type { Look } from './look';
 export { HAIR_COLORS, HAIR_STYLES, SKINS } from './look';
 import type { Season } from './season';
+
+export type PetKind = 'dog' | 'cat' | 'bunny';
 
 export interface PlacedItem {
   uid: string;
@@ -47,6 +49,10 @@ export interface Save {
   lastZone: ZoneId;
   /** Your own bedroom (founders have fixed ones; newcomers get one when approved). */
   home?: Home;
+  pet?: { kind: PetKind; name: string };
+  spinDate?: string;
+  shells?: string[];
+  bestLap?: number;
 }
 
 
@@ -154,7 +160,7 @@ export function buy(save: Save, itemId: string): Result {
   if (item.vip && !save.vip) return { ok: false, msg: 'That item is VIP only.' };
   if (item.floor && !zoneUnlocked(save, item.floor)) return { ok: false, msg: `Unlock ${label(item.floor)} to buy this.` };
   const owned = save.inventory[itemId] ?? 0;
-  if (item.cat !== 'furniture' && owned > 0) return { ok: false, msg: 'You already own this.' };
+  if (!stackable(item) && owned > 0) return { ok: false, msg: 'You already own this.' };
   if (save.aura < item.price) return { ok: false, msg: `You need ${item.price - save.aura} more Aura.` };
   save.aura -= item.price;
   save.inventory[itemId] = owned + 1;
@@ -279,3 +285,73 @@ export function migrate(raw: Partial<Save> & { name: string }): Save {
 }
 
 export const RESIDENT_NAMES = RESIDENTS.map((r) => r.name);
+
+
+// ---------------------------------------------------------------- fun stuff
+
+export const SPIN_PRIZES: { label: string; emoji: string; w: number; aura?: number; item?: string; n?: number; surprise?: boolean }[] = [
+  { label: '50 Aura', emoji: '💎', w: 30, aura: 50 },
+  { label: '100 Aura', emoji: '💎', w: 24, aura: 100 },
+  { label: '150 Aura', emoji: '💎', w: 14, aura: 150 },
+  { label: '3 Fireworks', emoji: '🎆', w: 12, item: 'fx_fireworks', n: 3 },
+  { label: '250 Aura', emoji: '💰', w: 9, aura: 250 },
+  { label: 'Surprise item', emoji: '🎁', w: 7, surprise: true },
+  { label: '500 Aura', emoji: '🤑', w: 4, aura: 500 },
+];
+
+/** Daily spin. `roll` is 0..1 (random on the server). */
+export function spin(save: Save, roll: number, pickRoll = Math.random()): Result & { index?: number } {
+  const d = today();
+  if (save.spinDate === d) return { ok: false, msg: 'You already spun today — come back tomorrow! 🎡' };
+  const total = SPIN_PRIZES.reduce((a, p) => a + p.w, 0);
+  let r = roll * total, index = 0;
+  while (index < SPIN_PRIZES.length - 1 && r >= SPIN_PRIZES[index].w) { r -= SPIN_PRIZES[index].w; index++; }
+  const prize = SPIN_PRIZES[index];
+  save.spinDate = d;
+  if (prize.aura) { save.aura += prize.aura; return { ok: true, msg: `🎡 You won ${prize.label}!`, index }; }
+  if (prize.item) { save.inventory[prize.item] = (save.inventory[prize.item] ?? 0) + (prize.n ?? 1); return { ok: true, msg: `🎡 You won ${prize.label}!`, index }; }
+  const pool = SHOP.filter((i) => (i.cat === 'accessory' || i.cat === 'furniture') && !i.vip && !i.free && i.price <= 600 && !save.inventory[i.id]);
+  if (!pool.length) { save.aura += 300; return { ok: true, msg: '🎡 Surprise! You already own everything, so here\'s 300 Aura.', index }; }
+  const it = pool[Math.floor(pickRoll * pool.length)];
+  save.inventory[it.id] = (save.inventory[it.id] ?? 0) + 1;
+  return { ok: true, msg: `🎡 Surprise! You won ${it.emoji} ${it.name}!`, index };
+}
+
+/** Golden shells hidden per zone (30 in total). */
+export const SHELLS: Partial<Record<ZoneId, number>> = { b: 2, f1: 3, f2: 3, f3: 3, f4: 3, f5: 3, f6: 3, f7: 3, f8: 3, park: 2, villa: 2 };
+export const SHELL_TOTAL: number = Object.values(SHELLS).reduce((a: number, b) => a + (b ?? 0), 0);
+export const SHELL_AURA = 25;
+export const SHELL_BONUS = 1000;
+
+export function collectShell(save: Save, id: string): Result {
+  const m = /^([a-z0-9]+):(\d)$/.exec(id);
+  const count = m ? SHELLS[m[1] as ZoneId] : undefined;
+  if (!m || count === undefined || Number(m[2]) >= count) return { ok: false, msg: 'Hmm, that shell looks fake. 🤔' };
+  save.shells ??= [];
+  if (save.shells.includes(id)) return { ok: false, msg: 'You already found this one!' };
+  save.shells.push(id);
+  save.aura += SHELL_AURA;
+  if (save.shells.length >= SHELL_TOTAL) {
+    save.aura += SHELL_BONUS;
+    return { ok: true, msg: `🐚 ALL ${SHELL_TOTAL} GOLDEN SHELLS FOUND! +${SHELL_BONUS} Aura bonus! 🏆` };
+  }
+  return { ok: true, msg: `🐚 Golden shell ${save.shells.length}/${SHELL_TOTAL}! +${SHELL_AURA} Aura` };
+}
+
+export const MIN_LAP_MS = 9000;
+
+export function recordLap(save: Save, ms: number): Result {
+  if (!Number.isFinite(ms) || ms < MIN_LAP_MS || ms > 600_000) return { ok: false, msg: 'That lap time looks wrong.' };
+  const t = Math.round(ms);
+  const best = !save.bestLap || t < save.bestLap;
+  if (best) save.bestLap = t;
+  save.aura += 20;
+  return { ok: true, msg: `🏁 Lap ${(t / 1000).toFixed(2)}s${best ? ' — new personal best! 🏆' : ''} (+20 Aura)` };
+}
+
+export function adoptPet(save: Save, kind: string, name: string): Result {
+  if (!['dog', 'cat', 'bunny'].includes(kind)) return { ok: false, msg: 'Pick a puppy, kitten or bunny.' };
+  const clean = String(name).replace(/[^A-Za-z0-9 ]/g, '').trim().slice(0, 12) || (kind === 'dog' ? 'Buddy' : kind === 'cat' ? 'Whiskers' : 'Bun Bun');
+  save.pet = { kind: kind as PetKind, name: clean };
+  return { ok: true, msg: `🐾 Say hi to ${clean}! They'll follow you everywhere.` };
+}

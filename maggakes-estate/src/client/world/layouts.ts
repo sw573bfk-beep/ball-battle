@@ -5,7 +5,7 @@ import { P, bedroomKit, ensuiteKit, label, on, wardrobeKit, type PropDef, type R
 
 export interface RoomDef { id: string; name: string; r: Rect; floor: FloorMat; tint?: string; wall?: string }
 
-export type StationKind = 'task' | 'garage' | 'carwash' | 'cabana' | 'villa' | 'firepit' | 'dress' | 'portal' | 'beachhut' | 'hideaway';
+export type StationKind = 'task' | 'garage' | 'carwash' | 'cabana' | 'villa' | 'firepit' | 'dress' | 'portal' | 'beachhut' | 'hideaway' | 'adopt' | 'race' | 'slide';
 
 export interface StationDef { kind: StationKind; id?: string; x: number; z: number }
 
@@ -28,6 +28,8 @@ export interface Layout {
   pools?: Rect[];
   tubs?: [number, number, number][];
   pets?: boolean;
+  /** Race track: start line (x, z, heading) and checkpoints in order, in floor-plan metres. */
+  race?: { start: [number, number, number]; checkpoints: [number, number][] };
   backdrop: 'city' | 'ocean' | 'none' | 'tower';
   /** Height of the floor above street level, for the view out the windows. */
   storey: number;
@@ -184,7 +186,7 @@ const floor2: Layout = {
     on(F2.wash, 's', 0.5, 0.7, 'petbath'), label(F2.wash, 'Pet Washing', -0.1),
     on(F2.powder, 's', 0.7, 0.7, 'toilet'), on(F2.powder, 'e', 0.3, 0.52, 'sink', { w: 1.2 }), label(F2.powder, 'Powder', -0.25),
   ],
-  stations: [T('breakfast', 4, 1.9), T('feed', 19.5, 17.4), T('wash', 25.5, 17.2), T('cleankitchen', 10.5, 8.8), T('snack', 3.5, 8.8)],
+  stations: [T('breakfast', 4, 1.9), T('feed', 19.5, 17.4), T('wash', 25.5, 17.2), T('cleankitchen', 10.5, 8.8), T('snack', 3.5, 8.8), { kind: 'adopt', x: 12, z: 15.5 }],
   lift: [31.75, 6, -Math.PI / 2],
   spawn: [29, 6],
 };
@@ -453,10 +455,11 @@ const floor8: Layout = {
     P('plant', 29, 18, 0, { kind: 'tall', s: 1.2, seed: 2 }), P('plant', 31.5, 18.5, 0, { s: 1.1, seed: 3 }), P('hedge', 28.5, 15.5, 0, { w: 3 }),
     P('label', 29, 20, 0, { text: 'Rooftop Garden', color: '#2f5a2a' }),
     P('palm', 0.8, 9, 0, { h: 4.2 }), P('palm', 0.8, 13, 0, { h: 3.6, lean: 0.12 }), P('palm', 27, 8, 0, { h: 4.4, lean: -0.08 }),
+    P('waterslide', 26.6, 13.6, 0),
   ],
   stations: [
     T('infinity', 14, 13.3), T('tropical', 11, 19.2), T('sunbeds', 19, 5.6), T('garden', 27.5, 18.4), T('sunset', 3.5, 12),
-    { kind: 'cabana', x: 2.2, z: 4.6 }, { kind: 'portal', x: 31, z: 12.5 },
+    { kind: 'cabana', x: 2.2, z: 4.6 }, { kind: 'portal', x: 31, z: 12.5 }, { kind: 'slide', x: 26.6, z: 15.3 },
   ],
   lift: [33.75, 9, -Math.PI / 2],
   spawn: [31, 9],
@@ -483,8 +486,11 @@ const park: Layout = {
     ...[2, 8, 14, 20, 26, 32, 38, 44].map((x, i) => P('palm', x, 38.8, 0, { h: 4 + (i % 3) * 0.6, lean: (i % 2 ? 1 : -1) * 0.08 })),
     ...[1, 45].flatMap((x) => [18, 24, 30, 36].map((z) => P('palm', x, z, 0, { h: 4.2, lean: x < 20 ? 0.1 : -0.1 }))),
     P('hedge', 23, 27, 0, { w: 8, h: 0.8 }), P('plant', 23, 27, 0, { kind: 'tall', s: 1.6, seed: 4 }),
+    P('gantry', 23, 17.75, Math.PI / 2, { w: 5.4 }),
+    ...[[38.3, 20.7], [38.3, 31.8], [7.7, 31.8], [7.7, 20.7], [30, 20.6], [16, 20.6], [30, 31.9], [16, 31.9]].map(([x, z]) => P('cone', x, z, 0)),
   ],
-  stations: [{ kind: 'garage', x: 16, z: 9.5 }, { kind: 'carwash', x: 39, z: 6 }],
+  stations: [{ kind: 'garage', x: 16, z: 9.5 }, { kind: 'carwash', x: 39, z: 6 }, { kind: 'race', x: 19.5, z: 15.4 }],
+  race: { start: [21, 17.75, Math.PI / 2], checkpoints: [[41.25, 17.75], [41.25, 34.75], [4.75, 34.75], [4.75, 17.75], [23, 17.75]] },
   lift: [2, 0.25, 0],
   spawn: [2, 3],
 };

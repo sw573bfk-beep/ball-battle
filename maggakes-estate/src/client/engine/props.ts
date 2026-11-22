@@ -1487,6 +1487,88 @@ function volleyNet(): Prop {
   return { obj: g, solid: { w: 8.2, d: 0.2 } };
 }
 
+// ------------------------------------------------------------- fun
+
+/** The water slide's path, in the slide prop's local space (top → pool). */
+export function slideCurve(): THREE.CatmullRomCurve3 {
+  return new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 4.3, 0), new THREE.Vector3(1.2, 3.9, -0.9), new THREE.Vector3(0.9, 3.3, -2.3),
+    new THREE.Vector3(-0.6, 2.7, -2.9), new THREE.Vector3(-1.9, 2.1, -2.1), new THREE.Vector3(-1.5, 1.4, -0.8),
+    new THREE.Vector3(-2.3, 0.8, -0.4), new THREE.Vector3(-3.3, 0.35, -1.4), new THREE.Vector3(-4.0, -0.1, -2.6),
+  ]);
+}
+
+function waterSlide(): Prop {
+  const g = G();
+  const white = mat('#f7f5f2', 0.4);
+  for (const [x, z] of [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]]) cyl(g, 0.07, 0.07, 4.3, white, x, 0, z, 10);
+  box(g, 1.6, 0.12, 1.6, mat('#4fd1c5', 0.4), 0, 4.2, 0);
+  for (let i = 0; i < 4; i++) box(g, 1.6, 0.05, 0.05, white, 0, 4.4 + i * 0.12, -0.78);
+  for (let i = 0; i < 14; i++) box(g, 0.9, 0.06, 0.3, mat('#ff6f91', 0.5), 1.2, i * 0.3, 0.8 - i * 0.06);
+  const curve = slideCurve();
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 0.5, 14, false), new THREE.MeshPhysicalMaterial({ color: '#ffd23f', roughness: 0.2, clearcoat: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
+  tube.castShadow = true;
+  g.add(tube);
+  const water = new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 0.42, 10, false), new THREE.MeshStandardMaterial({ color: '#7fe7f5', transparent: true, opacity: 0.35, side: THREE.BackSide }));
+  g.add(water);
+  for (const t of [0.2, 0.4, 0.6, 0.78]) {
+    const p = curve.getPoint(t);
+    if (p.y > 0.3) cyl(g, 0.06, 0.06, p.y - 0.45, white, p.x, 0, p.z, 8);
+  }
+  return { obj: g, solid: { w: 1.6, d: 1.6 } };
+}
+
+function gantry(o: Opts): Prop {
+  const g = G();
+  const w = o.w ?? 5;
+  for (const x of [-w / 2, w / 2]) cyl(g, 0.1, 0.1, 3.6, mat('#ffffff', 0.4), x, 0, 0, 10);
+  const tex = textTexture(String(o.text ?? '🏁 START  ·  FINISH 🏁'), { color: '#ffffff', bg: '#111111', w: 1024, h: 160, size: 76 });
+  const banner = plane(g, w, w * 0.156, new THREE.MeshStandardMaterial({ map: tex, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.6, side: THREE.DoubleSide }), 0, 3.3, 0);
+  banner.castShadow = true;
+  // Checkered line on the road
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 32;
+  const x = c.getContext('2d')!;
+  for (let i = 0; i < 16; i++) for (let j = 0; j < 2; j++) { x.fillStyle = (i + j) % 2 ? '#111' : '#fff'; x.fillRect(i * 16, j * 16, 16, 16); }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  decal(g, w, 0.6, new THREE.MeshStandardMaterial({ map: t, roughness: 0.8 }), 0, 0, 0.02);
+  return { obj: g };
+}
+
+function cone(): Prop {
+  const g = G();
+  box(g, 0.4, 0.04, 0.4, mat('#ff6a00', 0.6), 0, 0, 0);
+  const c = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.55, 16), mat('#ff6a00', 0.5));
+  c.position.y = 0.3;
+  add(g, c);
+  const band = cyl(g, 0.095, 0.115, 0.08, mat('#ffffff', 0.4), 0, 0.27, 0, 16);
+  band.castShadow = false;
+  return { obj: g };
+}
+
+/** A gold scallop shell (for the hidden shell hunt). */
+export function goldenShell(): THREE.Group {
+  const g = G();
+  const gold = mat('#ffcf4a', 0.2, 1, '#ffb300', 0.35);
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 10, 0, Math.PI, 0, Math.PI / 2), gold);
+  shell.rotation.x = -Math.PI / 2;
+  shell.scale.set(1, 1, 0.35);
+  g.add(shell);
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 6) * Math.PI;
+    const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.22, 6), gold);
+    rib.position.set(Math.cos(a) * 0.11, Math.sin(a) * 0.11, 0.05);
+    rib.rotation.z = a - Math.PI / 2;
+    g.add(rib);
+  }
+  box(g, 0.08, 0.06, 0.06, gold, 0, -0.03, 0.02);
+  const s = sprite(glowTexture(), 1.0, 0xffd76a, true);
+  s.material.opacity = 0.6;
+  g.add(s);
+  return g;
+}
+
 /** Icon used for a task or action station. */
 export function stationMarker(emoji: string, color: string): Prop {
   const g = G();
@@ -1527,6 +1609,7 @@ export const PROPS: Record<string, (o: Opts) => Prop> = {
   recordplayer: recordPlayer, discoball: discoBall, aquarium, statue, minifridge: miniFridge, books, stand,
   eggchair: eggChair, daybed, festoon, tikitorch: tikiTorch, flamingo, hutchair: hutChair, camera, podium, stage, arch: flowerArch,
   lantern, hammock, telescope, cushions: floorCushions, volleynet: volleyNet,
+  waterslide: waterSlide, gantry, cone,
 };
 
 export function makeProp(type: string, o: Opts = {}): Prop {
