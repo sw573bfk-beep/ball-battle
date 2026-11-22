@@ -253,4 +253,40 @@ test('pets: puppy/kitten/bunny with a clean name; fireworks stack in the shop', 
   assert.equal(s.inventory.fx_fireworks, 2);
   assert.equal(s.inventory.car_kart, 1, 'everyone owns a mini kart');
 });
+
+
+test('BUG FIX: closing a Love Island moment no longer gets you stuck', () => {
+  let s = seasonAct(undefined, { a: 'start' }).season!;
+  s = seasonAct(s, { a: 'answer', choice: s.cast[0] }).season!;       // first coupling
+  s = seasonAct(s, { a: 'chat', who: s.cast[1] }).season!;             // a chat opens…
+  assert.ok(s.pending);
+  // …she closes the window and walks to the firepit:
+  const r = seasonAct(s, { a: 'firepit' });
+  assert.ok(r.ok, 'firepit no longer refuses');
+  assert.ok(r.scene!.choices!.length === 3, 'the unanswered chat pops back up');
+  const r2 = seasonAct(r.season, { a: 'answer', choice: (s.pending as { tones: string[] }).tones[0] });
+  assert.ok(r2.ok && !r2.season!.pending, 'answering it carries on normally');
+});
+
+test('BUG FIX: old stuck saves (no saved scene) get moved along', () => {
+  let s = seasonAct(undefined, { a: 'start' }).season!;
+  s = seasonAct(s, { a: 'answer', choice: s.cast[0] }).season!;
+  s.pending = { type: 'event', ev: 'date', who: s.cast[1], options: ['go', 'no'] };
+  s.lastScene = undefined;
+  const r = seasonAct(s, { a: 'firepit' });
+  assert.ok(r.ok && !r.season!.pending, 'unstuck');
+  assert.ok(seasonAct(r.season, { a: 'firepit' }).ok, 'and can carry on to the firepit');
+});
+
+test('BUG FIX: you can break up with your partner', () => {
+  let s = seasonAct(undefined, { a: 'start' }).season!;
+  s = seasonAct(s, { a: 'answer', choice: s.cast[0] }).season!;
+  const ex = s.partner!;
+  const before = s.bonds[ex];
+  const r = seasonAct(s, { a: 'breakup' });
+  assert.ok(r.ok);
+  assert.equal(r.season!.partner, null);
+  assert.ok(r.season!.bonds[ex] < before);
+  assert.equal(seasonAct(r.season, { a: 'breakup' }).ok, false, 'already single');
+});
 console.log(`\n${n} tests passed`);

@@ -1,9 +1,25 @@
 import './style.css';
 import { Net, api } from './net';
 import { Game } from './game';
-import { h, $, fill } from './ui/dom';
+import { h, $, fill, toast } from './ui/dom';
+import { recentErrors, TEAMS_NOTE } from './ui/report';
 
 const KEY = 'maggakes.token';
+
+// Catch errors: keep the last few, and quietly report the first ones to Beau + the VIPs.
+let autoSent = 0;
+function caught(msg: string): void {
+  if (!msg || recentErrors.includes(msg)) return;
+  recentErrors.push(msg.slice(0, 300));
+  while (recentErrors.length > 5) recentErrors.shift();
+  if (game && autoSent < 2) {
+    autoSent++;
+    game.net.send({ t: 'report', auto: true, text: msg.slice(0, 300), info: game.reportInfo() });
+    toast(`😬 Something went wrong — it's been reported. ${TEAMS_NOTE}`);
+  }
+}
+addEventListener('error', (e) => caught(`${e.message} @ ${e.filename?.split('/').pop()}:${e.lineno}`));
+addEventListener('unhandledrejection', (e) => caught(`Unhandled: ${String((e as PromiseRejectionEvent).reason).slice(0, 200)}`));
 let game: Game | null = null;
 
 function signOut(): void {

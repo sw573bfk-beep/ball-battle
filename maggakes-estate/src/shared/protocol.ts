@@ -54,6 +54,9 @@ export interface AccountRow {
   hasPassword: boolean;
 }
 
+/** A problem report sent from inside the game. */
+export interface Report { id: string; from: string; text: string; info: string; auto: boolean; at: number; done: boolean }
+
 export type AdminAction = 'vip' | 'unvip' | 'reset' | 'ban' | 'unban' | 'approve' | 'reject' | 'admin' | 'unadmin';
 
 export type ClientMsg =
@@ -87,6 +90,10 @@ export type ClientMsg =
   | { t: 'party' }
   | { t: 'tag' }
   | { t: 'tagged'; who: string }
+  | { t: 'breakup' }
+  | { t: 'report'; text: string; info: string; auto?: boolean }
+  | { t: 'reports' }
+  | { t: 'reportDone'; id: string; done: boolean }
   | { t: 'room?'; owner: string }
   | { t: 'season'; act: SeasonAction };
 
@@ -94,7 +101,8 @@ export type ServerMsg =
   | { t: 'welcome'; save: Save; admin: boolean; residences: Residence[]; pending: number }
   | { t: 'world'; residences: Residence[] }
   | { t: 'accounts'; rows: AccountRow[] }
-  | { t: 'role'; admin: boolean; pending: number }
+  | { t: 'role'; admin: boolean; pending: number; reports?: number }
+  | { t: 'reports'; rows: Report[] }
   | { t: 'save'; save: Save }
   | { t: 'toast'; text: string; good?: boolean }
   | { t: 'peers'; zone: ZoneId; list: PeerInfo[] }

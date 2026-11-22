@@ -24,6 +24,7 @@ export interface Ctx {
   walls: () => 'auto' | 'low';
   setWalls: (w: 'auto' | 'low') => void;
   signOut: () => void;
+  report: () => void;
 }
 
 const fmt = (n: number) => n.toLocaleString('en-AU');
@@ -219,6 +220,8 @@ export function openSettings(ctx: Ctx): void {
         h('li', {}, 'Camera: drag the screen · zoom: scroll or pinch'),
         h('li', {}, 'Interact: E or the big button'),
         h('li', {}, 'Chat: Enter · Emotes: 1–5'))),
+      h('section', {}, h('h4', {}, 'Something wrong?'), h('button.btn', { onclick: () => ctx.report() }, '🐞 Report a problem'),
+        h('p.muted', {}, "Or message Beau on Teams about errors and they'll be fixed.")),
       h('section', {}, h('button.btn.warn', { onclick: () => ctx.signOut() }, 'Sign out')),
     );
   };

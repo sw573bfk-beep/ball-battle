@@ -5,6 +5,8 @@ import { zoneName } from '../../shared/floors';
 
 interface AccountsCtx {
   net: Net;
+  openReports: () => void;
+  reports: () => number;
   admin: () => boolean;
   me: string;
   onAccounts: (fn: (rows: AccountRow[]) => void) => () => void;
@@ -32,6 +34,7 @@ export function openAccounts(ctx: AccountsCtx): void {
     const pending = rows.filter((r) => r.status === 'pending');
     const others = rows.filter((r) => r.status !== 'pending');
     fill(body,
+      h('div.actions', { style: { justifyContent: 'flex-start', marginTop: '0' } }, h('button.btn' + (ctx.reports() ? '' : '.ghost'), { onclick: () => ctx.openReports() }, `🐞 Problem reports${ctx.reports() ? ` (${ctx.reports()} open)` : ''}`)),
       h('p.muted', {}, admin ? '🛡️ You are an admin. Passwords are scrambled — nobody can see them, but you can reset them.' : '⭐ VIPs can see every account. Only admins can change them.'),
       pending.length ? h('section.pending', {},
         h('h4', {}, `🆕 Waiting for approval (${pending.length})`),

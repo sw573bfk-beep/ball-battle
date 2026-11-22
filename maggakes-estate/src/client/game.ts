@@ -18,6 +18,8 @@ import { setResidences, getResidences } from './world/layouts';
 import { openAccounts } from './ui/accounts';
 import { Fun } from './funsys';
 import { openAdopt, openFun } from './ui/fun';
+import { openReportDialog, openReports, recentErrors } from './ui/report';
+import type { Report } from '../shared/protocol';
 import type { AccountRow, Residence } from '../shared/protocol';
 import { ALL_ZONES, floorById, zoneName, type TaskDef } from '../shared/floors';
 import { canEnter, zoneUnlocked, ROOM_LIMIT, type Look, type PlacedItem, type Save } from '../shared/save';
@@ -94,6 +96,8 @@ export class Game {
   ctx: Ctx;
 
   pending = 0;
+  reports = 0;
+  private reportListeners = new Set<(r: Report[]) => void>();
   fun!: Fun;
   /** Set while racing countdowns / the water slide take over movement. */
   lockMove = false;
@@ -124,6 +128,7 @@ export class Game {
       walls: () => this.wallMode,
       setWalls: (w) => { this.wallMode = w; localStorage.setItem('walls', w); },
       signOut: () => this.signOut(),
+      report: () => this.openReport(),
     };
     net.on((m) => this.onMsg(m));
     this.input.onKey = (k) => this.onKey(k);
@@ -132,6 +137,24 @@ export class Game {
     const start = canEnter(save, save.lastZone) && this.zoneExists(save.lastZone) ? save.lastZone : save.home?.zone ?? 'f1';
     this.travel(start, true);
     this.loop();
+  }
+
+  openReport(): void {
+    openReportDialog(this.net, () => this.reportInfo());
+  }
+
+  /** Context sent with a report so problems can be fixed quickly. */
+  reportInfo(): string {
+    const s = this.save;
+    const se = s.villa.season;
+    return [
+      `player: ${s.name}`, `floor: ${this.zoneId}`, `time: ${new Date().toISOString()}`,
+      `aura: ${s.totalAura} total / ${s.aura} available`, `driving: ${!!this.car}`,
+      se ? `season: day ${se.day}, phase ${se.phase}, pending ${se.pending ? se.pending.type : 'none'}, partner ${se.partner ?? 'none'}` : 'season: none',
+      `villa partner: ${s.villa.partner ?? 'none'}`,
+      `screen: ${innerWidth}x${innerHeight}`, `device: ${navigator.userAgent}`,
+      recentErrors.length ? `recent errors:\n${recentErrors.join('\n')}` : 'recent errors: none',
+    ].join('\n');
   }
 
   openFunMenu(): void {
@@ -158,8 +181,9 @@ export class Game {
     const btn = $('#b-accounts');
     btn.style.display = this.admin || this.save.vip ? '' : 'none';
     const badge = btn.querySelector('.badge') as HTMLElement;
-    badge.textContent = this.pending > 0 ? String(this.pending) : '';
-    badge.style.display = this.admin && this.pending > 0 ? '' : 'none';
+    const n = (this.admin ? this.pending : 0) + (this.admin || this.save.vip ? this.reports : 0);
+    badge.textContent = n > 0 ? String(n) : '';
+    badge.style.display = n > 0 ? '' : 'none';
   }
 
   /** Called when the connection drops and comes back. */
@@ -371,10 +395,12 @@ export class Game {
         this.saveListeners.forEach((f) => f());
         return;
       }
+      case 'reports': this.reportListeners.forEach((f) => f(m.rows)); return;
       case 'role': {
         this.admin = m.admin;
         this.ctx.admin = m.admin;
         this.pending = m.pending;
+        if (m.reports !== undefined) this.reports = m.reports;
         this.renderBadge();
         return;
       }
@@ -1033,7 +1059,7 @@ export class Game {
         h('div.actions', {}, h('button.btn.big', { onclick: () => { closeAllSheets(); openWardrobe(this.ctx, { villa: true, onSaved: () => setTimeout(() => this.villaIntro(), 400) }); } }, '🌺 Choose my villa look'))));
       return;
     }
-    if (!s.villa.season) openCast(undefined, () => this.seasonAct({ a: 'start' }));
+    if (!s.villa.season) openCast(undefined, () => this.seasonAct({ a: 'start' }), (a) => this.seasonAct({ a }));
   }
 
   /** Sends a season action to the server; the reply arrives as a scene. */
@@ -1097,7 +1123,7 @@ export class Game {
 
   private hostMenu(): void {
     const s = this.save.villa.season;
-    if (!s || s.phase === 'over') { openCast(s, () => this.seasonAct({ a: 'start' })); return; }
+    if (!s || s.phase === 'over') { openCast(s, () => this.seasonAct({ a: 'start' }), (a) => this.seasonAct({ a })); return; }
     this.seasonAct({ a: 'status' });
   }
 
@@ -1113,18 +1139,22 @@ export class Game {
 
   private firepit(): void {
     const s = this.save.villa.season;
-    const players = [...this.peers.values()].length;
-    if (!s || s.phase === 'over') { openCast(s, () => this.seasonAct({ a: 'start' })); return; }
-    if (s.phase === 'morning' && s.actions > 0) {
-      sheet('🔥 The Firepit', h('div.mg', {},
-        h('p', {}, `It's still daytime — you have ${s.actions} chat${s.actions === 1 ? '' : 's'} left. Head to tonight's twist now?`),
-        h('div.actions', {},
-          h('button.btn', { onclick: () => { closeAllSheets(); this.seasonAct({ a: 'firepit' }); } }, "🌙 Yes, bring on tonight"),
-          h('button.btn.ghost', { onclick: () => closeAllSheets() }, 'Not yet')),
-        players ? h('div.actions', {}, h('button.btn.ghost', { onclick: () => { closeAllSheets(); this.net.send({ t: 'recouple' }); } }, '👯 Group recoupling with the players here')) : null));
-      return;
-    }
-    this.seasonAct({ a: 'firepit' });
+    const players = this.peers.size;
+    const other = this.save.villa.partner;
+    if (!s || s.phase === 'over') { openCast(s, () => this.seasonAct({ a: 'start' }), (a) => this.seasonAct({ a })); return; }
+    // Something waiting for an answer? The server shows it again.
+    if (s.pending) { this.seasonAct({ a: 'firepit' }); return; }
+    const p = s.partner;
+    const day = s.phase === 'morning' && s.actions > 0;
+    sheet('🔥 The Firepit', h('div.mg', {},
+      h('p', {}, day ? `It's still daytime — you have ${s.actions} chat${s.actions === 1 ? '' : 's'} left. Head to tonight's twist now?` : "It's time for tonight at the firepit…"),
+      h('div.actions', {},
+        h('button.btn', { onclick: () => { closeAllSheets(); this.seasonAct({ a: 'firepit' }); } }, day ? '🌙 Yes, bring on tonight' : "🔥 Let's go"),
+        h('button.btn.ghost', { onclick: () => closeAllSheets() }, 'Not yet')),
+      p || other || players ? h('div.actions', {},
+        p ? h('button.btn.ghost', { onclick: () => { if (confirm(`Break up with ${p}?`)) { closeAllSheets(); this.seasonAct({ a: 'breakup' }); } } }, `💔 Break up with ${p}`) : null,
+        other ? h('button.btn.ghost', { onclick: () => { if (confirm(`Split up from ${other.replace(/^npc:/, '')}?`)) { closeAllSheets(); this.net.send({ t: 'breakup' }); } } }, `💔 Split from ${other.replace(/^npc:/, '')}`) : null,
+        players ? h('button.btn.ghost', { onclick: () => { closeAllSheets(); this.net.send({ t: 'recouple' }); } }, '👯 Group recoupling with the players here') : null) : null));
   }
 
   private coupleAsk(from: string): void {
@@ -1188,7 +1218,7 @@ export class Game {
     btn('#b-board', () => openBoard(this.ctx));
     btn('#b-settings', () => openSettings(this.ctx));
     btn('#b-fun', () => this.openFunMenu());
-    btn('#b-accounts', () => openAccounts({ net: this.net, admin: () => this.admin, me: this.save.name, onAccounts: (fn) => { this.accountListeners.add(fn); return () => this.accountListeners.delete(fn); } }));
+    btn('#b-accounts', () => openAccounts({ net: this.net, admin: () => this.admin, me: this.save.name, reports: () => this.reports, openReports: () => openReports(this.net, (fn) => { this.reportListeners.add(fn); return () => this.reportListeners.delete(fn); }), onAccounts: (fn) => { this.accountListeners.add(fn); return () => this.accountListeners.delete(fn); } }));
     btn('#b-emote', () => $('#emotes').classList.toggle('on'));
     btn('#b-tasks', () => $('#hud').classList.toggle('collapsed'));
     document.querySelectorAll<HTMLButtonElement>('#emotes button').forEach((b) => {
@@ -1235,7 +1265,7 @@ export class Game {
         h('li', {}, p ? `💘 ${p} · bond ${se!.bonds[p] ?? 0}` : '💔 Single'),
         se ? h('li', {}, `📈 Popularity ${se.popularity}/100`) : null,
         h('li.next', {}, `👉 ${nextStep(se)}`),
-        h('li', {}, h('button.mini', { onclick: () => openCast(se, () => this.seasonAct({ a: 'start' })) }, '📺 Islanders & season'), ` 🏆 ${s.villa.wins}`),
+        h('li', {}, h('button.mini', { onclick: () => openCast(se, () => this.seasonAct({ a: 'start' }), (a) => this.seasonAct({ a })) }, '📺 Islanders & season'), ` 🏆 ${s.villa.wins}`),
       );
     } else {
       const tasks = taskList(s, this.zoneId);

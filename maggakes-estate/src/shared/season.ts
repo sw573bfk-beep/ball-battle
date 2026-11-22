@@ -123,6 +123,8 @@ export interface Season {
   flirts: number;
   seen: string[];
   pending: Pending | null;
+  /** The scene for the pending moment, so it can be shown again if it was closed. */
+  lastScene?: Scene;
   log: string[];
   result?: 'won' | 'runnerup' | 'dumped';
 }
@@ -146,7 +148,8 @@ export type SeasonAction =
   | { a: 'evening' }
   | { a: 'firepit' }
   | { a: 'answer'; choice: string }
-  | { a: 'status' };
+  | { a: 'status' }
+  | { a: 'breakup' };
 
 export const FINAL_DAY = 10;
 export const ACTIONS_PER_DAY = 3;
@@ -239,19 +242,67 @@ function morningScene(s: Season, extra: string[] = []): Scene {
 export function seasonAct(s: Season | undefined, act: SeasonAction): { season: Season | undefined } & ActResult {
   if (act.a === 'start') {
     const ns = newSeason(Math.floor(Math.random() * 2 ** 31));
-    return { season: ns, ok: true, scene: introScene(ns) };
+    const scene = introScene(ns);
+    ns.lastScene = scene;
+    return { season: ns, ok: true, scene };
   }
   if (!s) return { season: s, ok: false, msg: 'Start a season first! Talk to Jazz at the firepit.' };
   const r = rng(s);
+  // Something still waiting for an answer (e.g. the window was closed)? Show it again.
+  if (s.pending && act.a !== 'answer') return { season: s, ok: true, scene: reopen(s, r) };
+  let res: ActResult;
   switch (act.a) {
-    case 'status': return { season: s, ok: true, scene: statusScene(s) };
-    case 'chat': return { season: s, ...chat(s, r, act.who) };
-    case 'hut': return { season: s, ...hut(s, r) };
-    case 'evening': return { season: s, ...evening(s, r) };
-    case 'firepit': return { season: s, ...firepit(s, r) };
-    case 'answer': return { season: s, ...answer(s, r, String(act.choice)) };
+    case 'status': res = { ok: true, scene: statusScene(s) }; break;
+    case 'chat': res = chat(s, r, act.who); break;
+    case 'hut': res = hut(s, r); break;
+    case 'evening': res = evening(s, r); break;
+    case 'firepit': res = firepit(s, r); break;
+    case 'answer': res = answer(s, r, String(act.choice)); break;
+    case 'breakup': res = breakup(s); break;
+    default: res = { ok: false, msg: 'Unknown action.' };
   }
-  return { season: s, ok: false, msg: 'Unknown action.' };
+  s.lastScene = s.pending && res.scene ? res.scene : undefined;
+  return { season: s, ...res };
+}
+
+/** Brings back a moment that's waiting for an answer, or skips it if it can't be rebuilt. */
+function reopen(s: Season, r: () => number): Scene {
+  if (s.lastScene) return { ...s.lastScene, lines: ["🎤 Jazz: You still need to answer this one, babe!", ...s.lastScene.lines] };
+  const p = s.pending!;
+  if (p.type === 'firstcouple') return introScene(s);
+  if (p.type === 'chat') {
+    const t = TOPICS[p.topic];
+    return { kind: 'chat', speaker: p.who, title: `Chatting with ${p.who}`, lines: [`"${t.prompt}"`], choices: p.tones.map((x) => ({ id: x, label: `${TONE_LABEL[x]} — "${t.opts[x]}"` })) };
+  }
+  if (p.type === 'hut') {
+    const t = BEACH_HUT[p.topic];
+    return { kind: 'chat', speaker: 'Beach Hut', title: '🎥 The Beach Hut', lines: [t.prompt.replace('🎥 Beach Hut: ', '')], choices: p.tones.map((x) => ({ id: x, label: `${TONE_LABEL[x]} — "${t.opts[x]}"` })) };
+  }
+  if (p.type === 'recouple') {
+    return { kind: 'event', speaker: HOST.name, title: '🔥 Recoupling', mood: 'drama', lines: ['Who do you want to couple up with?'], choices: p.options.map((n) => ({ id: n, label: `💘 ${n} — bond ${s.bonds[n] ?? 0}` })) };
+  }
+  // Older saves: we can't rebuild this twist, so move the night along.
+  s.pending = null;
+  s.phase = 'firepit';
+  void r;
+  return { kind: 'host', speaker: HOST.name, title: `Day ${s.day}`, lines: ["🎤 Jazz: Let's skip ahead — head to the firepit when you're ready! 🔥"] };
+}
+
+/** End things with your partner. Drama! */
+function breakup(s: Season): ActResult {
+  const p = partnerName(s);
+  if (!p) return { ok: false, msg: "You're already single!" };
+  const bonds: { who: string; delta: number }[] = [];
+  bond(s, p, -20, bonds);
+  s.partner = null;
+  s.popularity = clamp(s.popularity + 3);
+  return {
+    ok: true,
+    scene: {
+      kind: 'result', speaker: HOST.name, title: '💔 Break-up', mood: 'drama', bonds,
+      lines: [`You pulled ${p} for a chat and ended things. 💔`, `"${p === 'Kai' || p === 'Jordan' ? "Fair enough, I respect it." : 'Wow… okay. I did not see that coming.'}"`, "🎤 Jazz: You're single now — careful, singles are at risk at the next dumping! 😬"],
+    },
+  };
 }
 
 function statusScene(s: Season): Scene {

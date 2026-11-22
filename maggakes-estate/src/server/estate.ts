@@ -8,7 +8,7 @@ import {
 } from '../shared/save';
 import { ISLANDERS, npcAccepts, villaChallenge, winFinal } from '../shared/villa';
 import { seasonAct, type SeasonAction } from '../shared/season';
-import type { AccountRow, AccountStatus, AdminAction, BoardRow, ClientMsg, PeerInfo, PeerPos, Residence, ServerMsg } from '../shared/protocol';
+import type { AccountRow, AccountStatus, AdminAction, BoardRow, ClientMsg, PeerInfo, PeerPos, Report, Residence, ServerMsg } from '../shared/protocol';
 
 interface Account { salt: string; hash: string; ver: number }
 interface Token { name: string; ver: number; exp: number }
@@ -24,6 +24,8 @@ interface Conn {
   pos: PeerPos;
   car: { id: string; paint: string } | null;
   lastChat: number;
+  lastReport?: number;
+  autoReports?: number;
 }
 
 const TOKEN_DAYS = 60;
@@ -36,6 +38,7 @@ export class Estate extends DurableObject {
   private lastCeremony = 0;
   private parties = new Map<ZoneId, { until: number; next: number; earned: Map<string, number> }>();
   private tags = new Map<ZoneId, { it: string; until: number; last: number; timer: ReturnType<typeof setTimeout> }>();
+  private reports: Report[] = [];
   /** All accounts, by lowercase name. */
   private profiles = new Map<string, Profile>();
 
@@ -44,6 +47,7 @@ export class Estate extends DurableObject {
     // Load accounts; make sure the 10 founders exist (Beau, Keola and Milla are admins).
     ctx.blockConcurrencyWhile(async () => {
       for (const [, p] of await ctx.storage.list<Profile>({ prefix: 'prof:' })) this.profiles.set(p.name.toLowerCase(), p);
+      this.reports = [...(await ctx.storage.list<Report>({ prefix: 'report:' })).values()].sort((a, b) => b.at - a.at);
       for (const r of RESIDENTS) {
         if (this.profiles.has(r.name.toLowerCase())) continue;
         const p: Profile = { name: r.name, status: 'approved', admin: !!r.admin, founder: true, home: { zone: r.home, room: r.room }, created: Date.now(), lastSeen: 0 };
@@ -181,12 +185,51 @@ export class Estate extends DurableObject {
     return [...map.values()].sort((a, b) => residenceNumber(a.zone) - residenceNumber(b.zone));
   }
 
+  // ------------------------------------------------------------- problem reports
+
+  /** VIPs and admins (incl. Beau) get problem reports. */
+  private canSeeReports(c: Conn): boolean {
+    return !!this.profile(c.name)?.admin || c.save.vip;
+  }
+
+  private openReports(): number {
+    return this.reports.filter((r) => !r.done).length;
+  }
+
+  private async report(c: Conn, text: string, info: string, auto: boolean): Promise<void> {
+    const now = Date.now();
+    if (auto) { c.autoReports = (c.autoReports ?? 0) + 1; if (c.autoReports > 3) return; }
+    else if (c.lastReport && now - c.lastReport < 20_000) { this.send(c, { t: 'toast', text: 'Thanks — please wait a few seconds before sending another report.' }); return; }
+    c.lastReport = now;
+    const r: Report = { id: `${now}-${randomHex(3)}`, from: c.name, text: text.slice(0, 1000) || '(no description)', info: info.slice(0, 2000), auto, at: now, done: false };
+    this.reports.unshift(r);
+    await this.ctx.storage.put(`report:${r.id}`, r);
+    while (this.reports.length > 200) { const old = this.reports.pop()!; await this.ctx.storage.delete(`report:${old.id}`); }
+    if (!auto) this.send(c, { t: 'toast', text: "🐞 Thanks! Your report was sent to Beau and the VIPs. You can also message Beau on Teams about errors and they'll be fixed.", good: true });
+    this.notifyReporters(`🐞 New ${auto ? 'automatic error' : 'problem'} report from ${c.name}: "${r.text.slice(0, 60)}"`);
+  }
+
+  private notifyReporters(text?: string): void {
+    const reports = this.openReports();
+    for (const o of this.conns.values()) {
+      if (!this.canSeeReports(o)) continue;
+      const p = this.profile(o.name);
+      this.send(o, { t: 'role', admin: !!p?.admin, pending: p?.admin ? this.pendingCount() : 0, reports });
+      if (text) this.send(o, { t: 'toast', text, good: true });
+    }
+  }
+
+  private sendReports(c: Conn): void {
+    if (!this.canSeeReports(c)) { this.send(c, { t: 'toast', text: 'Only VIPs and admins can see problem reports.' }); return; }
+    this.send(c, { t: 'reports', rows: this.reports.slice(0, 100) });
+  }
+
   private notifyAdmins(text?: string): void {
     const pending = this.pendingCount();
     for (const c of this.conns.values()) {
       const p = this.profile(c.name);
       if (!p?.admin) continue;
-      this.send(c, { t: 'role', admin: true, pending });
+      this.send(c, { t: 'role', admin: true, pending, reports: this.openReports() });
       if (text) this.send(c, { t: 'toast', text, good: true });
     }
   }
@@ -233,6 +276,7 @@ export class Estate extends DurableObject {
     this.conns.set(name, conn);
     const prof = this.profile(name);
     this.send(conn, { t: 'welcome', save, admin: !!prof?.admin, residences: this.residences(), pending: prof?.admin ? this.pendingCount() : 0 });
+    if (prof?.admin || save.vip) this.send(conn, { t: 'role', admin: !!prof?.admin, pending: prof?.admin ? this.pendingCount() : 0, reports: this.openReports() });
 
     server.addEventListener('message', (ev) => {
       let msg: ClientMsg;
@@ -442,6 +486,27 @@ export class Estate extends DurableObject {
         return;
       }
       case 'tag': this.startTag(c); return;
+      case 'breakup': {
+        const p = c.save.villa.partner;
+        if (!p) { this.send(c, { t: 'toast', text: "You're already single!" }); return; }
+        await this.setPartner(c.name, undefined);
+        this.send(c, { t: 'toast', text: `💔 You and ${p.replace(/^npc:/, '')} have split up.` });
+        const o = this.conns.get(p);
+        if (o) this.send(o, { t: 'toast', text: `💔 ${c.name} has ended things with you.` });
+        return;
+      }
+      case 'report': await this.report(c, String(m.text ?? ''), String(m.info ?? ''), !!m.auto); return;
+      case 'reports': this.sendReports(c); return;
+      case 'reportDone': {
+        if (!this.canSeeReports(c)) return;
+        const r = this.reports.find((x) => x.id === String(m.id));
+        if (!r) return;
+        r.done = !!m.done;
+        await this.ctx.storage.put(`report:${r.id}`, r);
+        this.notifyReporters();
+        this.sendReports(c);
+        return;
+      }
       case 'tagged': this.tagged(c, String(m.who)); return;
     }
   }
@@ -544,7 +609,7 @@ export class Estate extends DurableObject {
 
   private async season(c: Conn, act: SeasonAction): Promise<void> {
     if (!zoneUnlocked(c.save, 'villa')) { this.send(c, { t: 'toast', text: 'Reach the rooftop to unlock Love Island.' }); return; }
-    if (!act || !['start', 'chat', 'hut', 'evening', 'firepit', 'answer', 'status'].includes(act.a)) return;
+    if (!act || !['start', 'chat', 'hut', 'evening', 'firepit', 'answer', 'status', 'breakup'].includes(act.a)) return;
     const clean = { ...act } as SeasonAction & { who?: unknown; choice?: unknown };
     if ('who' in clean) clean.who = String(clean.who).slice(0, 20);
     if ('choice' in clean) clean.choice = String(clean.choice).slice(0, 20);

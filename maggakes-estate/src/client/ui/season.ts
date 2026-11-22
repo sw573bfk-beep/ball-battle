@@ -86,7 +86,7 @@ function playGame(game: 'timing' | 'simon' | 'choice', send: (choice: string) =>
 }
 
 /** The islanders panel: who's in, who's coupled, how strong your bonds are. */
-export function openCast(season: Season | undefined, start: () => void): void {
+export function openCast(season: Season | undefined, start: () => void, act?: (a: 'status' | 'breakup') => void): void {
   if (!season) {
     sheet('💘 Love Island', h('div.scene', {},
       h('div.scene-head', {}, face(HOST.name), h('div', {}, h('small', {}, '🎤 Your host'), h('b', {}, 'Jazz'))),
@@ -106,6 +106,8 @@ export function openCast(season: Season | undefined, start: () => void): void {
     h('div.cards', {}, ...season.cast.map((n) => castCard(n, season))),
     couples.length ? h('p.muted', {}, `Other couples: ${couples.join(' · ')}`) : null,
     season.dumped.length ? h('p.muted', {}, `Dumped: ${season.dumped.join(', ')} 💔`) : null,
+    season.pending && act ? h('div.scene-choices', {}, h('button.btn.big', { onclick: () => { closeAllSheets(); act('status'); } }, '▶️ Continue your moment')) : null,
+    partner && !season.pending && season.phase !== 'over' && act ? h('div.scene-choices', {}, h('button.btn.ghost', { onclick: () => { if (confirm(`Break up with ${partner}?`)) { closeAllSheets(); act('breakup'); } } }, `💔 Break up with ${partner}`)) : null,
     season.phase === 'over' ? h('div.scene-choices', {}, h('button.btn.big', { onclick: () => { closeAllSheets(); start(); } }, '🌴 Start a new season')) : null,
   ), { wide: true });
 }
