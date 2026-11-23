@@ -7,6 +7,7 @@ export { Estate } from './estate';
 
 interface Env {
   ESTATE: DurableObjectNamespace;
+  REPORTS?: KVNamespace;
 }
 
 export default {
@@ -26,5 +27,10 @@ export default {
         'x-content-type-options': 'nosniff',
       },
     });
+  },
+  /** Every 10 minutes: copy problem reports into KV so they can be read from the Cloudflare dashboard/API. */
+  async scheduled(_ev: ScheduledController, env: Env): Promise<void> {
+    const stub = env.ESTATE.get(env.ESTATE.idFromName('estate'));
+    await stub.fetch('https://estate.internal/__export');
   },
 } satisfies ExportedHandler<Env>;

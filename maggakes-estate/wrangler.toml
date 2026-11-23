@@ -18,3 +18,11 @@ enabled = true
 
 workers_dev = true
 preview_urls = false
+
+# Problem reports are copied here every 10 minutes so they can be read with the Cloudflare API.
+[[kv_namespaces]]
+binding = "REPORTS"
+id = "2ee9fb7433d9440aaea8d130e93ac287"
+
+[triggers]
+crons = ["*/10 * * * *"]

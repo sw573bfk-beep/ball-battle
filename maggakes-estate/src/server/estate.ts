@@ -90,6 +90,8 @@ export class Estate extends DurableObject {
       if (url.pathname === '/api/check' && req.method === 'POST') return json(await this.check(await req.json()));
       if (url.pathname === '/api/login' && req.method === 'POST') return json(await this.login(await req.json()));
       if (url.pathname === '/ws') return await this.openSocket(req, url.searchParams.get('token') ?? '');
+      // Only reachable from the cron trigger: the public worker never forwards this path.
+      if (url.pathname === '/__export') { await this.exportReports(); return json({ ok: true }); }
     } catch (e) {
       return json({ error: 'Something went wrong. Try again.' }, 500);
     }
@@ -187,6 +189,18 @@ export class Estate extends DurableObject {
       map.set(p.home.zone, r);
     }
     return [...map.values()].sort((a, b) => residenceNumber(a.zone) - residenceNumber(b.zone));
+  }
+
+  /** Copies reports (and each reporter's Love Island state) into KV for reading via the Cloudflare API. */
+  private async exportReports(): Promise<void> {
+    const kv = (this.env as { REPORTS?: KVNamespace }).REPORTS;
+    if (!kv) return;
+    const villa: Record<string, unknown> = {};
+    for (const name of new Set(this.reports.map((r) => r.from))) {
+      const sv = await this.ctx.storage.get<Save>(`save:${name}`);
+      if (sv) villa[name] = sv.villa;
+    }
+    await kv.put('reports', JSON.stringify({ at: Date.now(), reports: this.reports, villa }));
   }
 
   // ------------------------------------------------------------- problem reports
