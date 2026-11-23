@@ -130,7 +130,9 @@ export class Game {
     this.pending = pending;
     this.save = save;
     this.admin = admin;
-    const q = (localStorage.getItem('quality') as Quality) || (matchMedia('(pointer: coarse)').matches ? 'medium' : 'high');
+    const stored = (() => { try { return localStorage.getItem('quality') as Quality | null; } catch { return null; } })();
+    this.autoQuality = !stored;
+    const q = stored || (() => { try { return localStorage.getItem('qualityAuto') as Quality | null; } catch { return null; } })() || (matchMedia('(pointer: coarse)').matches ? 'medium' : 'high');
     this.gfx = new Gfx(host, q);
     this.input = new Input(this.gfx.renderer.domElement, $('#joy'));
     this.me = new Avatar(save.look, save.name, save.vip);
@@ -145,7 +147,7 @@ export class Game {
       onSave: (fn) => { this.saveListeners.add(fn); return () => this.saveListeners.delete(fn); },
       onBoard: (fn) => { this.boardListeners.add(fn); return () => this.boardListeners.delete(fn); },
       quality: () => this.gfx.quality,
-      setQuality: (q2) => { this.gfx.setQuality(q2); localStorage.setItem('quality', q2); },
+      setQuality: (q2) => { this.gfx.setQuality(q2); this.autoQuality = false; try { localStorage.setItem('quality', q2); } catch { /* private mode */ } },
       walls: () => this.wallMode,
       setWalls: (w) => { this.wallMode = w; localStorage.setItem('walls', w); },
       signOut: () => this.signOut(),
@@ -280,6 +282,7 @@ export class Game {
     this.markerSig = '';
     const zone = buildZone(z);
     this.zone = zone;
+    this.zoneLoadedAt = performance.now();
     this.zoneId = z;
     this.ticks = [...zone.ticks];
     this.gfx.scene.add(zone.root);
@@ -512,6 +515,30 @@ export class Game {
 
   // ================================================================== main loop
 
+  /** True until the player picks a graphics level themselves. */
+  private autoQuality = true;
+  private zoneLoadedAt = 0;
+  private fps = { frames: 0, since: 0, slow: 0 };
+  /** If the game runs slowly for a while, step the graphics down so it stays smooth. */
+  private watchFps(): void {
+    if (!this.autoQuality || this.gfx.quality === 'low') return;
+    const now = performance.now();
+    const f = this.fps;
+    if (document.hidden || now - this.zoneLoadedAt < 3000) { f.frames = 0; f.since = now; return; }
+    if (!f.since) f.since = now;
+    f.frames++;
+    if (now - f.since < 3000) return;
+    const rate = (f.frames * 1000) / (now - f.since);
+    f.frames = 0; f.since = now;
+    f.slow = rate < 38 ? f.slow + 1 : 0;
+    if (f.slow < 2) return;
+    f.slow = 0;
+    const next: Quality = this.gfx.quality === 'high' ? 'medium' : 'low';
+    this.gfx.setQuality(next);
+    try { localStorage.setItem('qualityAuto', next); } catch { /* private mode */ }
+    toast(`⚙️ Graphics set to ${next === 'medium' ? 'Medium' : 'Low'} so the game runs smoother. You can change this in Settings.`);
+  }
+
   private loop = (): void => {
     requestAnimationFrame(this.loop);
     const dt = Math.min(0.05, this.clock.getDelta());
@@ -533,7 +560,9 @@ export class Game {
     this.fun.update(dt, t);
     tickWater(t);
     if (this.noRender && !this.wantPhoto) return;
+    this.gfx.followShadow(this.pos.x, this.pos.y);
     this.gfx.render();
+    this.watchFps();
     if (this.wantPhoto) {
       const cb = this.wantPhoto;
       this.wantPhoto = null;

@@ -42,6 +42,9 @@ export class Gfx {
   hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 1);
   sky: Sky;
   quality: Quality;
+  /** Direction towards the sun/moon. The shadow box follows the player along it. */
+  private lightDir = new THREE.Vector3(0.4, 0.8, 0.3).normalize();
+  private shadowR = 24;
   private envTex: THREE.Texture;
 
   constructor(host: HTMLElement, quality: Quality) {
@@ -95,7 +98,10 @@ export class Gfx {
 
   private applyQuality(): void {
     const q = this.quality;
-    const size = q === 'high' ? 4096 : q === 'medium' ? 2048 : 1024;
+    // The shadow box follows the player (see followShadow), so a modest map stays sharp.
+    const size = q === 'high' ? 2048 : 1024;
+    this.shadowR = q === 'high' ? 24 : 20;
+    this.setShadowBox();
     this.sun.shadow.mapSize.set(size, size);
     this.sun.shadow.map?.dispose();
     this.sun.shadow.map = null;
@@ -107,7 +113,7 @@ export class Gfx {
 
   resize(): void {
     const w = innerWidth, h = innerHeight;
-    const dpr = Math.min(devicePixelRatio, this.quality === 'high' ? 2 : this.quality === 'medium' ? 1.5 : 1);
+    const dpr = Math.min(devicePixelRatio, this.quality === 'high' ? 1.75 : this.quality === 'medium' ? 1.25 : 1);
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(w, h);
     this.composer.setPixelRatio(dpr);
@@ -125,13 +131,8 @@ export class Gfx {
     this.sky.material.uniforms.sunPosition.value.copy(dir);
     this.sun.color.setHex(m.sunColor);
     this.sun.intensity = m.sunIntensity;
-    this.sun.position.copy(dir.clone().multiplyScalar(60));
-    this.sun.target.position.set(0, 0, 0);
-    const cam = this.sun.shadow.camera;
-    const half = span / 2 + 4;
-    cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half;
-    cam.near = 1; cam.far = 160;
-    cam.updateProjectionMatrix();
+    this.lightDir.copy(dir);
+    this.setShadowBox();
     this.hemi.color.setHex(m.ambientSky);
     this.hemi.groundColor.setHex(m.ambientGround);
     this.hemi.intensity = m.ambient;
@@ -175,8 +176,10 @@ export class Gfx {
     const skyDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - sunEl), az);
     this.sky.material.uniforms.sunPosition.value.copy(skyDir);
     const lightEl = moon > 0.5 ? 40 : Math.max(8, sunEl);
-    const lightDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - lightEl), moon > 0.5 ? az + Math.PI : az);
-    this.sun.position.copy(lightDir.multiplyScalar(60));
+    // Move the light in small steps, not every frame, so shadows don't crawl and shimmer.
+    const step = THREE.MathUtils.degToRad(1.5);
+    const q = (v: number) => Math.round(v / step) * step;
+    this.lightDir.setFromSphericalCoords(1, q(THREE.MathUtils.degToRad(90 - lightEl)), q(moon > 0.5 ? az + Math.PI : az));
     this.sun.color.copy(col(a.col, b.col));
     this.sun.intensity = lerp(a.int, b.int);
     this.hemi.color.copy(col(a.sky, b.sky));
@@ -185,9 +188,6 @@ export class Gfx {
     this.renderer.toneMappingExposure = lerp(a.exp, b.exp);
     this.scene.environmentIntensity = 0.35 * (1 - moon * (indoor ? 0.55 : 0.88));
     this.scene.fog = new THREE.FogExp2(col(a.fog, b.fog), 0.004);
-    const cam = this.sun.shadow.camera;
-    const half = span / 2 + 4;
-    if (cam.right !== half) { cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half; cam.near = 1; cam.far = 160; cam.updateProjectionMatrix(); }
     if (!this.stars) {
       const pts = new Float32Array(900 * 3);
       for (let k = 0; k < 900; k++) {
@@ -201,6 +201,34 @@ export class Gfx {
     }
     (this.stars.material as THREE.PointsMaterial).opacity = moon;
     this.stars.visible = moon > 0.02;
+  }
+
+  private setShadowBox(): void {
+    const cam = this.sun.shadow.camera;
+    const r = this.shadowR;
+    if (cam.right === r) return;
+    cam.left = -r; cam.right = r; cam.top = r; cam.bottom = -r; cam.near = 1; cam.far = 160;
+    cam.updateProjectionMatrix();
+  }
+
+  private lightBasis = new THREE.Matrix4();
+  private tmpV = new THREE.Vector3();
+  /**
+   * Centres the shadow box on the player, snapped to whole shadow-map texels
+   * so shadow edges stay still while you walk (no flicker).
+   */
+  followShadow(x: number, z: number): void {
+    const texel = (this.shadowR * 2) / this.sun.shadow.mapSize.x;
+    // Light-space axes.
+    this.lightBasis.lookAt(this.lightDir, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0));
+    const inv = this.lightBasis.clone().invert();
+    const v = this.tmpV.set(x, 0, z).applyMatrix4(inv);
+    v.x = Math.round(v.x / texel) * texel;
+    v.y = Math.round(v.y / texel) * texel;
+    v.applyMatrix4(this.lightBasis);
+    this.sun.target.position.copy(v);
+    this.sun.position.copy(v).addScaledVector(this.lightDir, 60);
+    this.sun.target.updateMatrixWorld();
   }
 
   render(): void {

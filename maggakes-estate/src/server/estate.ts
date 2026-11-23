@@ -200,7 +200,13 @@ export class Estate extends DurableObject {
       const sv = await this.ctx.storage.get<Save>(`save:${name}`);
       if (sv) villa[name] = sv.villa;
     }
-    await kv.put('reports', JSON.stringify({ at: Date.now(), reports: this.reports, villa }));
+    const players: unknown[] = [];
+    for (const [, sv] of await this.ctx.storage.list<Save>({ prefix: 'save:' })) {
+      const live = this.conns.get(sv.name)?.save ?? sv;
+      players.push({ name: live.name, vip: live.vip, admin: !!this.profile(live.name)?.admin, aura: live.aura, total: live.totalAura, log: live.auraLog ?? [] });
+    }
+    const adminlog = (await this.ctx.storage.get('adminlog')) ?? [];
+    await kv.put('reports', JSON.stringify({ at: Date.now(), reports: this.reports, villa, players, adminlog }));
   }
 
   // ------------------------------------------------------------- problem reports
@@ -793,6 +799,10 @@ export class Estate extends DurableObject {
     if (!p) return;
     const say = (text: string) => this.send(c, { t: 'toast', text, good: true });
     const self = p.name === me.name;
+    // Keep a record of who did what (last 300), so things like "my VIP keeps disappearing" can be traced.
+    const log = (await this.ctx.storage.get<{ at: number; by: string; action: string; target: string }[]>('adminlog')) ?? [];
+    log.unshift({ at: Date.now(), by: me.name, action, target: p.name });
+    await this.ctx.storage.put('adminlog', log.slice(0, 300));
     if (self && ['ban', 'unadmin', 'reject'].includes(action)) { this.send(c, { t: 'toast', text: "You can't do that to yourself." }); return; }
     if (p.name === 'Beau' && me.name !== 'Beau' && ['ban', 'unadmin', 'reset'].includes(action)) { this.send(c, { t: 'toast', text: 'Only Beau can change the main admin.' }); return; }
     switch (action) {

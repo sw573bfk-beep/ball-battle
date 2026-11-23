@@ -79,6 +79,8 @@ export interface Save {
   shells?: string[];
   bestLap?: number;
   auraLog?: AuraEntry[];
+  /** When each task's replay bonus was last paid (stops spam-clicking for Aura). */
+  replayAt?: Record<string, number>;
 }
 
 
@@ -151,7 +153,10 @@ export function floorDone(save: Save, zone: ZoneId): number {
 
 export type Result = { ok: true; msg: string } | { ok: false; msg: string };
 
-export function completeTask(save: Save, zone: ZoneId, taskId: string): Result {
+/** A finished task can pay its replay bonus once every 2 minutes. */
+export const REPLAY_COOLDOWN = 2 * 60_000;
+
+export function completeTask(save: Save, zone: ZoneId, taskId: string, now = Date.now()): Result {
   const f = floorById(zone);
   const task = f?.tasks.find((t) => t.id === taskId);
   if (!f || !task) return { ok: false, msg: 'That task does not exist.' };
@@ -160,11 +165,17 @@ export function completeTask(save: Save, zone: ZoneId, taskId: string): Result {
     return { ok: false, msg: `Place ${task.count} decoration${task.count === 1 ? '' : 's'} in your bedroom first.` };
   }
   const key = `${zone}:${taskId}`;
-  bumpStat(save, 'tasks', 1);
   if (save.tasks[key]) {
+    const last = save.replayAt?.[key] ?? 0;
+    const wait = Math.ceil((last + REPLAY_COOLDOWN - now) / 1000);
+    if (wait > 0) return { ok: false, msg: `You just did this one! Replay it again in ${wait >= 60 ? Math.ceil(wait / 60) + ' min' : wait + 's'}.` };
+    save.replayAt ??= {};
+    save.replayAt[key] = now;
+    bumpStat(save, 'tasks', 1);
     earn(save, REPLAY_AURA, 0, `Replayed: ${task.label}`);
     return { ok: true, msg: `+${REPLAY_AURA} Aura (replay bonus)` };
   }
+  bumpStat(save, 'tasks', 1);
   const before = ALL_ZONES.filter((z) => zoneUnlocked(save, z));
   save.tasks[key] = true;
   earn(save, TASK_AURA, TASK_AURA, `Task: ${task.label}`);

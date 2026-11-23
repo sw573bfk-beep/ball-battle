@@ -13,12 +13,13 @@ export class Input {
   constructor(canvas: HTMLCanvasElement, joyEl: HTMLElement) {
     addEventListener('keydown', (e) => {
       if (this.typing()) return;
-      const k = e.key.toLowerCase();
+      const k = (e.key ?? '').toLowerCase();
+      if (!k) return; // autofill sends key events with no key
       if (!this.keys.has(k)) this.onKey(k);
       this.keys.add(k);
       if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
     });
-    addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
+    addEventListener('keyup', (e) => this.keys.delete((e.key ?? '').toLowerCase()));
     addEventListener('blur', () => this.keys.clear());
 
     // Camera drag (mouse or one finger on the canvas)

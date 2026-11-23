@@ -368,4 +368,14 @@ test('CUSTOM: pets get fur and collar colours', () => {
   adoptPet(s, 'dog', 'Rex', 'brown', undefined);
   assert.deepEqual(s.pet, { kind: 'dog', name: 'Rex' });
 });
+test('EXPLOIT FIX: replays can\'t be spam-clicked for Aura', () => {
+  const s = newSave('Phoebe');
+  for (const t of FLOORS.find((f) => f.id === 'f1')!.tasks) completeTask(s, 'f1', t.id, 0);
+  const id = FLOORS.find((f) => f.id === 'f1')!.tasks[0].id;
+  const a0 = s.aura;
+  assert.ok(completeTask(s, 'f1', id, 1_000_000).ok);
+  for (let i = 0; i < 50; i++) assert.equal(completeTask(s, 'f1', id, 1_000_000 + i * 100).ok, false);
+  assert.equal(s.aura, a0 + 50, 'only one replay paid');
+  assert.ok(completeTask(s, 'f1', id, 1_000_000 + 2 * 60_000).ok, 'fine again after 2 minutes');
+});
 console.log(`\n${n} tests passed`);

@@ -146,11 +146,14 @@ export function simonGame(title: string, hint: string, done: Done): void {
     grid.append(b);
     return b;
   });
-  const flash = (i: number) => { els[i].classList.add('lit'); beep(pads[i].f); setTimeout(() => els[i].classList.remove('lit'), 320); };
+  const flash = (i: number, ms = 320) => { els[i].classList.add('lit'); beep(pads[i].f); setTimeout(() => els[i].classList.remove('lit'), ms); };
+  // Slow, big flashes while watching (the other pads dim) so the pattern is easy to follow.
+  const GAP = 900, LIT = 600;
   const play = () => {
-    locked = true; status.textContent = `Round ${round + 1} of 3 — watch…`;
-    seq.forEach((p, k) => setTimeout(() => flash(p), 600 + k * 520));
-    setTimeout(() => { locked = false; idx = 0; status.textContent = 'Your turn!'; }, 600 + seq.length * 520);
+    locked = true;
+    grid.classList.add('watching');
+    seq.forEach((p, k) => setTimeout(() => { status.textContent = `Round ${round + 1} of 3 — watch… ${k + 1} / ${seq.length}`; flash(p, LIT); }, 800 + k * GAP));
+    setTimeout(() => { locked = false; idx = 0; grid.classList.remove('watching'); status.textContent = `Your turn! Copy all ${seq.length}`; }, 800 + seq.length * GAP);
   };
   const press = (i: number) => {
     if (locked) return;

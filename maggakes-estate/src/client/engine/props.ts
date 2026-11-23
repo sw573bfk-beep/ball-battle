@@ -98,7 +98,9 @@ export function cyl(g: THREE.Object3D, rt: number, rb: number, h: number, m: THR
 }
 
 export function sph(g: THREE.Object3D, r: number, m: THREE.Material, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1): THREE.Mesh {
-  const mesh = new THREE.Mesh(geo(`s${r}`, () => new THREE.SphereGeometry(r, 24, 16)), m);
+  // Tiny spheres (bulbs, studs, beads) don't need much detail — this keeps big scenes fast.
+  const [ws, hs] = r < 0.07 ? [8, 6] : r < 0.16 ? [12, 9] : r < 0.4 ? [18, 12] : [24, 16];
+  const mesh = new THREE.Mesh(geo(`s${r}:${ws}`, () => new THREE.SphereGeometry(r, ws, hs)), m);
   mesh.position.set(x, y, z);
   mesh.scale.set(sx, sy, sz);
   return add(g, mesh);
