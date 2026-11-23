@@ -14,13 +14,23 @@ import { h, sheet, toast, confetti, closeAllSheets, $, fill } from './ui/dom';
 import { choiceGame, holdGame, sequenceGame, simonGame, timingGame } from './ui/minigames';
 import { openBoard, openDaily, openGarage, openMap, openSettings, openShop, openWardrobe, nextGoal, taskList, type Ctx } from './ui/panels';
 import type { ZoneId } from '../shared/people';
-import { setResidences, getResidences } from './world/layouts';
+import { setResidences, getResidences, setRoomStyles, setRoomStyle, roomOwnerZone } from './world/layouts';
 import { openAccounts } from './ui/accounts';
 import { Fun } from './funsys';
 import { openAdopt, openFun } from './ui/fun';
 import { openReportDialog, openReports, recentErrors } from './ui/report';
 import type { Report } from '../shared/protocol';
 import type { AccountRow, Residence } from '../shared/protocol';
+import type { RoomStyle } from '../shared/save';
+import { COLOR_MODELS, tint } from './engine/props';
+import { colorRow } from './ui/color';
+import { portrait } from './engine/portrait';
+import { ROOM_FLOORS } from '../shared/save';
+
+const DECOR_COLORS = ['#ffffff', '#111111', '#f6a6c8', '#ff6f91', '#d7263d', '#ff9f1c', '#ffd23f', '#9bd36a', '#4fd1c5', '#6aa7e8', '#9b7ede', '#c9b79a', '#7a5230', '#d4af37'];
+const WALL_COLORS = ['#f7f3ee', '#ffffff', '#ffd9e6', '#e8f6fb', '#e9e1ff', '#e3f4e1', '#fff1c9', '#2a2d34', '#1f3b5c', '#5a3550', '#c9b79a', '#ffb3c7'];
+const FLOOR_TINTS = ['#ffffff', '#e2c9a6', '#ffd9e6', '#d8e8ff', '#e3f4e1', '#bbbbbb', '#6b4a33', '#2a2a2a'];
+const FLOOR_LABELS: Record<string, string> = { wood: '🪵 Light wood', darkwood: '🟫 Dark wood', marble: '🤍 Marble', tile: '⬜ Tiles', carpet: '🧶 Carpet', pinkcarpet: '🩷 Pink carpet', terrazzo: '🔘 Terrazzo', stone: '🪨 Stone', deck: '🛶 Deck', grass: '🌱 Grass', sand: '🏖️ Sand' };
 import { ALL_ZONES, FLOORS, floorById, zoneName, type TaskDef } from '../shared/floors';
 import { canEnter, floorDone, zoneUnlocked, ROOM_LIMIT, type Look, type PlacedItem, type Save } from '../shared/save';
 import { SHOP, shopItem } from '../shared/shop';
@@ -71,6 +81,8 @@ export class Game {
   wallMode: 'auto' | 'low' = (localStorage.getItem('walls') as 'auto' | 'low') || 'auto';
   private markers: { prop: Prop; key: string }[] = [];
   private ticks: ((t: number, dt: number) => void)[] = [];
+  /** Animation callbacks for each bedroom's furniture, so a rebuild can drop the old ones. */
+  private decorTicks = new Map<string, ((t: number, dt: number) => void)[]>();
   private wanderers: Wanderer[] = [];
   private decorGroups = new Map<string, THREE.Group>();
   private pickups: { s: THREE.Sprite; x: number; z: number }[] = [];
@@ -79,7 +91,14 @@ export class Game {
   private driveAcc = 0;
   private swimAcc = 0;
   private previewing: Look | null = null;
-  private decor: { items: PlacedItem[]; pick: string | null; ghost: THREE.Object3D | null; rot: number; box: { x0: number; z0: number; x1: number; z1: number } } | null = null;
+  private decor: {
+    items: PlacedItem[]; pick: string | null; ghost: THREE.Object3D | null; rot: number;
+    box: { x0: number; z0: number; x1: number; z1: number };
+    /** Colour + size for the next item placed. */
+    color?: string; scale: number;
+    /** A placed item picked for editing, and whether it's being moved. */
+    sel: string | null; moving: boolean; ring: THREE.Mesh | null;
+  } | null = null;
   private saveListeners = new Set<() => void>();
   private boardListeners = new Set<(r: BoardRow[]) => void>();
   private lastSent = { x: 0, z: 0, ry: 0, a: -1, t: 0 };
@@ -96,6 +115,7 @@ export class Game {
   ctx: Ctx;
 
   pending = 0;
+  private lastProfile = '';
   reports = 0;
   private reportListeners = new Set<(r: Report[]) => void>();
   fun!: Fun;
@@ -104,8 +124,9 @@ export class Game {
   private wantLaps = false;
   private accountListeners = new Set<(r: AccountRow[]) => void>();
 
-  constructor(host: HTMLElement, save: Save, admin: boolean, public net: Net, private signOut: () => void, residences: Residence[] = [], pending = 0) {
+  constructor(host: HTMLElement, save: Save, admin: boolean, public net: Net, private signOut: () => void, residences: Residence[] = [], pending = 0, roomStyles: Record<string, RoomStyle> = {}) {
     setResidences(residences);
+    setRoomStyles(roomStyles);
     this.pending = pending;
     this.save = save;
     this.admin = admin;
@@ -193,6 +214,15 @@ export class Game {
     });
   }
 
+  /** Rebuilds the current floor in place (e.g. after a bedroom restyle). */
+  reloadZone(): void {
+    if (!this.zone) return;
+    const x = this.pos.x, z = this.pos.y, ry = this.ry, yaw = this.camYaw, dist = this.camDist;
+    this.loadZone(this.zoneId);
+    this.pos.set(x, z); this.ry = ry; this.camYaw = yaw; this.camDist = dist;
+    this.camTarget.set(x, 1.2, z);
+  }
+
   private zoneExists(z: ZoneId): boolean {
     return ALL_ZONES.includes(z) || getResidences().some((r) => r.zone === z);
   }
@@ -245,6 +275,7 @@ export class Game {
     for (const p of this.peers.values()) p.avatar.dispose();
     this.peers.clear();
     this.decorGroups.clear();
+    this.decorTicks.clear();
     this.markers = [];
     this.markerSig = '';
     const zone = buildZone(z);
@@ -329,7 +360,7 @@ export class Game {
     const cars = SHOP.filter((i) => i.cat === 'car' && this.save.inventory[i.id]);
     const g = new THREE.Group();
     cars.forEach((c, i) => {
-      const m = buildCar(String(c.r.model), this.save.carPaint[c.id] ?? String(c.r.color));
+      const m = buildCar(String(c.r.model), this.save.carPaint[c.id] ?? String(c.r.color), this.save.carWheels?.[c.id]);
       m.obj.position.set(-this.zone!.half.w + 3.2 + i * 2.8 + 1.2, 0, -this.zone!.half.d + 2.8);
       if (c.r.model === 'limo') m.obj.position.z += 1.2;
       g.add(m.obj);
@@ -352,7 +383,7 @@ export class Game {
           if (this.zoneId === 'villa' && prevVilla !== JSON.stringify(m.save.villa.look) && m.save.villa.look) this.me.setLook(m.save.villa.look);
           else if (this.zoneId !== 'villa' && prevLook !== JSON.stringify(m.save.look)) this.me.setLook(m.save.look);
         }
-        if (prevVip !== m.save.vip) this.me.setName(m.save.name, m.save.vip, this.partnerSub());
+        if (prevVip !== m.save.vip || JSON.stringify(m.save.profile) !== this.lastProfile) { this.lastProfile = JSON.stringify(m.save.profile); this.me.setName(m.save.name, m.save.vip, this.partnerSub(), m.save.profile ?? {}); }
         if (this.zoneId === 'park' && prevCars !== Object.keys(m.save.inventory).filter((k) => k.startsWith('car_')).join() + JSON.stringify(m.save.carPaint)) {
           this.zone?.root.getObjectByName('parked')?.removeFromParent();
           this.buildParkedCars();
@@ -382,7 +413,7 @@ export class Game {
         const p = this.peers.get(m.info.name);
         if (!p) { this.addPeer(m.info); return; }
         if (JSON.stringify(p.info.look) !== JSON.stringify(m.info.look)) p.avatar.setLook(m.info.look);
-        if (p.info.vip !== m.info.vip || p.info.partner !== m.info.partner) p.avatar.setName(m.info.name, m.info.vip, m.info.partner && this.zoneId === 'villa' ? `💘 ${m.info.partner.replace(/^npc:/, '')}` : undefined);
+        if (p.info.vip !== m.info.vip || p.info.partner !== m.info.partner || JSON.stringify(p.info.profile) !== JSON.stringify(m.info.profile)) p.avatar.setName(m.info.name, m.info.vip, m.info.partner && this.zoneId === 'villa' ? `💘 ${m.info.partner.replace(/^npc:/, '')}` : undefined, m.info.profile ?? {});
         p.info = m.info;
         this.setPeerCar(p);
         return;
@@ -410,6 +441,12 @@ export class Game {
         return;
       }
       case 'room': this.buildDecor(m.owner, m.items); return;
+      case 'roomStyle': {
+        setRoomStyle(m.owner, m.style);
+        // Rebuild this floor if the restyled bedroom is here.
+        if (roomOwnerZone(m.owner) === this.zoneId) this.reloadZone();
+        return;
+      }
       case 'board': this.boardListeners.forEach((f) => f(m.rows)); return;
       case 'accounts': this.accountListeners.forEach((f) => f(m.rows)); return;
       case 'world': {
@@ -452,6 +489,7 @@ export class Game {
   private addPeer(info: PeerInfo): void {
     if (!this.zone || info.name === this.save.name) return;
     const av = new Avatar(info.look, info.name, info.vip, info.partner && this.zoneId === 'villa' ? `💘 ${info.partner.replace(/^npc:/, '')}` : undefined);
+    if (info.profile) av.setName(info.name, info.vip, info.partner && this.zoneId === 'villa' ? `💘 ${info.partner.replace(/^npc:/, '')}` : undefined, info.profile);
     this.zone.root.add(av.root);
     const p: Peer = { info, avatar: av, x: 0, z: 0, ry: 0, tx: 0, tz: 0, try: 0, a: 0, car: null, carKey: '' };
     p.x = p.tx = this.zone.spawn.x; p.z = p.tz = this.zone.spawn.z;
@@ -460,14 +498,14 @@ export class Game {
   }
 
   private setPeerCar(p: Peer): void {
-    const key = p.info.car ? `${p.info.car.id}|${p.info.car.paint}` : '';
+    const key = p.info.car ? `${p.info.car.id}|${p.info.car.paint}|${p.info.car.wheels}` : '';
     if (key === p.carKey) return;
     p.carKey = key;
     p.car?.obj.removeFromParent();
     p.car = null;
     if (p.info.car && this.zone) {
       const item = shopItem(p.info.car.id);
-      p.car = buildCar(String(item?.r.model ?? 'hatch'), p.info.car.paint);
+      p.car = buildCar(String(item?.r.model ?? 'hatch'), p.info.car.paint, p.info.car.wheels);
       this.zone.root.add(p.car.obj);
     }
   }
@@ -721,11 +759,20 @@ export class Game {
         }
       }
       if (best) acts.push((best as { a: Action }).a);
+      {
+        let np: { d: number; info: PeerInfo } | null = null;
+        for (const p of this.peers.values()) {
+          const d = Math.hypot(this.pos.x - p.x, this.pos.y - p.z);
+          if (d < 2.2 && (!np || d < np.d)) np = { d, info: p.info };
+        }
+        if (np) { const info = np.info; acts.push({ key: `prof:${info.name}`, label: `👤 ${info.name}'s profile`, run: () => this.showProfile(info) }); }
+      }
       if (this.zoneId === 'park') acts.push({ key: 'drive', label: '🚗 Drive', run: () => this.startDriving() });
       const home = this.save.home;
       if (home && home.zone === this.zoneId) {
         const b = roomBox(this.zone, home.room);
         if (b && this.pos.x > b.x0 && this.pos.x < b.x1 && this.pos.y > b.z0 && this.pos.y < b.z1) acts.push({ key: 'decor', label: '🖼️ Decorate my room', run: () => this.startDecor() });
+        if (b && this.pos.x > b.x0 && this.pos.x < b.x1 && this.pos.y > b.z0 && this.pos.y < b.z1) acts.push({ key: 'roomstyle', label: '🎨 Walls & floor', run: () => this.openRoomStyle() });
       }
     }
     const key = acts.map((a) => a.key + a.label).join('|');
@@ -754,7 +801,7 @@ export class Game {
       case 'firepit': return { key: 'firepit', label: '🔥 The Firepit', run: () => this.firepit() };
       case 'beachhut': return { key: 'beachhut', label: '🎥 Sit in the Beach Hut', run: () => this.seasonAct({ a: 'hut' }) };
       case 'hideaway': return { key: 'hideaway', label: '🌌 The Hideaway', run: () => this.hideaway() };
-      case 'adopt': return { key: 'adopt', label: s.pet ? `🐾 Swap or rename ${s.pet.name}` : '🐾 Adopt a pet', run: () => openAdopt(s.pet, (kind, name) => this.net.send({ t: 'pet', kind, name })) };
+      case 'adopt': return { key: 'adopt', label: s.pet ? `🐾 Swap or rename ${s.pet.name}` : '🐾 Adopt a pet', run: () => openAdopt(s.pet, (kind, name, fur, collar) => this.net.send({ t: 'pet', kind, name, fur, collar })) };
       case 'race': return { key: 'race', label: '🏁 Kart race', run: () => { this.wantLaps = true; this.net.send({ t: 'laps' }); } };
       case 'slide': return { key: 'slide', label: '🌊 Go down the water slide!', run: () => this.fun.startSlide() };
       case 'dress': return { key: 'dress', label: '🌺 Villa dressing room', run: () => openWardrobe(this.ctx, { villa: true }) };
@@ -921,7 +968,7 @@ export class Game {
     const useKart = kind === 'kart' || this.zoneId !== 'park';
     const item = useKart ? shopItem('car_kart')! : shopItem(this.save.car) ?? shopItem('car_hatch')!;
     const paint = this.save.carPaint[item.id] ?? String(item.r.color);
-    const model = buildCar(String(item.r.model), paint);
+    const model = buildCar(String(item.r.model), paint, this.save.carWheels?.[item.id]);
     this.zone.root.add(model.obj);
     let x = this.pos.x, z = this.pos.y;
     const r = useKart ? 0.6 : 1.1;
@@ -958,39 +1005,77 @@ export class Game {
   // ================================================================== decorating
 
   private buildDecor(owner: string, items: PlacedItem[]): void {
-    if (!this.zone) return;
     // The server only sends decorations for bedrooms on the floor you're on.
     if (!this.zone) return;
     this.decorGroups.get(owner)?.removeFromParent();
+    const oldTicks = this.decorTicks.get(owner);
+    if (oldTicks) this.ticks = this.ticks.filter((f) => !oldTicks.includes(f));
+    const tickList: ((t: number, dt: number) => void)[] = [];
+    this.decorTicks.set(owner, tickList);
     const g = new THREE.Group();
     for (const it of items) {
-      const shop = shopItem(it.item);
-      if (!shop) continue;
-      const p = makeProp(String(shop.r.model), shop.r);
-      p.obj.position.set(it.x, 0, it.z);
-      p.obj.rotation.y = it.rot;
-      if (p.tick) this.ticks.push(p.tick);
-      g.add(p.obj);
+      const obj = this.decorObj(it.item, it.color, it.scale, false, tickList);
+      if (!obj) continue;
+      obj.position.set(it.x, 0, it.z);
+      obj.rotation.y = it.rot;
+      obj.userData.uid = it.uid;
+      g.add(obj);
     }
     this.zone.root.add(g);
     this.decorGroups.set(owner, g);
-    if (owner === this.save.name && this.decor) this.decor.items = items.map((i) => ({ ...i }));
+    if (owner === this.save.name && this.decor) {
+      const d = this.decor;
+      d.items = items.map((i) => ({ ...i }));
+      if (d.sel && !d.items.some((i) => i.uid === d.sel)) { d.sel = null; d.moving = false; }
+      if (d.moving) this.myDecorObj(d.sel)?.removeFromParent();
+      this.updateSelRing();
+      this.renderDecorDock();
+    }
+  }
+
+  /** Builds one piece of furniture with an optional colour and size. */
+  private decorObj(id: string, color?: string, scale?: number, ghost = false, tickList?: ((t: number, dt: number) => void)[]): THREE.Object3D | null {
+    const shop = shopItem(id);
+    if (!shop) return null;
+    const p = makeProp(String(shop.r.model), color ? { ...shop.r, color } : shop.r);
+    if (color && !COLOR_MODELS.has(String(shop.r.model))) tint(p.obj, color);
+    if (scale) p.obj.scale.setScalar(scale);
+    if (p.tick && !ghost) { this.ticks.push(p.tick); tickList?.push(p.tick); }
+    if (ghost) p.obj.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) { const mm = (m.material as THREE.Material).clone(); mm.transparent = true; (mm as THREE.MeshStandardMaterial).opacity = 0.6; m.material = mm; m.castShadow = false; }
+    });
+    return p.obj;
+  }
+
+  private myDecorObj(uid: string | null): THREE.Object3D | undefined {
+    if (!uid) return undefined;
+    return this.decorGroups.get(this.save.name)?.children.find((o) => o.userData.uid === uid);
   }
 
   private startDecor(): void {
     const res = this.save.home!;
     const box = roomBox(this.zone!, res.room)!;
-    this.decor = { items: this.save.room.map((i) => ({ ...i })), pick: null, ghost: null, rot: this.ry + Math.PI, box };
+    this.decor = { items: this.save.room.map((i) => ({ ...i })), pick: null, ghost: null, rot: this.ry + Math.PI, box, scale: 1, sel: null, moving: false, ring: null };
     this.camDist = Math.max(this.camDist, 12);
     this.renderDecorDock();
   }
 
   private endDecor(): void {
     if (!this.decor) return;
-    this.decor.ghost?.removeFromParent();
+    const d = this.decor;
+    d.ghost?.removeFromParent();
+    d.ring?.removeFromParent();
+    const wasMoving = d.moving;
     this.decor = null;
     $('#decor').classList.remove('on');
     this.actionKey = '';
+    // Put a half-moved item back where it was.
+    if (wasMoving) this.buildDecor(this.save.name, this.save.room);
+  }
+
+  private sendRoom(): void {
+    if (this.decor) this.net.send({ t: 'room', items: this.decor.items });
   }
 
   private renderDecorDock(): void {
@@ -998,34 +1083,81 @@ export class Game {
     const el = $('#decor');
     if (!d) { el.classList.remove('on'); return; }
     el.classList.add('on');
+    const sel = d.items.find((i) => i.uid === d.sel);
+    if (sel) {
+      // ----- editing a placed item
+      const shop = shopItem(sel.item);
+      const size = h<HTMLInputElement>('input', { type: 'range', min: '0.5', max: '1.8', step: '0.05', value: String(sel.scale ?? 1) });
+      const sizeLbl = h('span.muted', {}, `${Math.round((sel.scale ?? 1) * 100)}%`);
+      size.oninput = () => {
+        const v = Number(size.value);
+        sizeLbl.textContent = `${Math.round(v * 100)}%`;
+        (d.moving ? d.ghost : this.myDecorObj(sel.uid))?.scale.setScalar(v);
+        this.updateSelRing(v);
+      };
+      size.onchange = () => { sel.scale = Number(size.value); if (!d.moving) this.sendRoom(); else this.renderDecorDock(); };
+      fill(el,
+        h('div.decor-edit', {},
+          h('b', {}, `${shop?.emoji ?? ''} ${shop?.name ?? 'Item'}`),
+          h('div.decor-row', {}, h('span', {}, '🎨'), colorRow(sel.color, DECOR_COLORS, (c, live) => {
+            if (live) { const o = d.moving ? d.ghost : this.myDecorObj(sel.uid); if (o) tint(o, c); return; }
+            sel.color = c;
+            if (d.moving) this.makeGhost(sel.item, sel.color, sel.scale); else this.sendRoom();
+          })),
+          h('div.decor-row', {}, h('span', {}, '📏 Size'), size, sizeLbl)),
+        h('div.decor-btns', {},
+          h('button.btn', { onclick: () => { this.turnSel(-1); } }, '⟲'),
+          h('button.btn', { onclick: () => { this.turnSel(1); } }, '⟳'),
+          d.moving
+            ? h('button.btn', { onclick: () => this.dropMoved() }, '✓ Drop here')
+            : h('button.btn', { onclick: () => this.startMove() }, '✋ Move'),
+          sel.color ? h('button.btn.ghost', { onclick: () => { delete sel.color; this.sendRoom(); } }, '↺ Original colour') : null,
+          h('button.btn.ghost', { onclick: () => this.removeSel() }, '↩ Put away'),
+          h('button.btn.ghost', { onclick: () => this.deselect() }, '✕ Done editing')),
+        h('small.muted', {}, d.moving ? 'Walk to where you want it, then press Drop here.' : 'Recolour, resize, spin or move this item.'),
+      );
+      return;
+    }
     const furniture = SHOP.filter((i) => i.cat === 'furniture' && (this.save.inventory[i.id] ?? 0) > 0);
     const left = (id: string) => (this.save.inventory[id] ?? 0) - d.items.filter((x) => x.item === id).length;
-    fill(el, 
+    fill(el,
       h('div.decor-items', {}, ...furniture.map((i) => h('button.chip' + (d.pick === i.id ? '.on' : ''), {
         disabled: left(i.id) <= 0, onclick: () => this.pickDecor(i.id),
       }, `${i.emoji} ${i.name} ×${left(i.id)}`)),
       furniture.length ? null : h('span.muted', {}, 'Buy furniture in the shop first!')),
+      d.pick ? h('div.decor-edit', {},
+        h('div.decor-row', {}, h('span', {}, '🎨'), colorRow(d.color, DECOR_COLORS, (c, live) => {
+          if (live) { if (d.ghost) tint(d.ghost, c); return; }
+          d.color = c; this.makeGhost(d.pick!, d.color, d.scale);
+        }), d.color ? h('button.chip', { onclick: () => { d.color = undefined; this.makeGhost(d.pick!, undefined, d.scale); this.renderDecorDock(); } }, '↺') : null),
+        (() => {
+          const size = h<HTMLInputElement>('input', { type: 'range', min: '0.5', max: '1.8', step: '0.05', value: String(d.scale) });
+          const lbl = h('span.muted', {}, `${Math.round(d.scale * 100)}%`);
+          size.oninput = () => { d.scale = Number(size.value); lbl.textContent = `${Math.round(d.scale * 100)}%`; d.ghost?.scale.setScalar(d.scale); };
+          return h('div.decor-row', {}, h('span', {}, '📏 Size'), size, lbl);
+        })()) : null,
       h('div.decor-btns', {},
         h('button.btn', { disabled: !d.pick, onclick: () => { if (this.decor) { this.decor.rot += Math.PI / 4; } } }, '⟳ Rotate'),
         h('button.btn', { disabled: !d.pick, onclick: () => this.placeDecor() }, '✓ Place'),
-        h('button.btn.ghost', { onclick: () => this.pickUpDecor() }, '↩ Pick up nearest'),
+        h('button.btn.ghost', { disabled: !d.items.length, onclick: () => this.selectNearest() }, '✏️ Edit nearest'),
+        h('button.btn.ghost', { onclick: () => this.openRoomStyle() }, '🎨 Walls & floor'),
         h('button.btn.ghost', { onclick: () => this.endDecor() }, 'Done')),
-      h('small.muted', {}, `Walk to aim. ${d.items.length}/${ROOM_LIMIT} items placed.`),
+      h('small.muted', {}, `Walk to aim. ${d.items.length}/${ROOM_LIMIT} items placed. Stand next to something and press Edit to recolour, resize or move it.`),
     );
+  }
+
+  private makeGhost(id: string, color?: string, scale?: number): void {
+    const d = this.decor!;
+    d.ghost?.removeFromParent();
+    d.ghost = this.decorObj(id, color, scale, true);
+    if (d.ghost) this.zone!.root.add(d.ghost);
+    this.updateDecorGhost();
   }
 
   private pickDecor(id: string): void {
     const d = this.decor!;
-    d.ghost?.removeFromParent();
     d.pick = id;
-    const it = shopItem(id)!;
-    const p = makeProp(String(it.r.model), it.r);
-    p.obj.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh) { const mm = (m.material as THREE.Material).clone(); mm.transparent = true; (mm as THREE.MeshStandardMaterial).opacity = 0.6; m.material = mm; m.castShadow = false; }
-    });
-    d.ghost = p.obj;
-    this.zone!.root.add(p.obj);
+    this.makeGhost(id, d.color, d.scale);
     this.renderDecorDock();
   }
 
@@ -1044,6 +1176,7 @@ export class Game {
     const s = this.ghostSpot();
     d.ghost.position.set(s.x, 0, s.z);
     d.ghost.rotation.y = d.rot;
+    if (d.moving && d.ring) d.ring.position.set(s.x, 0.03, s.z);
   }
 
   private placeDecor(): void {
@@ -1051,8 +1184,8 @@ export class Game {
     if (!d.pick) return;
     if (d.items.length >= ROOM_LIMIT) { toast('Your room is full!'); return; }
     const s = this.ghostSpot();
-    d.items.push({ uid: Math.random().toString(36).slice(2, 10), item: d.pick, x: s.x, z: s.z, rot: d.rot });
-    this.net.send({ t: 'room', items: d.items });
+    d.items.push({ uid: Math.random().toString(36).slice(2, 10), item: d.pick, x: s.x, z: s.z, rot: d.rot, ...(d.color ? { color: d.color } : {}), ...(d.scale !== 1 ? { scale: d.scale } : {}) });
+    this.sendRoom();
     const id = d.pick;
     const left = (this.save.inventory[id] ?? 0) - d.items.filter((x) => x.item === id).length;
     if (left <= 0) { d.ghost?.removeFromParent(); d.ghost = null; d.pick = null; }
@@ -1060,14 +1193,111 @@ export class Game {
     this.renderDecorDock();
   }
 
-  private pickUpDecor(): void {
+  private selectNearest(): void {
     const d = this.decor!;
-    let best = -1, bd = 2.5;
-    d.items.forEach((it, i) => { const dist = Math.hypot(it.x - this.pos.x, it.z - this.pos.y); if (dist < bd) { bd = dist; best = i; } });
-    if (best < 0) { toast('Stand next to the item you want to pick up.'); return; }
-    d.items.splice(best, 1);
-    this.net.send({ t: 'room', items: d.items });
+    let best: PlacedItem | null = null, bd = 2.8;
+    for (const it of d.items) { const dist = Math.hypot(it.x - this.pos.x, it.z - this.pos.y); if (dist < bd) { bd = dist; best = it; } }
+    if (!best) { toast('Stand next to the item you want to edit.'); return; }
+    d.ghost?.removeFromParent(); d.ghost = null; d.pick = null;
+    d.sel = best.uid;
+    this.updateSelRing();
     this.renderDecorDock();
+  }
+
+  /** A glowing ring under the item being edited. */
+  private updateSelRing(scale?: number): void {
+    const d = this.decor;
+    if (!d) return;
+    const sel = d.items.find((i) => i.uid === d.sel);
+    if (!sel) { d.ring?.removeFromParent(); d.ring = null; return; }
+    if (!d.ring) {
+      d.ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 40), new THREE.MeshBasicMaterial({ color: '#ff6fb5', transparent: true, opacity: 0.85, depthWrite: false }));
+      d.ring.rotation.x = -Math.PI / 2;
+      this.zone!.root.add(d.ring);
+    }
+    d.ring.scale.setScalar(scale ?? sel.scale ?? 1);
+    if (!d.moving) d.ring.position.set(sel.x, 0.03, sel.z);
+  }
+
+  private turnSel(dir: number): void {
+    const d = this.decor!;
+    const sel = d.items.find((i) => i.uid === d.sel);
+    if (!sel) return;
+    if (d.moving) { d.rot += dir * Math.PI / 8; return; }
+    sel.rot = Math.round((sel.rot + dir * Math.PI / 8) * 100) / 100;
+    const o = this.myDecorObj(sel.uid);
+    if (o) o.rotation.y = sel.rot;
+    this.sendRoom();
+  }
+
+  private startMove(): void {
+    const d = this.decor!;
+    const sel = d.items.find((i) => i.uid === d.sel);
+    if (!sel) return;
+    d.moving = true;
+    d.rot = sel.rot;
+    this.myDecorObj(sel.uid)?.removeFromParent();
+    this.makeGhost(sel.item, sel.color, sel.scale);
+    this.renderDecorDock();
+  }
+
+  private dropMoved(): void {
+    const d = this.decor!;
+    const sel = d.items.find((i) => i.uid === d.sel);
+    if (!sel) return;
+    const s = this.ghostSpot();
+    sel.x = s.x; sel.z = s.z; sel.rot = d.rot;
+    d.moving = false;
+    d.ghost?.removeFromParent(); d.ghost = null;
+    this.sendRoom();
+    toast('Moved! ✨');
+  }
+
+  private removeSel(): void {
+    const d = this.decor!;
+    d.items = d.items.filter((i) => i.uid !== d.sel);
+    this.deselect();
+    this.sendRoom();
+  }
+
+  private deselect(): void {
+    const d = this.decor!;
+    if (d.moving) { d.moving = false; d.ghost?.removeFromParent(); d.ghost = null; this.buildDecor(this.save.name, this.save.room); }
+    d.sel = null;
+    this.updateSelRing();
+    this.renderDecorDock();
+  }
+
+  /** Another player's name tag, badge and bio. */
+  private showProfile(info: PeerInfo): void {
+    const pr = info.profile ?? {};
+    sheet(`👤 ${info.name}`, h('div.profile-card', {},
+      h('img', { src: portrait(info.look, 'head', 200), alt: info.name, style: { width: '120px', borderRadius: '50%' } }),
+      h('div.tagprev', { style: pr.color ? { background: pr.color, color: '#fff' } : {} }, `${pr.badge ? pr.badge + ' ' : ''}${info.name}${info.vip ? ' 👑' : ''}`),
+      pr.badge ? h('div.big-badge', {}, pr.badge) : null,
+      h('div.bio', {}, pr.bio || `${info.name} hasn't written a bio yet.`),
+      info.pet ? h('p.muted', {}, `🐾 Pet: ${info.pet.name}`) : null,
+      info.partner ? h('p.muted', {}, `💘 Coupled up with ${info.partner}`) : null,
+      h('div.actions', {}, h('button.btn', { onclick: () => { closeAllSheets(); this.emote('wave'); } }, '👋 Wave'))));
+  }
+
+  /** Wall colour + floor style for your own bedroom. */
+  private openRoomStyle(): void {
+    const style: RoomStyle = { ...(this.save.roomStyle ?? {}) };
+    const body = h('div.mg');
+    const send = () => this.net.send({ t: 'roomStyle', style });
+    const draw = () => fill(body,
+      h('h4', {}, '🧱 Wall colour'),
+      colorRow(style.wall, WALL_COLORS, (c, live) => { if (!live) { style.wall = c; send(); } }),
+      h('h4', {}, '🪵 Floor'),
+      h('div.row', {}, ...ROOM_FLOORS.map((f) => h('button.chip' + (style.floor === f ? '.on' : ''), { onclick: () => { style.floor = f; send(); draw(); } }, FLOOR_LABELS[f] ?? f))),
+      h('h4', {}, '🎨 Floor tint'),
+      colorRow(style.tint, FLOOR_TINTS, (c, live) => { if (!live) { style.tint = c; send(); } }),
+      h('div.actions', {}, h('button.btn.ghost', { onclick: () => { style.wall = style.floor = style.tint = undefined; send(); draw(); } }, '↺ Back to original'),
+        h('button.btn', { onclick: () => closeAllSheets() }, '✓ Done')),
+      h('p.muted', {}, 'Everyone who visits your room sees your style.'));
+    draw();
+    sheet('🎨 Walls & floor', body);
   }
 
   // ================================================================== villa
@@ -1306,7 +1536,7 @@ export class Game {
     }
     const room = this.zone && roomAt(this.zone, this.pos.x, this.pos.y);
     void room;
-    this.me.setName(s.name, s.vip, this.partnerSub());
+    this.me.setName(s.name, s.vip, this.partnerSub(), s.profile ?? {});
   }
 }
 

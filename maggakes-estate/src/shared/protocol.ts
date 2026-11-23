@@ -1,5 +1,6 @@
 import type { Home, ZoneId } from './people';
-import type { Look, PetKind, PlacedItem, Save } from './save';
+import type { Look, PetKind, PlacedItem, RoomStyle, Save } from './save';
+import type { Profile } from './look';
 import type { Scene, SeasonAction } from './season';
 
 /** What a player looks like to everyone else. */
@@ -8,9 +9,10 @@ export interface PeerInfo {
   zone: ZoneId;
   look: Look;
   vip: boolean;
-  car?: { id: string; paint: string } | null;
+  car?: { id: string; paint: string; wheels?: string } | null;
   partner?: string;
-  pet?: { kind: PetKind; name: string };
+  pet?: { kind: PetKind; name: string; fur?: string; collar?: string };
+  profile?: Profile;
 }
 
 export interface PeerPos {
@@ -71,7 +73,7 @@ export type ClientMsg =
   | { t: 'room'; items: PlacedItem[] }
   | { t: 'stat'; stat: string; by: number }
   | { t: 'daily'; id: string }
-  | { t: 'car'; car: string | null; paint?: string }
+  | { t: 'car'; car: string | null; paint?: string; wheels?: string }
   | { t: 'villa'; challenge: string }
   | { t: 'couple'; to: string }
   | { t: 'coupleReply'; from: string; yes: boolean }
@@ -81,7 +83,10 @@ export type ClientMsg =
   | { t: 'board' }
   | { t: 'admin'; action: AdminAction; target: string }
   | { t: 'accounts' }
-  | { t: 'pet'; kind: string; name: string }
+  | { t: 'pet'; kind: string; name: string; fur?: string; collar?: string }
+  | { t: 'outfit'; slot: number; name: string; look: Look }
+  | { t: 'profile'; profile: Profile }
+  | { t: 'roomStyle'; style: RoomStyle }
   | { t: 'spin' }
   | { t: 'shell'; id: string }
   | { t: 'lap'; ms: number }
@@ -98,7 +103,8 @@ export type ClientMsg =
   | { t: 'season'; act: SeasonAction };
 
 export type ServerMsg =
-  | { t: 'welcome'; save: Save; admin: boolean; residences: Residence[]; pending: number }
+  | { t: 'welcome'; save: Save; admin: boolean; residences: Residence[]; pending: number; roomStyles?: Record<string, RoomStyle> }
+  | { t: 'roomStyle'; owner: string; style: RoomStyle }
   | { t: 'world'; residences: Residence[] }
   | { t: 'accounts'; rows: AccountRow[] }
   | { t: 'role'; admin: boolean; pending: number; reports?: number }

@@ -1,6 +1,7 @@
 import { h, sheet, closeAllSheets, confetti, fill, toast } from './dom';
 import { SPIN_PRIZES, SHELL_TOTAL, today, type Save } from '../../shared/save';
 import type { Music, Station } from '../engine/music';
+import { colorRow } from './color';
 
 export interface FunCtx {
   save: () => Save;
@@ -85,17 +86,29 @@ export function openSpin(onSpin: () => void): { land: (index: number, msg: strin
   };
 }
 
-export function openAdopt(current: Save['pet'], adopt: (kind: string, name: string) => void): void {
+const FURS: Record<string, string[]> = {
+  dog: ['#c8925a', '#f2e3c6', '#3b2a20', '#ffffff', '#8a8a8a', '#e0b070'],
+  cat: ['#f0a040', '#2a2a2a', '#ffffff', '#9a9a9a', '#e8d8c0', '#7a5030'],
+  bunny: ['#ffffff', '#d9c2a8', '#8a7060', '#c0c0c0', '#ffd6e8', '#3a3a3a'],
+};
+const COLLARS = ['#ff3d7f', '#2aa8ff', '#ffd23d', '#7cff6b', '#b388ff', '#ff7a2a', '#1b1c1f', '#ffffff'];
+
+export function openAdopt(current: Save['pet'], adopt: (kind: string, name: string, fur?: string, collar?: string) => void): void {
   let kind = current?.kind ?? 'dog';
+  let fur = current?.fur;
+  let collar = current?.collar;
   const name = h<HTMLInputElement>('input.petname', { placeholder: 'Pet name', maxLength: 12, value: current?.name ?? '' });
-  const row = h('div.row');
-  const draw = () => fill(row, ...([['dog', '🐶 Puppy'], ['cat', '🐱 Kitten'], ['bunny', '🐰 Bunny']] as const).map(([k, l]) =>
-    h('button.chip' + (kind === k ? '.on' : ''), { onclick: () => { kind = k; draw(); } }, l)));
+  const box = h('div');
+  const draw = () => fill(box,
+    h('div.row', {}, ...([['dog', '🐶 Puppy'], ['cat', '🐱 Kitten'], ['bunny', '🐰 Bunny']] as const).map(([k, l]) =>
+      h('button.chip' + (kind === k ? '.on' : ''), { onclick: () => { kind = k; draw(); } }, l))),
+    h('h4', {}, '🎨 Fur colour'), colorRow(fur, FURS[kind] ?? FURS.dog, (c) => { fur = c; }),
+    h('h4', {}, '🎀 Collar colour'), colorRow(collar, COLLARS, (c) => { collar = c; }));
   draw();
   sheet('🐾 Adopt a pet', h('div.mg', {},
-    h('p', {}, current ? `${current.name} is your pet right now. You can swap or rename them.` : 'Pick a pet — they\'ll follow you everywhere, and your friends can see them!'),
-    row, name,
-    h('div.actions', {}, h('button.btn.big', { onclick: () => { closeAllSheets(); adopt(kind, name.value); } }, current ? '💾 Save' : '🐾 Adopt!'))));
+    h('p', {}, current ? `${current.name} is your pet right now. You can swap, rename or recolour them.` : 'Pick a pet — they\'ll follow you everywhere, and your friends can see them!'),
+    box, name,
+    h('div.actions', {}, h('button.btn.big', { onclick: () => { closeAllSheets(); adopt(kind, name.value, fur, collar); } }, current ? '💾 Save' : '🐾 Adopt!'))));
 }
 
 export function openRace(rows: { name: string; ms: number }[], me: Save, start: () => void): void {

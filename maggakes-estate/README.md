@@ -34,7 +34,7 @@ Charis & Gabby (6th), Milla (7th).
 - **Shop:** outfits, sunglasses, handbags, jewellery, hats, perfume (sparkle trail), furniture and cars.
   Some items need a certain floor, some are VIP-only.
 - **Decorate:** stand in your own bedroom and press *Decorate my room*. Everyone on that floor sees it.
-- **Car park:** pick a car and paint at the garage, then press *Drive*.
+- **Car park:** pick a car, paint and wheels at the garage, then press *Drive*.
 - **Love Island Mode:** couple up with friends or the islanders, win challenges for Villa Points,
   recouple at the firepit, and reach 1,500 Villa Points while coupled to win the final.
 
@@ -44,6 +44,16 @@ Charis & Gabby (6th), Milla (7th).
   **golden shell** tracker (30 hidden around the mansion, +1,000 Aura for finding them all) and **music**.
 - **🏁 Kart race** at the car park (lap timer + best-lap board) and a **🌊 water slide** on the rooftop.
 - **Day & night:** a shared 20-minute day — sunrise, sunset and starry nights for everyone at once.
+- **🎨 Make it yours.** Almost everything can be changed:
+  - **Wardrobe** has five tabs. *Look*: any colour skin, hair, eyes and lips, plus build, height,
+    hairstyle and facial hair. *Clothes*: a shop outfit or 🧩 mix & match (9 tops, 8 bottoms,
+    7 shoes) in any colour. *Extras*: accessories. *Saved*: 6 named outfit slots. *Profile*: name-tag
+    colour, a badge and a short bio. Walk up to another player and press *👤 profile* to read theirs.
+  - **Bedroom:** in *Decorate*, give a piece of furniture any colour and size before placing it.
+    *✏️ Edit nearest* lets you recolour, resize, spin, move or put away something already placed.
+    *🎨 Walls & floor* sets any wall colour, 11 floor styles and a floor tint.
+  - **Garage:** any paint colour and any wheel colour for every car, including the Mini Kart.
+  - **Pets:** any fur and collar colour.
 
 Controls: WASD / arrows (or the joystick on phones) to move, drag to turn the camera,
 scroll / pinch to zoom, **E** to interact, **Enter** to chat, **1–5** for emotes.

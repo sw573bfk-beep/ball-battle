@@ -23,7 +23,7 @@ const SPECS: Record<string, Spec> = {
 };
 
 /** A little go-kart that fits through doorways. */
-function buildKart(paint: string): CarModel {
+function buildKart(paint: string, rimColor?: string): CarModel {
   const g = new THREE.Group();
   const body = new THREE.MeshPhysicalMaterial({ color: paint, roughness: 0.3, metalness: 0.4, clearcoat: 1, clearcoatRoughness: 0.1 });
   rbox(g, 0.9, 0.12, 1.45, mat('#1b1c1f', 0.5, 0.6), 0, 0.12, 0, 0.04);
@@ -51,7 +51,7 @@ function buildKart(paint: string): CarModel {
     pivot.add(spin);
     const t = cyl(spin, r, r, 0.16, tyre, 0, -0.08, 0, 20);
     t.rotation.z = Math.PI / 2; t.position.set(0, 0, 0);
-    sph(spin, r * 0.5, mat(paint, 0.3, 0.6), Math.sign(x) * 0.07, 0, 0);
+    sph(spin, r * 0.5, mat(rimColor ?? paint, 0.3, 0.6), Math.sign(x) * 0.07, 0, 0);
     g.add(pivot);
     wheels.push(spin);
     if (z > 0) front.push(pivot);
@@ -60,8 +60,8 @@ function buildKart(paint: string): CarModel {
   return { obj: g, wheels, front, seat: 0.26, length: 1.5 };
 }
 
-export function buildCar(model: string, paint: string): CarModel {
-  if (model === 'kart') return buildKart(paint);
+export function buildCar(model: string, paint: string, rimColor?: string): CarModel {
+  if (model === 'kart') return buildKart(paint, rimColor);
   const s = SPECS[model] ?? SPECS.hatch;
   const g = new THREE.Group();
   const paintM = new THREE.MeshPhysicalMaterial({ color: paint, roughness: 0.25, metalness: 0.6, clearcoat: 1, clearcoatRoughness: 0.05 });
@@ -102,7 +102,7 @@ export function buildCar(model: string, paint: string): CarModel {
   const wheels: THREE.Object3D[] = [];
   const front: THREE.Object3D[] = [];
   const tyre = mat('#141414', 0.85);
-  const rim = mat(model === 'limo' || model === 'super' ? '#d8b45a' : '#cfd4da', 0.2, 1);
+  const rim = mat(rimColor ?? (model === 'limo' || model === 'super' ? '#d8b45a' : '#cfd4da'), 0.2, 1);
   const wz = s.l / 2 - s.wheel - 0.35;
   for (const [x, z] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
     const pivot = new THREE.Group();

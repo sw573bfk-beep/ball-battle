@@ -3,7 +3,7 @@ import { RESIDENTS, findResident, type Home } from './people';
 import { ALL_ZONES, FLOORS, REPLAY_AURA, TASK_AURA, floorById, zoneNeed } from './floors';
 import { FREE_ITEMS, SHOP, shopItem, stackable, type WearSlot } from './shop';
 
-import { BEARDS, BUILDS, EYE_COLORS, HAIR_COLORS, HAIR_STYLES, HEIGHTS, LIP_COLORS, SKINS, normalizeLook, type Look } from './look';
+import { BADGES, BEARDS, BOTTOMS, BUILDS, HAIR_COLORS, HAIR_STYLES, HEIGHTS, SHOES, SKINS, TOPS, isHex, normalizeLook, type Look, type Profile } from './look';
 export type { Look } from './look';
 export { HAIR_COLORS, HAIR_STYLES, SKINS } from './look';
 import type { Season } from './season';
@@ -28,7 +28,15 @@ export interface PlacedItem {
   x: number;
   z: number;
   rot: number;
+  /** Any colour for the item's main colour. */
+  color?: string;
+  /** Size, 0.5–1.8. */
+  scale?: number;
 }
+
+/** Your bedroom's look. */
+export interface RoomStyle { wall?: string; floor?: string; tint?: string }
+export const ROOM_FLOORS = ['wood', 'darkwood', 'marble', 'tile', 'carpet', 'pinkcarpet', 'terrazzo', 'stone', 'deck', 'grass', 'sand'] as const;
 
 export interface DailyState {
   date: string;
@@ -61,7 +69,12 @@ export interface Save {
   lastZone: ZoneId;
   /** Your own bedroom (founders have fixed ones; newcomers get one when approved). */
   home?: Home;
-  pet?: { kind: PetKind; name: string };
+  pet?: { kind: PetKind; name: string; fur?: string; collar?: string };
+  /** Saved looks (up to 6). */
+  outfits?: { name: string; look: Look }[];
+  profile?: Profile;
+  roomStyle?: RoomStyle;
+  carWheels?: Record<string, string>;
   spinDate?: string;
   shells?: string[];
   bestLap?: number;
@@ -180,29 +193,83 @@ export function buy(save: Save, itemId: string): Result {
   return { ok: true, msg: `Bought ${item.name}!` };
 }
 
-/** Equips a look, but only with things the player owns. */
-export function setLook(save: Save, look: Look): Result {
+/** Cleans a look so it only uses valid values and things the player owns. */
+export function cleanLook(save: Save, look: Look): Look {
   const cur = normalizeLook(save.look);
-  const pick = <T,>(v: T | undefined, ok: readonly T[], fallback: T): T => (v !== undefined && ok.includes(v) ? v : fallback);
+  const pick = <T,>(v: T | undefined, ok: readonly T[], fallback: T | undefined): T | undefined => (v !== undefined && ok.includes(v) ? v : fallback);
+  const hex = (v: unknown, fallback: string | undefined) => (isHex(v) ? v.toLowerCase() : fallback);
   const clean: Look = {
     body: look.body === 'boy' ? 'boy' : 'girl',
-    skin: pick(look.skin, SKINS, cur.skin),
-    hair: pick(look.hair, HAIR_STYLES, cur.hair),
-    hairColor: pick(look.hairColor, HAIR_COLORS, cur.hairColor),
+    skin: hex(look.skin, cur.skin)!,
+    hair: pick(look.hair, HAIR_STYLES, cur.hair)!,
+    hairColor: hex(look.hairColor, cur.hairColor)!,
     outfit: save.inventory[look.outfit] ? look.outfit : cur.outfit,
-    build: pick(look.build, BUILDS.map((b) => b.id), cur.build!),
-    height: pick(look.height, HEIGHTS.map((b) => b.id), cur.height!),
-    eyes: pick(look.eyes, EYE_COLORS, cur.eyes!),
-    lips: pick(look.lips, [...LIP_COLORS, '#b07a6e'], cur.lips!),
-    beard: pick(look.beard, BEARDS.map((b) => b.id), cur.beard!),
+    build: pick(look.build, BUILDS.map((b) => b.id), cur.build),
+    height: pick(look.height, HEIGHTS.map((b) => b.id), cur.height),
+    eyes: hex(look.eyes, cur.eyes),
+    lips: hex(look.lips, cur.lips),
+    beard: pick(look.beard, BEARDS.map((b) => b.id), cur.beard),
   };
+  // Mix & match pieces (free) and any colours.
+  const top = pick(look.top, TOPS.map((t) => t.id), undefined);
+  const bottom = pick(look.bottom, BOTTOMS.map((t) => t.id), undefined);
+  const shoes = pick(look.shoes, SHOES.map((t) => t.id), undefined);
+  if (top) clean.top = top;
+  if (bottom) clean.bottom = bottom;
+  if (shoes) clean.shoes = shoes;
+  const colors: NonNullable<Look['colors']> = {};
+  for (const k of ['top', 'bottom', 'shoes'] as const) { const c = look.colors?.[k]; if (isHex(c)) colors[k] = c.toLowerCase(); }
+  if (Object.keys(colors).length) clean.colors = colors;
   const slots: WearSlot[] = ['glasses', 'bag', 'jewel', 'hat', 'perfume'];
   for (const s of slots) {
     const v = (look as unknown as Record<string, string | undefined>)[s];
     if (v && save.inventory[v] && shopItem(v)?.slot === s) (clean as unknown as Record<string, string>)[s] = v;
   }
-  save.look = clean;
+  return clean;
+}
+
+/** Equips a look, but only with things the player owns. */
+export function setLook(save: Save, look: Look): Result {
+  save.look = cleanLook(save, look);
   return { ok: true, msg: 'Look saved!' };
+}
+
+export const MAX_OUTFITS = 6;
+
+export function saveOutfit(save: Save, slot: number, name: string, look: Look): Result {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= MAX_OUTFITS) return { ok: false, msg: 'Pick a slot.' };
+  save.outfits ??= [];
+  const clean = cleanText(name, 16) || `Look ${slot + 1}`;
+  while (save.outfits.length < slot) save.outfits.push({ name: `Look ${save.outfits.length + 1}`, look: save.look });
+  save.outfits[slot] = { name: clean, look: cleanLook(save, look) };
+  return { ok: true, msg: `💾 Saved "${clean}"!` };
+}
+
+const RUDE = ['fuck', 'shit', 'bitch', 'cunt', 'dick', 'sex', 'porn', 'nazi', 'slut', 'whore', 'nigg', 'fag', 'rape', 'kill yourself', 'kys'];
+/** Trims text and blanks out rude words. */
+export function cleanText(raw: unknown, max: number): string {
+  let t = String(raw ?? '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+  for (const w of RUDE) t = t.replace(new RegExp(w, 'gi'), '♥'.repeat(Math.min(4, w.length)));
+  return t;
+}
+
+export function setProfile(save: Save, p: Profile): Result {
+  save.profile = {
+    color: isHex(p.color) ? p.color.toLowerCase() : undefined,
+    badge: BADGES.includes(String(p.badge ?? '')) ? String(p.badge ?? '') : '',
+    bio: cleanText(p.bio, 80),
+  };
+  return { ok: true, msg: '✨ Profile saved!' };
+}
+
+export function setRoomStyle(save: Save, r: RoomStyle): Result {
+  if (!save.home) return { ok: false, msg: "You don't have a bedroom yet." };
+  save.roomStyle = {
+    wall: isHex(r.wall) ? r.wall.toLowerCase() : undefined,
+    floor: (ROOM_FLOORS as readonly string[]).includes(String(r.floor)) ? String(r.floor) : undefined,
+    tint: isHex(r.tint) ? r.tint.toLowerCase() : undefined,
+  };
+  return { ok: true, msg: '🎨 Bedroom updated!' };
 }
 
 export const ROOM_LIMIT = 30;
@@ -216,8 +283,10 @@ export function placeItems(save: Save, items: PlacedItem[]): Result {
     if (!item || item.cat !== 'furniture') return { ok: false, msg: 'You can only place furniture.' };
     if (counts[it.item] > (save.inventory[it.item] ?? 0)) return { ok: false, msg: `You don't have another ${item.name}.` };
     if (![it.x, it.z, it.rot].every(Number.isFinite)) return { ok: false, msg: 'Bad position.' };
+    if (it.color !== undefined && !isHex(it.color)) return { ok: false, msg: 'Bad colour.' };
+    if (it.scale !== undefined && !(Number.isFinite(it.scale) && it.scale >= 0.5 && it.scale <= 1.8)) return { ok: false, msg: 'Bad size.' };
   }
-  save.room = items.map((it) => ({ uid: String(it.uid).slice(0, 16), item: it.item, x: round(it.x), z: round(it.z), rot: round(it.rot) }));
+  save.room = items.map((it) => ({ uid: String(it.uid).slice(0, 16), item: it.item, x: round(it.x), z: round(it.z), rot: round(it.rot), ...(isHex(it.color) ? { color: it.color.toLowerCase() } : {}), ...(it.scale && it.scale !== 1 ? { scale: round(it.scale) } : {}) }));
   return { ok: true, msg: 'Room saved!' };
 }
 
@@ -360,9 +429,9 @@ export function recordLap(save: Save, ms: number): Result {
   return { ok: true, msg: `🏁 Lap ${(t / 1000).toFixed(2)}s${best ? ' — new personal best! 🏆' : ''} (+20 Aura)` };
 }
 
-export function adoptPet(save: Save, kind: string, name: string): Result {
+export function adoptPet(save: Save, kind: string, name: string, fur?: string, collar?: string): Result {
   if (!['dog', 'cat', 'bunny'].includes(kind)) return { ok: false, msg: 'Pick a puppy, kitten or bunny.' };
-  const clean = String(name).replace(/[^A-Za-z0-9 ]/g, '').trim().slice(0, 12) || (kind === 'dog' ? 'Buddy' : kind === 'cat' ? 'Whiskers' : 'Bun Bun');
-  save.pet = { kind: kind as PetKind, name: clean };
+  const clean = cleanText(String(name).replace(/[^A-Za-z0-9 ]/g, ''), 12) || (kind === 'dog' ? 'Buddy' : kind === 'cat' ? 'Whiskers' : 'Bun Bun');
+  save.pet = { kind: kind as PetKind, name: clean, ...(isHex(fur) ? { fur: fur.toLowerCase() } : {}), ...(isHex(collar) ? { collar: collar.toLowerCase() } : {}) };
   return { ok: true, msg: `🐾 Say hi to ${clean}! They'll follow you everywhere.` };
 }

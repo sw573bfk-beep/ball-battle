@@ -28,9 +28,9 @@ function pickTarget(zone: Zone, w: Wanderer, area?: (x: number, z: number) => bo
   w.tx = w.x; w.tz = w.z;
 }
 
-export function petModel(kind: 'dog' | 'cat' | 'bunny', name: string): { obj: THREE.Group; tick: Wanderer['tick'] } {
+export function petModel(kind: 'dog' | 'cat' | 'bunny', name: string, furColor?: string, collarColor?: string): { obj: THREE.Group; tick: Wanderer['tick'] } {
   const g = new THREE.Group();
-  const fur = mat(kind === 'dog' ? '#d9a35c' : kind === 'bunny' ? '#f4efe9' : '#b8b8c0', 0.95);
+  const fur = mat(furColor ?? (kind === 'dog' ? '#d9a35c' : kind === 'bunny' ? '#f4efe9' : '#b8b8c0'), 0.95);
   const light = mat(kind === 'dog' ? '#f3dcb8' : '#ffffff', 0.95);
   const s = kind === 'dog' ? 1 : kind === 'bunny' ? 0.6 : 0.75;
   const sph = (r: number, m: THREE.Material, x: number, y: number, z: number, sx = 1, sy = 1, sz = 1) => {
@@ -61,7 +61,7 @@ export function petModel(kind: 'dog' | 'cat' | 'bunny', name: string): { obj: TH
   const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.03 * s, 0.22 * s, 4, 8), fur);
   tail.position.set(0, 0.48 * s, -0.33 * s); tail.rotation.x = -0.8; g.add(tail);
   if (kind === 'bunny') { tail.scale.set(2.5, 0.6, 2.5); tail.position.set(0, 0.38 * s, -0.3 * s); }
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.11 * s, 0.02 * s, 6, 16), mat(kind === 'dog' ? '#ff4f9a' : '#4fd1c5', 0.5));
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.11 * s, 0.02 * s, 6, 16), mat(collarColor ?? (kind === 'dog' ? '#ff4f9a' : '#4fd1c5'), 0.5));
   collar.position.set(0, 0.47 * s, 0.25 * s); collar.rotation.x = 1.2; g.add(collar);
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(name, false), transparent: true, depthWrite: false, depthTest: false }));
   tag.visible = name.length > 0;

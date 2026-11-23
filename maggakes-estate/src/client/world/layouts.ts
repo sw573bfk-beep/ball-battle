@@ -1,4 +1,5 @@
-import { isResidence, residenceNumber, type FixedZone, type ZoneId } from '../../shared/people';
+import { RESIDENTS, isResidence, residenceNumber, type FixedZone, type ZoneId } from '../../shared/people';
+import type { RoomStyle } from '../../shared/save';
 import type { Residence } from '../../shared/protocol';
 import type { FloorMat } from '../engine/tex';
 import { P, bedroomKit, ensuiteKit, label, on, wardrobeKit, type PropDef, type Rect } from './kit';
@@ -612,7 +613,35 @@ const THEMES = [
   { bed: '#141414', accent: '#ff3df0', rug: '#5c1a5e', wall: '#2a2236', posters: ['concert', 'star'] },
 ] as const;
 
+// ---- Bedroom styles (wall colour, floor) chosen by each owner
+let roomStyles: Record<string, RoomStyle> = {};
+export function setRoomStyles(r: Record<string, RoomStyle>): void { roomStyles = { ...r }; }
+export function setRoomStyle(owner: string, style: RoomStyle): void { roomStyles[owner] = style; }
+
+/** Which floor + room someone's bedroom is. */
+function ownerRoom(owner: string): { zone: ZoneId; room: string } | undefined {
+  const f = RESIDENTS.find((r) => r.name === owner);
+  if (f) return { zone: f.home, room: f.room };
+  for (const res of residences) { const o = res.owners.find((x) => x.name === owner); if (o) return { zone: res.zone, room: o.room }; }
+  return undefined;
+}
+export function roomOwnerZone(owner: string): ZoneId | undefined { return ownerRoom(owner)?.zone; }
+
 export function getLayout(id: ZoneId): Layout {
+  const base = baseLayout(id);
+  const styled = Object.entries(roomStyles).map(([owner, st]) => ({ at: ownerRoom(owner), st })).filter((x) => x.at?.zone === id);
+  if (!styled.length) return base;
+  return {
+    ...base,
+    rooms: base.rooms.map((r) => {
+      const hit = styled.find((x) => x.at!.room === r.id);
+      if (!hit) return r;
+      return { ...r, floor: (hit.st.floor as RoomDef['floor']) ?? r.floor, tint: hit.st.tint ?? (hit.st.floor ? undefined : r.tint), wall: hit.st.wall ?? r.wall };
+    }),
+  };
+}
+
+function baseLayout(id: ZoneId): Layout {
   if (!isResidence(id)) return LAYOUTS[id as FixedZone];
   const n = residenceNumber(id);
   const owners = residences.find((r) => r.zone === id)?.owners ?? [];

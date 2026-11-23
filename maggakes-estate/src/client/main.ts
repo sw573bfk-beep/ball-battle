@@ -34,7 +34,7 @@ function start(token: string): void {
       if (!game) {
         $('#login').classList.add('gone');
         document.body.classList.add('playing');
-        game = new Game($('#app'), m.save, m.admin, net, signOut, m.residences, m.pending);
+        game = new Game($('#app'), m.save, m.admin, net, signOut, m.residences, m.pending, m.roomStyles ?? {});
       } else {
         game.resume(m.save);
       }

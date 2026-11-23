@@ -8,7 +8,9 @@ import { isResidence, residenceNumber } from '../../shared/people';
 import { getResidences } from '../world/layouts';
 import type { Net } from '../net';
 import type { Quality } from '../engine/gfx';
-import { BEARDS, BUILDS, EYE_COLORS, HAIR, HEIGHTS, LIP_COLORS, normalizeLook } from '../../shared/look';
+import { BADGES, BEARDS, BOTTOMS, BUILDS, EYE_COLORS, HAIR, HEIGHTS, LIP_COLORS, SHOES, TOPS, normalizeLook } from '../../shared/look';
+import { colorRow, CLOTH_COLORS } from './color';
+import { portrait } from '../engine/portrait';
 
 export interface Ctx {
   save: () => Save;
@@ -75,48 +77,112 @@ export function openShop(ctx: Ctx, startTab: ShopCat = 'outfit'): void {
 
 export function openWardrobe(ctx: Ctx, opts: { villa?: boolean; onSaved?: () => void } = {}): void {
   const s0 = ctx.save();
-  const look: Look = normalizeLook({ ...(opts.villa && s0.villa.look ? s0.villa.look : s0.look) });
+  const look: Look = normalizeLook(JSON.parse(JSON.stringify(opts.villa && s0.villa.look ? s0.villa.look : s0.look)));
   if (opts.villa && !s0.villa.look) look.outfit = 'fit_villa';
   let saved = false;
+  type WTab = 'look' | 'clothes' | 'extras' | 'saved' | 'profile';
+  let tab = 'look' as WTab;
+  let mix = !!(look.top || look.bottom);
+  const prof = { ...(s0.profile ?? {}) };
   const body = h('div.wardrobe');
   const owned = (slot: string) => SHOP.filter((i) => i.slot === slot && (ctx.save().inventory[i.id] ?? 0) > 0);
-  const chip = (on: boolean, label: string | Node, fn: () => void, extra = '') => h('button.chip' + (on ? '.on' : '') + extra, { onclick: () => { fn(); ctx.previewLook({ ...look }); render(); } }, label);
-  const sw = (on: boolean, color: string, fn: () => void) => h('button.swatch' + (on ? '.on' : ''), { style: { background: color }, onclick: () => { fn(); ctx.previewLook({ ...look }); render(); }, title: color });
+  const update = () => { ctx.previewLook(JSON.parse(JSON.stringify(look))); render(); };
+  const chip = (on: boolean, label: string | Node, fn: () => void) => h('button.chip' + (on ? '.on' : ''), { onclick: () => { fn(); update(); } }, label);
+  const sec = (title: string, ...kids: (Node | null)[]) => h('section', {}, h('h4', {}, title), ...kids.filter(Boolean) as Node[]);
+  const colors = (v: string | undefined, presets: string[], set: (c: string) => void) => colorRow(v, presets, (c, live) => { set(c); if (live) ctx.previewLook(JSON.parse(JSON.stringify(look))); else update(); });
   const slotRow = (slot: 'glasses' | 'bag' | 'jewel' | 'hat' | 'perfume', title: string) => {
     const items = owned(slot);
-    return h('section', {}, h('h4', {}, title),
-      h('div.row', {}, chip(!look[slot], 'None', () => { delete look[slot]; }),
-        ...items.map((i) => chip(look[slot] === i.id, `${i.emoji} ${i.name}`, () => { look[slot] = i.id; }))),
-      items.length ? null : h('p.muted', {}, 'Buy some in the shop!'));
+    return sec(title, h('div.row', {}, chip(!look[slot], 'None', () => { delete look[slot]; }),
+      ...items.map((i) => chip(look[slot] === i.id, `${i.emoji} ${i.name}`, () => { look[slot] = i.id; }))),
+    items.length ? null : h('p.muted', {}, 'Buy some in the shop!'));
   };
+  const saveBtn = () => h('div.actions', {}, h('button.btn.big', {
+    onclick: () => {
+      saved = true;
+      ctx.net.send(opts.villa ? { t: 'villaLook', look } : { t: 'look', look });
+      ctx.previewLook(null);
+      close();
+      opts.onSaved?.();
+    },
+  }, opts.villa ? '🌴 Save villa look' : '💾 Save look'));
+  const tabs: [WTab, string][] = [['look', '🙂 Look'], ['clothes', '👕 Clothes'], ['extras', '🕶️ Extras'], ['saved', '💾 Saved'], ['profile', '🏷️ Profile']];
   const render = () => {
-    const outfits = owned('outfit');
-    fill(body, 
-      h('section', {}, h('h4', {}, 'Avatar'), h('div.row', {}, chip(look.body === 'girl', '👧 Girl', () => { look.body = 'girl'; }), chip(look.body === 'boy', '👦 Boy', () => { look.body = 'boy'; }))),
-      h('section', {}, h('h4', {}, 'Skin'), h('div.row', {}, ...SKINS.map((c) => sw(look.skin === c, c, () => { look.skin = c; })))),
-      h('section', {}, h('h4', {}, 'Build'), h('div.row', {}, ...BUILDS.map((b) => chip(look.build === b.id, b.label, () => { look.build = b.id; })))),
-      h('section', {}, h('h4', {}, 'Height'), h('div.row', {}, ...HEIGHTS.map((b) => chip(look.height === b.id, b.label, () => { look.height = b.id; })))),
-      h('section', {}, h('h4', {}, 'Hairstyle'), h('div.row', {}, ...[...HAIR].sort((a, b) => Number(b.for === look.body) - Number(a.for === look.body)).map((st) => chip(look.hair === st.id, st.label, () => { look.hair = st.id; })))),
-      h('section', {}, h('h4', {}, 'Hair colour'), h('div.row', {}, ...HAIR_COLORS.map((c) => sw(look.hairColor === c, c, () => { look.hairColor = c; })))),
-      h('section', {}, h('h4', {}, 'Eyes'), h('div.row', {}, ...EYE_COLORS.map((c) => sw(look.eyes === c, c, () => { look.eyes = c; })))),
-      h('section', {}, h('h4', {}, 'Lips'), h('div.row', {}, ...[...LIP_COLORS, '#b07a6e'].map((c) => sw(look.lips === c, c, () => { look.lips = c; })))),
-      look.body === 'boy' ? h('section', {}, h('h4', {}, 'Facial hair'), h('div.row', {}, ...BEARDS.map((b) => chip(look.beard === b.id, b.label, () => { look.beard = b.id; })))) : null,
-      h('section', {}, h('h4', {}, 'Outfit'), h('div.row', {}, ...outfits.map((i) => chip(look.outfit === i.id, `${i.emoji} ${i.name}`, () => { look.outfit = i.id; })))),
-      slotRow('glasses', 'Sunglasses'), slotRow('bag', 'Handbag'), slotRow('jewel', 'Jewellery'), slotRow('hat', 'Hat'), slotRow('perfume', 'Perfume (sparkle trail)'),
-      h('div.actions', {}, h('button.btn.big', {
-        onclick: () => {
-          saved = true;
-          ctx.net.send(opts.villa ? { t: 'villaLook', look } : { t: 'look', look });
-          ctx.previewLook(null);
-          close();
-          opts.onSaved?.();
-        },
-      }, opts.villa ? '🌴 Save villa look' : '💾 Save look')),
-    );
+    const s = ctx.save();
+    const head = h('div.wtabs', {}, ...tabs.map(([k, l]) => h('button.tab' + (tab === k ? '.on' : ''), { onclick: () => { tab = k; render(); } }, l)));
+    let content: Node[] = [];
+    if (tab === 'look') {
+      content = [
+        sec('Avatar', h('div.row', {}, chip(look.body === 'girl', '👧 Girl', () => { look.body = 'girl'; }), chip(look.body === 'boy', '👦 Boy', () => { look.body = 'boy'; }))),
+        sec('Build', h('div.row', {}, ...BUILDS.map((b) => chip(look.build === b.id, b.label, () => { look.build = b.id; })))),
+        sec('Height', h('div.row', {}, ...HEIGHTS.map((b) => chip(look.height === b.id, b.label, () => { look.height = b.id; })))),
+        sec('Skin', colors(look.skin, SKINS, (c) => { look.skin = c; })),
+        sec('Hairstyle', h('div.row', {}, ...[...HAIR].sort((a, b) => Number(b.for === look.body) - Number(a.for === look.body)).map((st) => chip(look.hair === st.id, st.label, () => { look.hair = st.id; })))),
+        sec('Hair colour', colors(look.hairColor, HAIR_COLORS, (c) => { look.hairColor = c; })),
+        sec('Eyes', colors(look.eyes, EYE_COLORS, (c) => { look.eyes = c; })),
+        sec('Lips', colors(look.lips, [...LIP_COLORS, '#b07a6e'], (c) => { look.lips = c; })),
+        look.body === 'boy' ? sec('Facial hair', h('div.row', {}, ...BEARDS.map((b) => chip(look.beard === b.id, b.label, () => { look.beard = b.id; })))) : null,
+        saveBtn(),
+      ].filter(Boolean) as Node[];
+    } else if (tab === 'clothes') {
+      const outfits = owned('outfit');
+      content = [
+        sec('Style', h('div.row', {},
+          chip(!mix, '👗 Outfits', () => { mix = false; delete look.top; delete look.bottom; }),
+          chip(mix, '🧩 Mix & match', () => { mix = true; look.top ??= 'tee'; look.bottom ??= 'jeans'; }))),
+        mix
+          ? h('div', {},
+            sec('Top', h('div.row', {}, ...TOPS.map((t) => chip(look.top === t.id, t.label, () => { look.top = t.id; })))),
+            sec('Bottoms', h('div.row', {}, ...BOTTOMS.map((t) => chip(look.bottom === t.id, t.label, () => { look.bottom = t.id; })))))
+          : sec('Outfit', h('div.row', {}, ...outfits.map((i) => chip(look.outfit === i.id, `${i.emoji} ${i.name}`, () => { look.outfit = i.id; })))),
+        sec('Shoes', h('div.row', {}, chip(!look.shoes, 'Match outfit', () => { delete look.shoes; }), ...SHOES.map((t) => chip(look.shoes === t.id, t.label, () => { look.shoes = t.id; })))),
+        sec('Top colour', colors(look.colors?.top, CLOTH_COLORS, (c) => { look.colors = { ...look.colors, top: c }; })),
+        sec('Bottoms colour', colors(look.colors?.bottom, CLOTH_COLORS, (c) => { look.colors = { ...look.colors, bottom: c }; })),
+        sec('Shoe colour', colors(look.colors?.shoes, CLOTH_COLORS, (c) => { look.colors = { ...look.colors, shoes: c }; })),
+        look.colors ? h('div.row', {}, chip(false, '↩ Reset colours', () => { delete look.colors; })) : null,
+        saveBtn(),
+      ].filter(Boolean) as Node[];
+    } else if (tab === 'extras') {
+      content = [slotRow('glasses', 'Sunglasses'), slotRow('bag', 'Handbag'), slotRow('jewel', 'Jewellery'), slotRow('hat', 'Hat'), slotRow('perfume', 'Perfume (sparkle trail)'), saveBtn()];
+    } else if (tab === 'saved') {
+      const slots = Array.from({ length: 6 }, (_, i) => s.outfits?.[i]);
+      content = [
+        h('p.muted', {}, 'Save up to 6 looks and swap with one tap.'),
+        h('div.slots', {}, ...slots.map((o, i) => {
+          const name = h<HTMLInputElement>('input', { placeholder: `Look ${i + 1}`, value: o?.name ?? '', maxLength: 16 });
+          return h('div.slot', {},
+            o ? h('img', { src: portrait(o.look, 'head', 168), alt: o.name }) : h('div.empty', {}, '+'),
+            name,
+            h('div.row', {},
+              o ? h('button.mini', { onclick: () => {
+                Object.assign(look, normalizeLook(JSON.parse(JSON.stringify(o.look))));
+                for (const k of ['top', 'bottom', 'shoes', 'colors', 'glasses', 'bag', 'jewel', 'hat', 'perfume'] as const) if (!(k in o.look)) delete look[k];
+                mix = !!(look.top || look.bottom);
+                ctx.net.send(opts.villa ? { t: 'villaLook', look } : { t: 'look', look });
+                update();
+              } }, '👗 Wear') : null,
+              h('button.mini', { onclick: () => ctx.net.send({ t: 'outfit', slot: i, name: name.value, look }) }, o ? '💾 Replace' : '💾 Save here')));
+        })),
+      ];
+    } else {
+      const label = `${prof.badge ? prof.badge + ' ' : ''}${s.name}`;
+      const bio = h<HTMLTextAreaElement>('textarea.bio', { maxLength: 80, rows: 2, placeholder: 'A short bio friends can see (80 letters)' });
+      bio.value = prof.bio ?? '';
+      bio.oninput = () => { prof.bio = bio.value; };
+      content = [
+        sec('Name tag preview', h('span.tagprev', { style: { background: prof.color ?? 'rgba(20,20,30,.55)', color: '#fff' } }, label)),
+        sec('Name tag colour', colorRow(prof.color, ['#ff6f91', '#9b7ede', '#4fd1c5', '#ffd23f', '#2b6cff', '#111111', '#ff9f1c'], (c, live) => { prof.color = c; if (!live) render(); }),
+          prof.color ? h('button.mini', { onclick: () => { delete prof.color; render(); } }, '↩ Default') : null),
+        sec('Badge', h('div.badges', {}, ...BADGES.map((b) => h('button' + ((prof.badge ?? '') === b ? '.on' : ''), { onclick: () => { prof.badge = b; render(); } }, b || '✕')))),
+        sec('Bio', bio),
+        h('div.actions', {}, h('button.btn.big', { onclick: () => ctx.net.send({ t: 'profile', profile: prof }) }, '✨ Save profile')),
+      ];
+    }
+    fill(body, head, ...content);
   };
-  ctx.previewLook({ ...look });
+  const off = ctx.onSave(() => { if (tab === 'saved') render(); });
+  ctx.previewLook(JSON.parse(JSON.stringify(look)));
   render();
-  const close = sheet(opts.villa ? 'Villa Dressing Room' : 'Wardrobe', body, { className: 'side', onClose: () => { if (!saved) ctx.previewLook(null); } });
+  const close = sheet(opts.villa ? 'Villa Dressing Room' : 'Wardrobe', body, { className: 'side', onClose: () => { off(); if (!saved) ctx.previewLook(null); } });
 }
 
 // ===================================================================== Map
@@ -233,15 +299,26 @@ export function openSettings(ctx: Ctx): void {
 
 export function openGarage(ctx: Ctx, onDrive: () => void): void {
   const body = h('div.garage');
+  let picked: string | null = null;
+  const RIMS = ['#cfd4da', '#d8b45a', '#1b1c1f', '#ffffff', '#ff3d7f', '#2aa8ff', '#7cff6b', '#b388ff'];
   const render = () => {
     const s = ctx.save();
-    const cars = SHOP.filter((i) => i.cat === 'car' && s.inventory[i.id]);
-    const cur = shopItem(s.car) ?? cars[0];
+    const cars = SHOP.filter((i) => i.cat === 'car' && (s.inventory[i.id] || i.free));
+    const cur = shopItem(picked ?? '') ?? shopItem(s.car) ?? cars[0];
     const paint = s.carPaint[cur.id] ?? String(cur.r.color);
-    fill(body, 
-      h('section', {}, h('h4', {}, 'Your cars'), h('div.row', {}, ...cars.map((c) => h('button.chip' + (c.id === cur.id ? '.on' : ''), { onclick: () => { ctx.net.send({ t: 'car', car: c.id }); ctx.net.send({ t: 'car', car: null }); } }, `${c.emoji} ${c.name}`))),
-        h('p.muted', {}, 'Buy more cars in the shop — they park in your bays here.')),
-      h('section', {}, h('h4', {}, `Paint for ${cur.name}`), h('div.row', {}, ...CAR_PAINTS.map((p) => h('button.swatch' + (p === paint ? '.on' : ''), { style: { background: p }, onclick: () => { ctx.net.send({ t: 'car', car: cur.id, paint: p }); ctx.net.send({ t: 'car', car: null }); } })))),
+    const rim = s.carWheels?.[cur.id];
+    const send = (paint?: string, wheels?: string) => {
+      ctx.net.send({ t: 'car', car: cur.id, paint, wheels });
+      ctx.net.send({ t: 'car', car: null });
+    };
+    fill(body,
+      h('section', {}, h('h4', {}, 'Your cars'), h('div.row', {}, ...cars.map((c) => h('button.chip' + (c.id === cur.id ? '.on' : ''), { onclick: () => {
+        picked = c.id;
+        if (c.id !== 'car_kart') { ctx.net.send({ t: 'car', car: c.id }); ctx.net.send({ t: 'car', car: null }); } else render();
+      } }, `${c.emoji} ${c.name}`))),
+        h('p.muted', {}, 'Tap a car to pick it. The Mini Kart is for zooming around inside. Buy more cars in the shop.')),
+      h('section', {}, h('h4', {}, `🎨 Paint for ${cur.name}`), colorRow(paint, [...CAR_PAINTS], (c, live) => { if (!live) send(c); })),
+      h('section', {}, h('h4', {}, '🛞 Wheel colour'), colorRow(rim, RIMS, (c, live) => { if (!live) send(undefined, c); })),
       h('div.actions', {}, h('button.btn.big', { onclick: () => { close(); onDrive(); } }, '🚗 Drive it!')),
     );
   };

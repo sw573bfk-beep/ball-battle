@@ -5,6 +5,12 @@ export interface Look {
   hair: string;       // style key (see HAIR)
   hairColor: string;
   outfit: string;     // shop item id
+  /** Mix & match: pick a top, bottoms and shoes separately (overrides the outfit's shape). */
+  top?: string;
+  bottom?: string;
+  shoes?: string;
+  /** Any colour for clothes (overrides the outfit's colours). */
+  colors?: { top?: string; bottom?: string; shoes?: string };
   build?: Build;
   height?: Height;
   eyes?: string;
@@ -16,6 +22,27 @@ export interface Look {
   hat?: string;
   perfume?: string;
 }
+
+/** Hex colour like #ff6f91. */
+export const isHex = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+
+/** Mix & match pieces — free for everyone. */
+export const TOPS: { id: string; label: string }[] = [
+  { id: 'tee', label: 'T-shirt' }, { id: 'tank', label: 'Tank top' }, { id: 'strappy', label: 'Strappy top' }, { id: 'shirt', label: 'Button shirt' },
+  { id: 'polo', label: 'Polo' }, { id: 'longsleeve', label: 'Long sleeve' }, { id: 'hoodie', label: 'Hoodie' }, { id: 'blazer', label: 'Blazer' }, { id: 'openshirt', label: 'Open shirt' },
+];
+export const BOTTOMS: { id: string; label: string }[] = [
+  { id: 'jeans', label: 'Jeans' }, { id: 'pants', label: 'Pants' }, { id: 'shorts', label: 'Shorts' }, { id: 'leggings', label: 'Leggings' },
+  { id: 'mini', label: 'Mini skirt' }, { id: 'knee', label: 'Knee skirt' }, { id: 'midi', label: 'Midi skirt' }, { id: 'maxi', label: 'Long skirt' },
+];
+export const SHOES: { id: string; label: string }[] = [
+  { id: 'sneakers', label: 'Sneakers' }, { id: 'heels', label: 'Heels' }, { id: 'sandals', label: 'Sandals' }, { id: 'loafers', label: 'Loafers' },
+  { id: 'dress', label: 'Dress shoes' }, { id: 'slides', label: 'Slides' }, { id: 'barefoot', label: 'Barefoot' },
+];
+
+/** Profile shown on your name tag. */
+export interface Profile { color?: string; badge?: string; bio?: string }
+export const BADGES = ['', '💖', '⭐', '👑', '🌸', '🔥', '🌊', '🎧', '🏀', '🦈', '🦋', '🌈', '🍓', '🐬', '⚡', '🎀', '🌴', '💎', '🎮', '🐾', '🍦', '🌙', '☀️', '🏄'];
 
 export type Build = 'slim' | 'average' | 'athletic' | 'curvy' | 'strong';
 export type Height = 'short' | 'medium' | 'tall';
@@ -64,8 +91,8 @@ export function normalizeLook(l: Look): Look {
     const m = OLD_HAIR[out.hair];
     out.hair = m ? (out.body === 'boy' ? m[1] : m[0]) : out.body === 'boy' ? 'crop' : 'long';
   }
-  if (!SKINS.includes(out.skin)) out.skin = nearest(out.skin, SKINS);
-  if (!HAIR_COLORS.includes(out.hairColor)) out.hairColor = nearest(out.hairColor, HAIR_COLORS);
+  if (!isHex(out.skin)) out.skin = SKINS[1];
+  if (!isHex(out.hairColor)) out.hairColor = HAIR_COLORS[1];
   out.build ??= out.body === 'boy' ? 'athletic' : 'average';
   out.height ??= 'medium';
   out.eyes ??= EYE_COLORS[0];
@@ -74,7 +101,7 @@ export function normalizeLook(l: Look): Look {
   return out;
 }
 
-function nearest(hex: string, list: string[]): string {
+export function nearest(hex: string, list: string[]): string {
   const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) || 0);
   const a = p(hex);
   let best = list[0], bd = Infinity;

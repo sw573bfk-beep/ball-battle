@@ -321,15 +321,25 @@ export function emojiTexture(emoji: string, ring?: string): THREE.Texture {
 }
 
 /** Name tag above a player. */
-export function nameTexture(name: string, vip: boolean, sub?: string): THREE.Texture {
+export function nameTexture(name: string, vip: boolean, sub?: string, color?: string, badge?: string): THREE.Texture {
   const [c, g] = canvas(512, 160);
   g.font = 'bold 64px "Segoe UI", system-ui, sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  const label = vip ? `⭐ ${name}` : name;
+  const label = `${badge ? `${badge} ` : ''}${vip ? '⭐ ' : ''}${name}`;
   const w = Math.min(500, g.measureText(label).width + 60);
-  g.fillStyle = vip ? 'rgba(60,40,0,0.7)' : 'rgba(20,20,30,0.55)';
-  roundRect(g, 256 - w / 2, 14, w, 84, 42); g.fill();
-  g.fillStyle = vip ? '#ffd76a' : '#fff';
+  if (color) {
+    // Custom tag colour: tinted pill with readable text.
+    const lum = parseInt(color.slice(1, 3), 16) * 0.3 + parseInt(color.slice(3, 5), 16) * 0.59 + parseInt(color.slice(5, 7), 16) * 0.11;
+    g.fillStyle = color;
+    g.globalAlpha = 0.88;
+    roundRect(g, 256 - w / 2, 14, w, 84, 42); g.fill();
+    g.globalAlpha = 1;
+    g.fillStyle = lum > 150 ? '#2a1f2d' : '#ffffff';
+  } else {
+    g.fillStyle = vip ? 'rgba(60,40,0,0.7)' : 'rgba(20,20,30,0.55)';
+    roundRect(g, 256 - w / 2, 14, w, 84, 42); g.fill();
+    g.fillStyle = vip ? '#ffd76a' : '#fff';
+  }
   g.fillText(label, 256, 58);
   if (sub) {
     g.font = 'bold 36px "Segoe UI", system-ui, sans-serif';

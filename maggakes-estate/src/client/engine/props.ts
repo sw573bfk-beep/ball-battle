@@ -1569,6 +1569,23 @@ export function goldenShell(): THREE.Group {
   return g;
 }
 
+/** Furniture whose builder uses the chosen colour directly. */
+export const COLOR_MODELS = new Set(['bed', 'canopybed', 'rug', 'beanbag', 'lavalamp', 'surfboard', 'gamingchair', 'neon', 'teddy', 'floorlamp', 'vanity', 'bookshelf', 'shelf', 'closet', 'sofa', 'armchair', 'desk']);
+
+/** Tints every solid, non-glowing material of an object toward a colour (for furniture without a colour option). */
+export function tint(obj: THREE.Object3D, color: string): void {
+  const c = new THREE.Color(color);
+  obj.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const src = m.material as THREE.MeshStandardMaterial;
+    if (!src.color || src.transparent || (src.emissiveIntensity ?? 0) > 0.5) return;
+    const mm = src.clone();
+    mm.color.lerp(c, 0.6);
+    m.material = mm;
+  });
+}
+
 /** Icon used for a task or action station. */
 export function stationMarker(emoji: string, color: string): Prop {
   const g = G();

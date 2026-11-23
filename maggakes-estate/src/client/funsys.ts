@@ -61,19 +61,20 @@ export class Fun {
 
   // ------------------------------------------------------------ pets
 
-  private makePet(kind: 'dog' | 'cat' | 'bunny', name: string, x: number, z: number): PetObj {
-    const m = petModel(kind, name);
+  private makePet(kind: 'dog' | 'cat' | 'bunny', name: string, x: number, z: number, fur?: string, collar?: string): PetObj {
+    const m = petModel(kind, name, fur, collar);
     m.obj.scale.setScalar(0.85);
     this.g.zone!.root.add(m.obj);
-    return { obj: m.obj, tick: m.tick, x, z, ry: 0, key: `${kind}|${name}` };
+    return { obj: m.obj, tick: m.tick, x, z, ry: 0, key: `${kind}|${name}|${fur}|${collar}` };
   }
 
   private syncMyPet(): void {
     const pet = this.g.save.pet;
-    const key = pet ? `${pet.kind}|${pet.name}` : '';
+    const key = pet ? `${pet.kind}|${pet.name}|${pet.fur}|${pet.collar}` : '';
     if (this.myPet?.key === key) return;
+    const at = this.myPet ? { x: this.myPet.x, z: this.myPet.z } : { x: this.g.pos.x + 1, z: this.g.pos.y + 1 };
     this.myPet?.obj.removeFromParent();
-    this.myPet = pet && this.g.zone ? this.makePet(pet.kind, pet.name, this.g.pos.x + 1, this.g.pos.y + 1) : null;
+    this.myPet = pet && this.g.zone ? this.makePet(pet.kind, pet.name, at.x, at.z, pet.fur, pet.collar) : null;
   }
 
   callPet(): void {
@@ -109,9 +110,9 @@ export class Fun {
       if (!pet) continue;
       seen.add(name);
       let p = this.peerPets.get(name);
-      const key = `${pet.kind}|${pet.name}`;
+      const key = `${pet.kind}|${pet.name}|${pet.fur}|${pet.collar}`;
       if (p && p.key !== key) { p.obj.removeFromParent(); p = undefined; }
-      if (!p) { p = this.makePet(pet.kind, pet.name, peer.x, peer.z); this.peerPets.set(name, p); }
+      if (!p) { p = this.makePet(pet.kind, pet.name, peer.x, peer.z, pet.fur, pet.collar); this.peerPets.set(name, p); }
       this.followPet(p, peer.x, peer.z, peer.ry, dt, t);
     }
     for (const [name, p] of this.peerPets) if (!seen.has(name)) { p.obj.removeFromParent(); this.peerPets.delete(name); }

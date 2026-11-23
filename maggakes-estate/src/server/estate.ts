@@ -1,9 +1,10 @@
 import { DurableObject } from 'cloudflare:workers';
 import { RESIDENTS, checkUsername, isResidence, residenceHome, residenceNumber, type Home, type ZoneId } from '../shared/people';
 import { ALL_ZONES } from '../shared/floors';
-import { CAR_PAINTS, SHOP, shopItem } from '../shared/shop';
+import { SHOP, shopItem } from '../shared/shop';
+import { isHex } from '../shared/look';
 import {
-  adoptPet, buy, bumpStat, earn, canEnter, claimDaily, collectShell, completeTask, migrate, newSave, placeItems, recordLap, rollDaily, setLook, spin,
+  adoptPet, buy, bumpStat, earn, saveOutfit, setProfile, setRoomStyle, type RoomStyle, canEnter, claimDaily, collectShell, completeTask, migrate, newSave, placeItems, recordLap, rollDaily, setLook, spin,
   topFloor, zoneUnlocked, type Save,
 } from '../shared/save';
 import { ISLANDERS, npcAccepts, villaChallenge, winFinal } from '../shared/villa';
@@ -22,7 +23,7 @@ interface Conn {
   save: Save;
   zone: ZoneId | null;
   pos: PeerPos;
-  car: { id: string; paint: string } | null;
+  car: { id: string; paint: string; wheels?: string } | null;
   lastChat: number;
   lastReport?: number;
   autoReports?: number;
@@ -39,6 +40,8 @@ export class Estate extends DurableObject {
   private parties = new Map<ZoneId, { until: number; next: number; earned: Map<string, number> }>();
   private tags = new Map<ZoneId, { it: string; until: number; last: number; timer: ReturnType<typeof setTimeout> }>();
   private reports: Report[] = [];
+  /** Bedroom looks by owner, sent to everyone so rooms build with the right colours. */
+  private roomStyles: Record<string, RoomStyle> = {};
   /** All accounts, by lowercase name. */
   private profiles = new Map<string, Profile>();
 
@@ -48,6 +51,7 @@ export class Estate extends DurableObject {
     ctx.blockConcurrencyWhile(async () => {
       for (const [, p] of await ctx.storage.list<Profile>({ prefix: 'prof:' })) this.profiles.set(p.name.toLowerCase(), p);
       this.reports = [...(await ctx.storage.list<Report>({ prefix: 'report:' })).values()].sort((a, b) => b.at - a.at);
+      for (const [, sv] of await ctx.storage.list<Save>({ prefix: 'save:' })) if (sv.roomStyle) this.roomStyles[sv.name] = sv.roomStyle;
       for (const r of RESIDENTS) {
         if (this.profiles.has(r.name.toLowerCase())) continue;
         const p: Profile = { name: r.name, status: 'approved', admin: !!r.admin, founder: true, home: { zone: r.home, room: r.room }, created: Date.now(), lastSeen: 0 };
@@ -275,7 +279,7 @@ export class Estate extends DurableObject {
     const conn: Conn = { ws: server, name, save, zone: null, pos: { name, x: 0, z: 0, ry: 0, a: 0 }, car: null, lastChat: 0 };
     this.conns.set(name, conn);
     const prof = this.profile(name);
-    this.send(conn, { t: 'welcome', save, admin: !!prof?.admin, residences: this.residences(), pending: prof?.admin ? this.pendingCount() : 0 });
+    this.send(conn, { t: 'welcome', save, admin: !!prof?.admin, residences: this.residences(), pending: prof?.admin ? this.pendingCount() : 0, roomStyles: this.roomStyles });
     if (prof?.admin || save.vip) this.send(conn, { t: 'role', admin: !!prof?.admin, pending: prof?.admin ? this.pendingCount() : 0, reports: this.openReports() });
 
     server.addEventListener('message', (ev) => {
@@ -311,7 +315,7 @@ export class Estate extends DurableObject {
 
   private info(c: Conn): PeerInfo {
     const look = c.zone === 'villa' && c.save.villa.look ? c.save.villa.look : c.save.look;
-    return { name: c.name, zone: c.zone ?? 'b', look, vip: c.save.vip, car: c.car, partner: c.save.villa.partner, pet: c.save.pet };
+    return { name: c.name, zone: c.zone ?? 'b', look, vip: c.save.vip, car: c.car, partner: c.save.villa.partner, pet: c.save.pet, profile: c.save.profile };
   }
 
   private async saved(conn: Conn, toast?: { ok: boolean; msg: string }): Promise<void> {
@@ -419,9 +423,10 @@ export class Estate extends DurableObject {
         else {
           const item = shopItem(m.car);
           if (!item || item.cat !== 'car' || !c.save.inventory[m.car]) return;
-          if (m.paint && CAR_PAINTS.includes(m.paint)) c.save.carPaint[m.car] = m.paint;
-          c.save.car = m.car;
-          c.car = { id: m.car, paint: c.save.carPaint[m.car] ?? String(item.r.color) };
+          if (isHex(m.paint)) c.save.carPaint[m.car] = m.paint.toLowerCase();
+          if (isHex(m.wheels)) { c.save.carWheels ??= {}; c.save.carWheels[m.car] = m.wheels.toLowerCase(); }
+          if (item.id !== 'car_kart') c.save.car = m.car;
+          c.car = { id: m.car, paint: c.save.carPaint[m.car] ?? String(item.r.color), wheels: c.save.carWheels?.[m.car] };
         }
         if (c.zone) this.toZone(c.zone, { t: 'peer', info: this.info(c) }, c.name);
         await this.saved(c);
@@ -441,8 +446,24 @@ export class Estate extends DurableObject {
       case 'admin': await this.admin(c, m.action, String(m.target)); return;
       case 'accounts': await this.sendAccounts(c); return;
       case 'pet': {
-        await this.saved(c, adoptPet(c.save, String(m.kind), String(m.name ?? '')));
+        await this.saved(c, adoptPet(c.save, String(m.kind), String(m.name ?? ''), m.fur, m.collar));
         if (c.zone) this.toZone(c.zone, { t: 'peer', info: this.info(c) }, c.name);
+        return;
+      }
+      case 'outfit': await this.saved(c, saveOutfit(c.save, Number(m.slot), String(m.name ?? ''), m.look)); return;
+      case 'profile': {
+        await this.saved(c, setProfile(c.save, m.profile ?? {}));
+        if (c.zone) this.toZone(c.zone, { t: 'peer', info: this.info(c) }, c.name);
+        return;
+      }
+      case 'roomStyle': {
+        const r = setRoomStyle(c.save, m.style ?? {});
+        await this.saved(c, r);
+        if (r.ok && c.save.roomStyle) {
+          this.roomStyles[c.name] = c.save.roomStyle;
+          const msg: ServerMsg = { t: 'roomStyle', owner: c.name, style: c.save.roomStyle };
+          for (const o of this.conns.values()) this.send(o, msg);
+        }
         return;
       }
       case 'spin': {

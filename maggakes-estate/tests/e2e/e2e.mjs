@@ -80,6 +80,7 @@ const s2 = await a.evaluate(() => { const s = window.__game().save; return [s.to
 ok(s2[0] === 200 && s2[1] === 0 && s2[2] === 1, `buying spends Available only (got ${s2})`);
 await a.keyboard.press('Escape');
 await a.click('#b-wardrobe');
+await a.click('.wtabs .tab:has-text("Extras")');
 await a.click('.chip:has-text("Aviator Sunglasses")');
 await a.click('text=Save look');
 await a.waitForTimeout(800);

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buy, canEnter, claimDaily, completeTask, dailyFor, newSave, placeItems, setLook, zoneUnlocked, bumpStat } from '../src/shared/save';
+import { buy, canEnter, claimDaily, completeTask, dailyFor, newSave, placeItems, setLook, zoneUnlocked, bumpStat, saveOutfit, setProfile, setRoomStyle, adoptPet, cleanText, MAX_OUTFITS } from '../src/shared/save';
 import { FLOORS, TASK_AURA } from '../src/shared/floors';
 import { findResident, RESIDENTS } from '../src/shared/people';
 import { villaChallenge, winFinal, FINAL_POINTS } from '../src/shared/villa';
@@ -288,5 +288,84 @@ test('BUG FIX: you can break up with your partner', () => {
   assert.equal(r.season!.partner, null);
   assert.ok(r.season!.bonds[ex] < before);
   assert.equal(seasonAct(r.season, { a: 'breakup' }).ok, false, 'already single');
+});
+
+// ------------------------------------------------------------ customisation
+
+test('CUSTOM: any colour for skin, hair, eyes, lips and clothes', () => {
+  const s = newSave('Phoebe');
+  setLook(s, { ...s.look, skin: '#123456', hairColor: '#ABCDEF', eyes: '#00ff00', lips: '#ff00aa', top: 'hoodie', bottom: 'shorts', shoes: 'heels', colors: { top: '#111111', bottom: '#222222', shoes: '#333333' } });
+  assert.equal(s.look.skin, '#123456');
+  assert.equal(s.look.hairColor, '#abcdef');
+  assert.equal(s.look.eyes, '#00ff00');
+  assert.equal(s.look.lips, '#ff00aa');
+  assert.deepEqual([s.look.top, s.look.bottom, s.look.shoes], ['hoodie', 'shorts', 'heels']);
+  assert.deepEqual(s.look.colors, { top: '#111111', bottom: '#222222', shoes: '#333333' });
+});
+
+test('CUSTOM: junk colours and made-up clothes are thrown away', () => {
+  const s = newSave('Phoebe');
+  const before = s.look.skin;
+  setLook(s, { ...s.look, skin: 'red; background:url(x)', top: 'spacesuit', colors: { top: 'javascript:' } } as never);
+  assert.equal(s.look.skin, before);
+  assert.equal(s.look.top, undefined);
+  assert.equal(s.look.colors, undefined);
+});
+
+test('CUSTOM: saved outfits fill 6 slots and keep their names', () => {
+  const s = newSave('Phoebe');
+  assert.ok(saveOutfit(s, 0, 'Beach day', { ...s.look, top: 'tank' }).ok);
+  assert.ok(saveOutfit(s, 2, '', s.look).ok);
+  assert.equal(s.outfits![0].name, 'Beach day');
+  assert.equal(s.outfits![0].look.top, 'tank');
+  assert.equal(s.outfits![2].name, 'Look 3');
+  assert.equal(s.outfits!.length, 3);
+  assert.equal(saveOutfit(s, MAX_OUTFITS, 'x', s.look).ok, false, 'no 7th slot');
+  assert.equal(saveOutfit(s, -1, 'x', s.look).ok, false);
+});
+
+test('CUSTOM: profile keeps a colour, a real badge and a clean short bio', () => {
+  const s = newSave('Phoebe');
+  setProfile(s, { color: '#FF00FF', badge: '👑', bio: 'hi <script>  this is shit  ' + 'x'.repeat(200) });
+  assert.equal(s.profile!.color, '#ff00ff');
+  assert.equal(s.profile!.badge, '👑');
+  assert.ok(!s.profile!.bio!.includes('<') && !/shit/i.test(s.profile!.bio!));
+  assert.ok(s.profile!.bio!.length <= 80);
+  setProfile(s, { color: 'blue', badge: '💩💩💩' });
+  assert.equal(s.profile!.color, undefined);
+  assert.equal(s.profile!.badge, '');
+  assert.equal(cleanText('  a   b  ', 10), 'a b');
+});
+
+test('CUSTOM: bedroom walls and floor (only if you have a bedroom)', () => {
+  const s = newSave('Phoebe');
+  assert.ok(setRoomStyle(s, { wall: '#AA0000', floor: 'marble', tint: '#00AA00' }).ok);
+  assert.deepEqual(s.roomStyle, { wall: '#aa0000', floor: 'marble', tint: '#00aa00' });
+  setRoomStyle(s, { wall: 'nope', floor: 'lava' });
+  assert.deepEqual(s.roomStyle, { wall: undefined, floor: undefined, tint: undefined });
+  const guest = newSave('Somebody');
+  guest.home = undefined;
+  assert.equal(setRoomStyle(guest, { wall: '#000000' }).ok, false);
+});
+
+test('CUSTOM: furniture can be recoloured and resized, within limits', () => {
+  const s = newSave('Phoebe');
+  const f = SHOP.find((i) => i.cat === 'furniture')!;
+  s.inventory[f.id] = 1;
+  assert.ok(placeItems(s, [{ uid: 'a', item: f.id, x: 1, z: 1, rot: 0, color: '#ABCDEF', scale: 1.5 }]).ok);
+  assert.equal(s.room[0].color, '#abcdef');
+  assert.equal(s.room[0].scale, 1.5);
+  assert.equal(placeItems(s, [{ uid: 'a', item: f.id, x: 1, z: 1, rot: 0, scale: 5 }]).ok, false, 'too big');
+  assert.equal(placeItems(s, [{ uid: 'a', item: f.id, x: 1, z: 1, rot: 0, color: 'pink' }]).ok, false, 'bad colour');
+  assert.ok(placeItems(s, [{ uid: 'a', item: f.id, x: 1, z: 1, rot: 0, scale: 1 }]).ok);
+  assert.equal(s.room[0].scale, undefined, 'normal size is not stored');
+});
+
+test('CUSTOM: pets get fur and collar colours', () => {
+  const s = newSave('Phoebe');
+  assert.ok(adoptPet(s, 'cat', 'Mochi', '#FFFFFF', '#ff3d7f').ok);
+  assert.deepEqual(s.pet, { kind: 'cat', name: 'Mochi', fur: '#ffffff', collar: '#ff3d7f' });
+  adoptPet(s, 'dog', 'Rex', 'brown', undefined);
+  assert.deepEqual(s.pet, { kind: 'dog', name: 'Rex' });
 });
 console.log(`\n${n} tests passed`);

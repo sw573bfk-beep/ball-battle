@@ -130,6 +130,15 @@ const STYLES: Record<string, Style> = {
   blazer: { sleeve: 'long', legs: 'pants', shoe: 'loafers', jacket: true, vneck: true },
 };
 
+/** Mix & match tops → sleeve/neck details. */
+const TOP_PIECES: Record<string, Partial<Style>> = {
+  tee: { sleeve: 'short' }, tank: { sleeve: 'none' }, strappy: { sleeve: 'strap' }, shirt: { sleeve: 'short', collar: true, vneck: true },
+  polo: { sleeve: 'short', collar: true }, longsleeve: { sleeve: 'long' }, hoodie: { sleeve: 'long', hood: true },
+  blazer: { sleeve: 'long', jacket: true, vneck: true }, openshirt: { sleeve: 'short', open: true, collar: true },
+};
+/** Mix & match bottoms → leg shape. */
+const BOTTOM_PIECES: Record<string, Legs> = { jeans: 'pants', pants: 'pants', shorts: 'shorts', leggings: 'leggings', mini: 'mini', knee: 'knee', midi: 'midi', maxi: 'maxi' };
+
 // Torso control points: [radius, height above the hip line]. Smoothed with a spline.
 const GIRL_CTRL: [number, number][] = [[0.126, 0], [0.142, 0.06], [0.143, 0.12], [0.13, 0.19], [0.117, 0.25], [0.121, 0.3], [0.132, 0.36], [0.134, 0.41], [0.122, 0.45], [0.094, 0.48], [0.058, 0.5], [0.045, 0.515]];
 const BOY_CTRL: [number, number][] = [[0.128, 0], [0.144, 0.06], [0.146, 0.13], [0.141, 0.2], [0.141, 0.26], [0.152, 0.32], [0.167, 0.39], [0.17, 0.44], [0.155, 0.49], [0.116, 0.53], [0.068, 0.56], [0.055, 0.575]];
@@ -216,6 +225,8 @@ export class Avatar {
   private blinkAt = 0;
   private eyes: THREE.Object3D[] = [];
   private tagY = 2.1;
+  private shoeColor?: string;
+  private profile?: { color?: string; badge?: string };
   look: Look;
   emote: Emote | null = null;
   emoteUntil = 0;
@@ -231,9 +242,10 @@ export class Avatar {
     if (name) this.setName(name, vip, sub);
   }
 
-  setName(name: string, vip: boolean, sub?: string): void {
+  setName(name: string, vip: boolean, sub?: string, profile?: { color?: string; badge?: string }): void {
+    if (profile !== undefined) this.profile = profile;
     if (this.tag) { this.root.remove(this.tag); this.tag.material.map?.dispose(); this.tag.material.dispose(); }
-    this.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(name, vip, sub), transparent: true, depthWrite: false, depthTest: false }));
+    this.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(name, vip, sub, this.profile?.color, this.profile?.badge), transparent: true, depthWrite: false, depthTest: false }));
     this.tag.scale.set(1.6, 0.5, 1);
     this.tag.position.y = this.tagY;
     this.tag.renderOrder = 10;
@@ -275,12 +287,20 @@ export class Avatar {
     const girl = L.body === 'girl';
     const skin = skinMat(L.skin);
     const fit = shopItem(L.outfit);
-    const st = STYLES[String(fit?.r.style ?? 'casual')] ?? STYLES.casual;
+    // Start from the outfit, then apply any mix & match pieces and custom colours.
+    const st: Style = { ...(STYLES[String(fit?.r.style ?? 'casual')] ?? STYLES.casual) };
+    const mixed = !!(L.top || L.bottom);
+    if (L.top && TOP_PIECES[L.top]) Object.assign(st, { jacket: false, open: false, collar: false, hood: false, vneck: false, kind: 'cotton' }, TOP_PIECES[L.top]);
+    if (L.bottom && BOTTOM_PIECES[L.bottom]) st.legs = BOTTOM_PIECES[L.bottom];
+    if (L.shoes) st.shoe = L.shoes as Shoe;
     const kind = st.kind ?? 'cotton';
-    const topCol = String(fit?.r.top ?? '#f6a6c8'), botCol = String(fit?.r.bottom ?? '#7fa6d9');
+    const topCol = L.colors?.top ?? String(fit?.r.top ?? '#f6a6c8');
+    const botCol = L.colors?.bottom ?? (L.colors?.top && !mixed && fit?.r.top === fit?.r.bottom ? L.colors.top : String(fit?.r.bottom ?? '#7fa6d9'));
+    this.shoeColor = L.colors?.shoes;
     const top = fabric(topCol, kind === 'linen' ? 'cotton' : kind);
-    const isDress = ['knee', 'midi', 'maxi', 'mini'].includes(st.legs) && ['strap', 'none'].includes(st.sleeve) && topCol === botCol;
-    const bottom = fabric(botCol, st.legs === 'pants' && !st.jacket && L.outfit !== 'fit_track' && L.outfit !== 'fit_pjs' ? 'denim' : kind === 'linen' ? 'cotton' : kind);
+    const isDress = !L.bottom && ['knee', 'midi', 'maxi', 'mini'].includes(st.legs) && ['strap', 'none'].includes(st.sleeve) && topCol === botCol;
+    const denim = L.bottom ? L.bottom === 'jeans' : st.legs === 'pants' && !st.jacket && L.outfit !== 'fit_track' && L.outfit !== 'fit_pjs';
+    const bottom = fabric(botCol, denim ? 'denim' : L.bottom ? 'cotton' : kind === 'linen' ? 'cotton' : kind);
     const p = this.parts;
     const hs = { short: 0.95, medium: 1, tall: 1.05 }[L.height ?? 'medium'] ?? 1;
     this.body.scale.setScalar(hs);
@@ -447,7 +467,7 @@ export class Avatar {
     const f = new THREE.Group();
     f.position.set(0, y, 0);
     knee.add(f);
-    const col = { sneakers: '#f7f7f7', heels: this.look.body === 'girl' ? '#e9c6b0' : '#1a1a1a', sandals: '#c89b6d', dress: '#141414', loafers: '#5a3a25', slides: '#ffffff', barefoot: '#000' }[kind];
+    const col = this.shoeColor ?? { sneakers: '#f7f7f7', heels: this.look.body === 'girl' ? '#e9c6b0' : '#1a1a1a', sandals: '#c89b6d', dress: '#141414', loafers: '#5a3a25', slides: '#ffffff', barefoot: '#000' }[kind];
     if (kind === 'barefoot' || kind === 'sandals' || kind === 'slides') {
       mesh(new RoundedBoxGeometry(0.075, 0.045, 0.2, 2, 0.02), skin, f, 0, -0.02, 0.045);
       mesh(new RoundedBoxGeometry(0.085, 0.018, 0.22, 2, 0.008), mat(col, 0.6), f, 0, -0.05, 0.045);
