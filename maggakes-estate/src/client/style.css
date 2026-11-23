@@ -350,8 +350,8 @@ section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter
 .anylabel.on { border-color: var(--pink); }
 .anylabel .dot { width: 24px; height: 24px; border-radius: 50%; display: inline-block; }
 .anylabel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-.wtabs { display: flex; gap: 4px; overflow-x: auto; margin: -4px 0 10px; position: sticky; top: -14px; background: #fffafc; padding: 6px 0; z-index: 2; }
-.wtabs .tab { padding: 7px 11px; font-size: 13px; }
+.wtabs { display: flex; gap: 4px; flex-wrap: wrap; margin: -4px 0 10px; position: sticky; top: -14px; background: #fffafc; padding: 6px 0; z-index: 2; }
+.wtabs .tab { padding: 6px 10px; font-size: 13px; white-space: nowrap; }
 .slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .slot { background: #fff; border: 2px solid #f3e6ee; border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; }
 .slot img { width: 84px; height: 84px; border-radius: 50%; background: radial-gradient(circle at 50% 35%, #fff, #ffd6e7); }

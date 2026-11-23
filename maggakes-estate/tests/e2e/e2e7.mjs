@@ -122,7 +122,7 @@ await G(k, () => window.__game().travel('park'));
 await until(k, () => window.__game().zoneId === 'park');
 await k.waitForTimeout(1200);
 await G(k, () => document.querySelectorAll('#modals .modal').forEach((x) => x.remove()));
-await G(k, () => { const g = window.__game(); const st = g.zone.stations.find((s) => s.id === 'garage'); g.stationAction(st).run(); });
+await G(k, () => { const g = window.__game(); const st = g.zone.stations.find((s) => s.kind === 'garage' || s.def?.kind === 'garage' || s.id === 'garage'); g.stationAction(st).run(); });
 const garageOpen = await until(k, () => !!document.querySelector('.garage'), null, 3000);
 if (garageOpen) {
   await pickAny(k, 0, '#aa00ff');
