@@ -2,18 +2,19 @@ import { h, sheet, fill } from './dom';
 import type { Ctx } from './panels';
 import { ACHIEVEMENTS, EVENTS, LEVEL_BADGES, LEVEL_ITEMS, MAX_LEVEL, currentEvent, levelOf, levelReward, levelStart, weekEndsAt, weekIndex } from '../../shared/progress';
 import { shopItem } from '../../shared/shop';
+import { questLog } from './quests';
 
 const fmt = (n: number) => n.toLocaleString('en-AU');
 
 /** ⭐ Progress: your level, achievements and this week's event. */
-export function openProgress(ctx: Ctx, start: 'level' | 'ach' | 'event' = 'level'): void {
+export function openProgress(ctx: Ctx, start: 'level' | 'ach' | 'event' | 'quests' = 'level'): void {
   let tab = start;
   const body = h('div.progress');
   const render = () => {
     const s = ctx.save();
     const xp = s.xp ?? s.totalAura;
     const L = levelOf(xp);
-    const tabs = h('div.wtabs', {}, ...([['level', `⭐ Level ${L}`], ['ach', '🏆 Achievements'], ['event', `${currentEvent().emoji} This week`]] as const).map(([k, l]) =>
+    const tabs = h('div.wtabs', {}, ...([['level', `⭐ Level ${L}`], ['quests', '📜 Quests'], ['ach', '🏆 Achievements'], ['event', `${currentEvent().emoji} This week`]] as const).map(([k, l]) =>
       h('button.tab' + (tab === k ? '.on' : ''), { onclick: () => { tab = k; render(); } }, l)));
     let content: HTMLElement;
     if (tab === 'level') {
@@ -41,6 +42,8 @@ export function openProgress(ctx: Ctx, start: 'level' | 'ach' | 'event' = 'level
         pending > 0 ? h('div.actions', {}, h('button.btn.big', { onclick: () => ctx.net.send({ t: 'claimLevel' }) }, `🎁 Claim ${pending} level reward${pending > 1 ? 's' : ''}`)) : null,
         h('div.lvlist', {}, ...rows),
         h('p.muted', {}, `Badges at levels ${Object.entries(LEVEL_BADGES).map(([l, b]) => `${l} ${b}`).join(' · ')}. Free items at levels ${Object.keys(LEVEL_ITEMS).join(', ')}. Use badges in 👗 Style → Profile.`));
+    } else if (tab === 'quests') {
+      content = questLog(ctx);
     } else if (tab === 'ach') {
       const done = ACHIEVEMENTS.filter((a) => s.ach?.[a.id]).length;
       content = h('div', {},

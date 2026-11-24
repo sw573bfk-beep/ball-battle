@@ -45,6 +45,8 @@ export interface FloorDef {
   need: number;
   tasks: TaskDef[];
   blurb: string;
+  /** A place outside the mansion (beach, mall, town) — reached by car, not the lift. */
+  outside?: boolean;
 }
 
 export const TASK_AURA = 200;
@@ -491,6 +493,47 @@ export const FLOORS: FloorDef[] = [
       { id: 'gardenwords', label: 'Label the flowers', kind: 'unscramble', hint: 'Unscramble the flower names.', words: ['ROSE', 'TULIP', 'DAISY', 'LILY', 'ORCHID', 'LOTUS'] },
     ],
   },
+  // ------------------------------------------------------------ outside world (by car)
+  {
+    id: 'beach', short: '🏖️', name: 'Maggakes Beach & Boardwalk', need: 1000, outside: true,
+    blurb: 'Golden sand, real waves, a boardwalk with ice cream and a lifeguard tower.',
+    tasks: [
+      { id: 'sandcastle', label: 'Build a sandcastle', kind: 'sequence', hint: 'Build the best sandcastle on the beach.', steps: ['🪣 Bucket of sand', '🏰 Towers', '🧱 Walls', '🐚 Shells', '🚩 Flag'] },
+      { id: 'surf', label: 'Catch a wave', kind: 'timing', hint: 'Stand up on the board when the wave is perfect!' },
+      { id: 'shellhunt', label: 'Collect sea shells', kind: 'collect', hint: 'Find the 6 shells on the sand.', count: 6, item: '🐚' },
+      { id: 'beachclean', label: 'Clean up the beach', kind: 'catch', hint: 'Catch the rubbish — leave the crabs alone!', item: '🥤', bad: '🦀', count: 10 },
+      { id: 'icecream', label: 'Ice cream flavours', kind: 'memory', hint: 'Match the ice cream flavours.', symbols: ['🍦', '🍨', '🍧', '🍓', '🍫', '🍋'] },
+    ],
+  },
+  {
+    id: 'mall', short: '🛍️', name: 'Maggakes Shopping Mall', need: 3000, outside: true,
+    blurb: 'Boutiques, a food court, a wishing fountain and escalators.',
+    tasks: [
+      { id: 'shoppingspree', label: 'Go on a shopping spree', kind: 'collect', hint: 'Grab the 6 shopping bags around the mall.', count: 6, item: '🛍️' },
+      { id: 'mallfit', label: 'Try on a new look', kind: 'outfit', hint: 'Put together a mall outfit and save it.' },
+      { id: 'wish', label: 'Make a wish at the fountain', kind: 'timing', hint: 'Throw the coin right into the middle!' },
+      { id: 'bubbletea', label: 'Order a bubble tea', kind: 'sequence', hint: 'Make the bubble tea in the right order.', steps: ['🥤 Cup', '🧋 Tea', '🥛 Milk', '⚫ Pearls', '🧊 Ice'] },
+      { id: 'lostmall', label: 'Find the car park exit', kind: 'maze', hint: 'You\'re lost in the mall — find the way out!', item: '🛍️', goal: '🚗' },
+    ],
+  },
+  {
+    id: 'town', short: '🏙️', name: 'Maggakes Town', need: 5000, outside: true,
+    blurb: 'A sunny main street with shops, a park, a playground and a bus stop.',
+    tasks: [
+      { id: 'market', label: 'Buy fruit at the market', kind: 'unscramble', hint: 'Unscramble the fruit names.', words: ['APPLE', 'MANGO', 'BANANA', 'GRAPE', 'LEMON', 'PEACH'] },
+      { id: 'walkdog', label: 'Walk the neighbour\'s dog', kind: 'maze', hint: 'Take the dog to the park!', item: '🐕', goal: '🌳' },
+      { id: 'bus', label: 'Catch the bus', kind: 'timing', hint: 'Wave the bus down at just the right time!' },
+      { id: 'swings', label: 'Play on the swings', kind: 'rhythm', hint: 'Swing to the beat!' },
+      {
+        id: 'townquiz', label: 'Help a tourist', kind: 'choice', hint: 'Help the tourist with their questions.',
+        question: [
+          { q: 'Where do you post a letter?', options: ['Post office', 'Bakery', 'Library'], answer: 0 },
+          { q: 'Which colour means STOP at the lights?', options: ['Green', 'Red', 'Yellow'], answer: 1 },
+          { q: 'Where would you borrow a book?', options: ['Library', 'Bank', 'Gym'], answer: 0 },
+        ],
+      },
+    ],
+  },
 ];
 
 export const PARK = { id: 'park' as ZoneId, short: 'P', name: 'Underground Car Park', need: 0 };
@@ -515,4 +558,4 @@ export function zoneNeed(id: ZoneId): number {
 }
 
 /** The fixed zones. Residence floors (r1, r2, …) are added as people join. */
-export const ALL_ZONES: ZoneId[] = ['park', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24', 'villa'];
+export const ALL_ZONES: ZoneId[] = ['park', 'beach', 'mall', 'town', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24', 'villa'];

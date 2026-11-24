@@ -8,6 +8,7 @@ export type { Look } from './look';
 export { HAIR_COLORS, HAIR_STYLES, SKINS } from './look';
 import type { Season } from './season';
 import { currentEvent, levelBadgesFor, levelOf, rollWeek } from './progress';
+import type { QuestState } from './quests';
 
 export type PetKind = 'dog' | 'cat' | 'bunny';
 
@@ -90,6 +91,8 @@ export interface Save {
   achSeen?: string[];
   /** Lifetime counters (tasks, chat, swim seconds, …). */
   life?: Record<string, number>;
+  /** Quest progress by quest id. */
+  quests?: Record<string, QuestState>;
   /** This week's event progress. */
   week?: { id: string; stats: Record<string, number>; claimed: number[] };
   /** When each task's replay bonus was last paid (stops spam-clicking for Aura). */
@@ -154,7 +157,7 @@ export function canEnter(save: Save, zone: ZoneId): boolean {
 /** The highest floor the player has unlocked (for the leaderboard). */
 export function topFloor(save: Save): ZoneId {
   let top: ZoneId = 'f1';
-  for (const f of FLOORS) if (zoneUnlocked(save, f.id)) top = f.id;
+  for (const f of FLOORS) if (!f.outside && zoneUnlocked(save, f.id)) top = f.id;
   return top;
 }
 
@@ -185,10 +188,12 @@ export function completeTask(save: Save, zone: ZoneId, taskId: string, now = Dat
     save.replayAt ??= {};
     save.replayAt[key] = now;
     bumpStat(save, 'tasks', 1);
+    bumpStat(save, `tz_${zone}`, 1);
     earn(save, REPLAY_AURA, 0, `Replayed: ${task.label}`);
     return { ok: true, msg: `+${REPLAY_AURA} Aura (replay bonus)` };
   }
   bumpStat(save, 'tasks', 1);
+  bumpStat(save, `tz_${zone}`, 1);
   const before = ALL_ZONES.filter((z) => zoneUnlocked(save, z));
   save.tasks[key] = true;
   earn(save, TASK_AURA, TASK_AURA, `Task: ${task.label}`);
@@ -446,6 +451,7 @@ export function collectShell(save: Save, id: string): Result {
   save.shells ??= [];
   if (save.shells.includes(id)) return { ok: false, msg: 'You already found this one!' };
   save.shells.push(id);
+  bumpStat(save, 'shell', 1);
   earn(save, SHELL_AURA, 0, 'Golden shell');
   if (save.shells.length >= SHELL_TOTAL) {
     earn(save, SHELL_BONUS, 0, 'Found all golden shells!');

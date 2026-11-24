@@ -88,6 +88,7 @@ export type ClientMsg =
   | { t: 'accounts' }
   | { t: 'pet'; kind: string; name: string; fur?: string; collar?: string }
   | { t: 'claimLevel' }
+  | { t: 'quest'; a: 'accept' | 'claim'; id: string }
   | { t: 'claimAch'; id: string }
   | { t: 'claimEvent'; i: number }
   | { t: 'outfit'; slot: number; name: string; look: Look }

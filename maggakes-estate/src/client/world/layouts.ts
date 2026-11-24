@@ -4,10 +4,11 @@ import type { Residence } from '../../shared/protocol';
 import type { FloorMat } from '../engine/tex';
 import { P, bedroomKit, ensuiteKit, label, on, wardrobeKit, type PropDef, type Rect } from './kit';
 import { TOWER_LAYOUTS } from './layouts2';
+import { OUTSIDE_LAYOUTS } from './layouts3';
 
 export interface RoomDef { id: string; name: string; r: Rect; floor: FloorMat; tint?: string; wall?: string }
 
-export type StationKind = 'task' | 'garage' | 'carwash' | 'cabana' | 'villa' | 'firepit' | 'dress' | 'portal' | 'beachhut' | 'hideaway' | 'adopt' | 'race' | 'slide';
+export type StationKind = 'task' | 'garage' | 'carwash' | 'cabana' | 'villa' | 'firepit' | 'dress' | 'portal' | 'beachhut' | 'hideaway' | 'adopt' | 'race' | 'slide' | 'roadtrip';
 
 export interface StationDef { kind: StationKind; id?: string; x: number; z: number }
 
@@ -39,6 +40,8 @@ export interface Layout {
   ice?: Rect[];
   /** Gentle snowfall over the whole floor. */
   snow?: boolean;
+  /** Outside the mansion (reached by car): a parked car stands where the lift would be. */
+  outside?: boolean;
 }
 
 const T = (id: string, x: number, z: number): { kind: 'task'; id: string; x: number; z: number } => ({ kind: 'task', id, x, z });
@@ -630,7 +633,7 @@ const park: Layout = {
     P('gantry', 23, 17.75, Math.PI / 2, { w: 5.4 }),
     ...[[38.3, 20.7], [38.3, 31.8], [7.7, 31.8], [7.7, 20.7], [30, 20.6], [16, 20.6], [30, 31.9], [16, 31.9]].map(([x, z]) => P('cone', x, z, 0)),
   ],
-  stations: [{ kind: 'garage', x: 16, z: 9.5 }, { kind: 'carwash', x: 39, z: 6 }, { kind: 'race', x: 19.5, z: 15.4 }],
+  stations: [{ kind: 'garage', x: 16, z: 9.5 }, { kind: 'carwash', x: 39, z: 6 }, { kind: 'race', x: 19.5, z: 15.4 }, { kind: 'roadtrip', x: 30, z: 15.4 }],
   race: { start: [21, 17.75, Math.PI / 2], checkpoints: [[41.25, 17.75], [41.25, 34.75], [4.75, 34.75], [4.75, 17.75], [23, 17.75]] },
   lift: [2, 0.25, 0],
   spawn: [2, 3],
@@ -735,7 +738,7 @@ const villa: Layout = {
 
 export const LAYOUTS: Record<FixedZone, Layout> = {
   b: basement, f1: floor1, f2: floor2, f3: floor3, f4: floor4, f5: floor5, f6: floor6, f7: floor7, f8: floor8,
-  f9: floor9, f10: floor10, f11: floor11, f12: floor12, ...TOWER_LAYOUTS, park, villa,
+  f9: floor9, f10: floor10, f11: floor11, f12: floor12, ...TOWER_LAYOUTS, ...OUTSIDE_LAYOUTS, park, villa,
 };
 
 // ===================================================================== Residence floors

@@ -269,7 +269,9 @@ export function buildZone(id: ZoneId): Zone {
     addProp(makeProp(pd.t, pd.o), W(pd.x), Z(pd.z), pd.r);
   }
   if (id !== 'villa') {
-    addProp(makeProp('lift', { text: id === 'park' ? 'LIFT' : 'LIFT' }), W(L.lift[0]), Z(L.lift[1]), L.lift[2]);
+    // Outside places have the car you drove there in, instead of a lift.
+    if (L.outside) addProp(makeProp('parkedcar', { color: '#ff6fb5' }), W(L.lift[0]) - Math.sin(L.lift[2]) * 0.8, Z(L.lift[1]) - Math.cos(L.lift[2]) * 0.8, L.lift[2] + Math.PI / 2);
+    else addProp(makeProp('lift', { text: 'LIFT' }), W(L.lift[0]), Z(L.lift[1]), L.lift[2]);
   }
 
   // ---------------------------------------------------------------- surroundings

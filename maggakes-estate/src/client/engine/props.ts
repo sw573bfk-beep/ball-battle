@@ -4,6 +4,7 @@ import { emojiTexture, glowTexture, posterTexture, textTexture, type PosterKind 
 import { waterMaterial } from './gfx';
 import { PROPS2 } from './props2';
 import { PROPS3 } from './props3';
+import { PROPS4 } from './props4';
 
 /**
  * Procedural furniture. Every builder returns a group whose origin is the
@@ -1636,6 +1637,7 @@ export const PROPS: Record<string, (o: Opts) => Prop> = {
   waterslide: waterSlide, gantry, cone,
   ...PROPS2,
   ...PROPS3,
+  ...PROPS4,
 };
 
 export function makeProp(type: string, o: Opts = {}): Prop {

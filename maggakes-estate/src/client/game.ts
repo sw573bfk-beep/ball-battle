@@ -5,7 +5,9 @@ import { buildCar, Driving, type CarModel } from './engine/car';
 import { makeProp, sprite, stationMarker, type Prop } from './engine/props';
 import { emojiTexture, glowTexture } from './engine/tex';
 import { buildZone, roomAt, roomBox, type Zone } from './world/build';
-import { spawnHost, spawnIslander, spawnPets, updateWanderers, type Wanderer } from './world/npc';
+import { spawnHost, spawnIslander, spawnNpc, spawnPets, updateWanderers, type Wanderer } from './world/npc';
+import { NPCS, npcQuest, questStatus } from '../shared/quests';
+import { openNpc } from './ui/quests';
 import { openCast, showScene } from './ui/season';
 import { FINAL_DAY, nextStep, type SeasonAction } from '../shared/season';
 import { Input } from './input';
@@ -34,7 +36,7 @@ const DECOR_COLORS = ['#ffffff', '#111111', '#f6a6c8', '#ff6f91', '#d7263d', '#f
 const WALL_COLORS = ['#f7f3ee', '#ffffff', '#ffd9e6', '#e8f6fb', '#e9e1ff', '#e3f4e1', '#fff1c9', '#2a2d34', '#1f3b5c', '#5a3550', '#c9b79a', '#ffb3c7'];
 const FLOOR_TINTS = ['#ffffff', '#e2c9a6', '#ffd9e6', '#d8e8ff', '#e3f4e1', '#bbbbbb', '#6b4a33', '#2a2a2a'];
 const FLOOR_LABELS: Record<string, string> = { wood: '🪵 Light wood', darkwood: '🟫 Dark wood', marble: '🤍 Marble', tile: '⬜ Tiles', carpet: '🧶 Carpet', pinkcarpet: '🩷 Pink carpet', terrazzo: '🔘 Terrazzo', stone: '🪨 Stone', deck: '🛶 Deck', grass: '🌱 Grass', sand: '🏖️ Sand' };
-import { ALL_ZONES, FLOORS, floorById, zoneName, type TaskDef } from '../shared/floors';
+import { ALL_ZONES, FLOORS, floorById, zoneName, zoneNeed, type TaskDef } from '../shared/floors';
 import { canEnter, floorDone, zoneUnlocked, ROOM_LIMIT, type Look, type PlacedItem, type Save } from '../shared/save';
 import { SHOP, shopItem } from '../shared/shop';
 import { ISLANDERS, VILLA_CHALLENGES } from '../shared/villa';
@@ -305,6 +307,8 @@ export class Game {
     this.camTarget.set(this.pos.x, 1.2, this.pos.y);
     this.wanderers = [];
     if (L.pets) this.wanderers.push(...spawnPets(zone));
+    for (const npc of NPCS) if (npc.zone === z && npc.id !== 'jazz') this.wanderers.push(spawnNpc(zone, npc));
+    this.npcMarkers();
     if (z === 'villa') {
       const pod = zone.layout.props.find((p) => p.t === 'podium');
       if (pod) this.wanderers.push(spawnHost(zone, pod.x - zone.half.w, pod.z - zone.half.d - 0.55, 0));
@@ -384,6 +388,7 @@ export class Game {
   private onMsg(m: ServerMsg): void {
     switch (m.t) {
       case 'save': {
+        queueMicrotask(() => this.npcMarkers());
         const prevLook = JSON.stringify(this.save.look), prevVilla = JSON.stringify(this.save.villa.look);
         const prevCars = Object.keys(this.save.inventory).filter((k) => k.startsWith('car_')).join() + JSON.stringify(this.save.carPaint);
         const prevVip = this.save.vip;
@@ -700,6 +705,27 @@ export class Game {
     for (const p of this.peers.values()) apply(p.avatar.root, Math.hypot(p.x - this.pos.x, p.z - this.pos.y));
   }
 
+  private jazzQuestSeen = false;
+
+  /** ❗ over characters with a quest to give, ✅ when one is ready to hand in. */
+  private npcMarkers(): void {
+    for (const w of this.wanderers) {
+      if (w.kind !== 'npc' || !w.npcId) continue;
+      const q = npcQuest(this.save, w.npcId, zoneNeed);
+      const st = q ? questStatus(this.save, q, zoneNeed) : null;
+      const icon = st === 'ready' ? '✅' : st === 'available' ? '❗' : st === 'active' ? '💬' : '';
+      if (w.marker?.userData.icon === icon) continue;
+      w.marker?.removeFromParent();
+      w.marker = undefined;
+      if (!icon) continue;
+      const m = sprite(emojiTexture(icon), 0.55);
+      m.userData.icon = icon;
+      m.position.set(0, 2.55, 0);
+      w.obj.add(m);
+      w.marker = m;
+    }
+  }
+
   /** What goes on my own name tag. */
   private myTag(): { color?: string; badge?: string; level: number } {
     return { ...(this.save.profile ?? {}), level: levelOf(this.save.xp ?? this.save.totalAura) };
@@ -874,12 +900,13 @@ export class Game {
         consider(d, this.stationAction(st));
       }
       const lx = this.zone.lift.x + Math.sin(this.zone.lift.rot) * 0.6, lz = this.zone.lift.z + Math.cos(this.zone.lift.rot) * 0.6;
-      if (this.zoneId !== 'villa' && near(lx, lz, 2.2)) consider(Math.hypot(this.pos.x - lx, this.pos.y - lz), { key: 'lift', label: '🛗 Take the lift', run: () => openMap(this.ctx) });
+      if (this.zoneId !== 'villa' && near(lx, lz, 2.2)) consider(Math.hypot(this.pos.x - lx, this.pos.y - lz), { key: 'lift', label: this.zone.layout.outside ? '🚗 Road trip (drive somewhere)' : '🛗 Take the lift', run: () => openMap(this.ctx) });
       for (const w of this.wanderers) {
         const d = Math.hypot(this.pos.x - w.x, this.pos.y - w.z);
         if (d > 1.8) continue;
         if (w.kind === 'pet') consider(d, { key: `pat:${w.name}`, label: `🐾 Pat ${w.name}`, run: () => this.pat(w) });
         else if (w.kind === 'host') consider(d, { key: 'host', label: '🎤 Talk to Jazz (host)', run: () => this.hostMenu() });
+        else if (w.kind === 'npc') { const npc = NPCS.find((n) => n.id === w.npcId)!; consider(d, { key: `npc:${npc.id}`, label: `💬 Talk to ${npc.name}`, run: () => openNpc(this.ctx, npc) }); }
         else consider(d, { key: `talk:${w.name}`, label: `💬 Chat with ${w.name}`, run: () => this.talkIslander(w) });
       }
       if (this.zoneId === 'villa') {
@@ -935,6 +962,7 @@ export class Game {
       case 'adopt': return { key: 'adopt', label: s.pet ? `🐾 Swap or rename ${s.pet.name}` : '🐾 Adopt a pet', run: () => openAdopt(s.pet, (kind, name, fur, collar) => this.net.send({ t: 'pet', kind, name, fur, collar })) };
       case 'race': return { key: 'race', label: '🏁 Kart race', run: () => { this.wantLaps = true; this.net.send({ t: 'laps' }); } };
       case 'slide': return { key: 'slide', label: '🌊 Go down the water slide!', run: () => this.fun.startSlide() };
+      case 'roadtrip': return { key: 'roadtrip', label: '🚗 Road trip: Beach · Mall · Town', run: () => openMap(this.ctx) };
       case 'dress': return { key: 'dress', label: '🌺 Villa dressing room', run: () => openWardrobe(this.ctx, { villa: true }) };
       case 'portal':
         if (this.zoneId === 'villa') return { key: 'portal', label: '🏰 Back to the mansion', run: () => this.travel('f8') };
@@ -1523,6 +1551,10 @@ export class Game {
   }
 
   private hostMenu(): void {
+    // Jazz also gives a quest: show it first if there's something to accept or hand in.
+    const jq = npcQuest(this.save, 'jazz', zoneNeed);
+    if (jq && questStatus(this.save, jq, zoneNeed) !== 'active' && !this.jazzQuestSeen) { this.jazzQuestSeen = true; openNpc(this.ctx, NPCS.find((n) => n.id === 'jazz')!); return; }
+    this.jazzQuestSeen = false;
     const s = this.save.villa.season;
     if (!s || s.phase === 'over') { openCast(s, () => this.seasonAct({ a: 'start' }), (a) => this.seasonAct({ a })); return; }
     this.seasonAct({ a: 'status' });

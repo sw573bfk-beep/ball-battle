@@ -1,10 +1,10 @@
 # The Maggakes Estate
 
-A 3D luxury-mansion roleplay game for the browser. You work your way up a thirteen-level mansion by
+A 3D luxury-mansion roleplay game for the browser. You work your way up a 25-level mansion tower by
 doing tasks, earning Aura Points, unlocking floors, shopping for clothes, furniture and cars, and
-decorating your own bedroom. When you reach the rooftop, **Love Island Mode** unlocks, and above it
-four sky floors keep going: the **Sky Arcade**, **Cinema & Bowling**, **Ice Rink & Snow Lounge** and
-the **Penthouse Sky Club** (each one opens 1,000 Total Aura after the last).
+decorating your own bedroom. When you reach the rooftop, **Love Island Mode** unlocks, and the tower
+keeps going up to the **24th floor**. Each floor opens 1,000 Total Aura after the last one. You can
+also drive out of the car park to the **beach**, the **shopping mall** and **town**.
 
 **Play:** https://maggakes-estate.sw573bfk.workers.dev
 
@@ -51,6 +51,19 @@ Charis & Gabby (6th), Milla (7th).
   each checkpoint, **↺ Reset kart** (or **R**) if you get stuck, a lap timer and a best-lap board.
   Plus a **🌊 water slide** on the rooftop.
 - **Day & night:** a shared 20-minute day — sunrise, sunset and starry nights for everyone at once.
+- **The tower (13th–24th floors):** Aquarium, Fashion Studio, Bakery Café, Spa & Salon, Art
+  Studio, Theme Park (carousel and Ferris wheel), Space Observatory, Jungle Conservatory, Candy Land,
+  Haunted Floor, Music Festival and Sky Garden, with 5 tasks each and new shop items.
+- **The outside world:** at the car park, press *🚗 Road trip* to drive to **Maggakes Beach**
+  (swim in the sea), the **Shopping Mall** or **Maggakes Town**, with 5 tasks each. Your car is parked
+  there to drive back.
+- **Mini-games:** besides sequence, hold, timing, pattern, quiz and collect, tasks now include
+  **catch** (move the basket), **memory match**, **rhythm tap**, **spot the odd one out**, **maze**
+  and **unscramble**.
+- **📜 Quests & story:** 7 characters around the estate (Mayor Maggie in town, Captain Coral at the
+  beach, Chef Marco, Madame Glitz, Ranger Rosie, Professor Nova and Jazz) give 15 quests across 8
+  chapters. Look for ❗ over their heads. Steps only count what you do after accepting, ✅ means
+  you can hand in. Finishing every quest makes you a *Maggakes Legend*. See *⭐ Progress → 📜 Quests*.
 - **⭐ Progress (levels, achievements, weekly events).** Every Aura you earn is XP. Levels go up to
   100, and each gives an Aura reward, with badges and free items at milestones. There are 46
   achievements to claim, and a different themed event every week (Spooky, Fashion, Summer, Winter,

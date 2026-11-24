@@ -427,3 +427,12 @@ section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter
 .mg-letter { width: 48px; height: 48px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #ffd23f, #ff9f1c); color: #fff; font-size: 22px; font-weight: 800; }
 .mg-letter.used { opacity: .25; }
 .shake { animation: shake .3s; }
+/* quests */
+.quest .qhead, .qhead { display: flex; gap: 10px; align-items: center; }
+.qhead > div:last-child { display: flex; flex-direction: column; }
+.qe { font-size: 38px; }
+.qsteps { padding-left: 4px; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.qsteps li.done { opacity: .55; } .qsteps li.now { font-weight: 700; }
+.qreward { background: #fff3c4; border-radius: 12px; padding: 8px 10px; font-weight: 700; }
+.qchap { background: rgba(255,255,255,.65); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px; }
+.qrow.locked { opacity: .5; } .qrow.ready { color: #c06a00; font-weight: 700; }

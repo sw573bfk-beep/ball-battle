@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Look } from '../../shared/look';
 import { mat } from '../engine/props';
 import { Avatar } from '../engine/avatar';
 import { nameTexture } from '../engine/tex';
@@ -17,7 +18,11 @@ export interface Wanderer {
   tick: (dt: number, t: number, moving: number) => void;
   line?: string;
   avatar?: Avatar;
-  kind: 'pet' | 'islander' | 'host';
+  kind: 'pet' | 'islander' | 'host' | 'npc';
+  /** Quest character id (kind 'npc'). */
+  npcId?: string;
+  /** Floating ❗ / ✅ above a quest character. */
+  marker?: THREE.Sprite;
 }
 
 function pickTarget(zone: Zone, w: Wanderer, area?: (x: number, z: number) => boolean): void {
@@ -107,6 +112,17 @@ export function spawnIslander(zone: Zone, name: string, at?: { x: number; z: num
   return w;
 }
 
+/** A quest character who stands in one spot. */
+export function spawnNpc(zone: Zone, npc: { id: string; name: string; emoji: string; role: string; x: number; z: number; ry: number; look: Look }): Wanderer {
+  const av = new Avatar(npc.look, npc.name, false, `${npc.emoji} ${npc.role}`);
+  const x = npc.x - zone.half.w, z = npc.z - zone.half.d;
+  const w: Wanderer = { name: npc.name, obj: av.root, x, z, ry: npc.ry, tx: x, tz: z, wait: 1e9, speed: 0, avatar: av, kind: 'npc', npcId: npc.id, tick: () => {} };
+  av.root.position.set(x, 0, z);
+  av.root.rotation.y = npc.ry;
+  zone.root.add(av.root);
+  return w;
+}
+
 export function spawnHost(zone: Zone, x: number, z: number, ry: number): Wanderer {
   const av = new Avatar(HOST.look, HOST.name, false, '🎤 Your host', 'mic');
   const w: Wanderer = { name: HOST.name, obj: av.root, x, z, ry, tx: x, tz: z, wait: 1e9, speed: 0, avatar: av, line: 'Islaaanders!', kind: 'host', tick: () => {} };
@@ -125,7 +141,7 @@ export function updateWanderers(list: Wanderer[], zone: Zone, dt: number, t: num
       else if (Math.hypot(dx, dz) > 2.2) { w.tx = f.x - dx * 0.3; w.tz = f.z - dz * 0.3; w.wait = 0; }
     }
     let moving = 0;
-    if (w.kind === 'host') { if (w.obj.visible) w.avatar?.update(dt, t, 0, 'walk'); continue; }
+    if (w.kind === 'host' || w.kind === 'npc') { if (w.obj.visible) w.avatar?.update(dt, t, 0, 'walk'); if (w.marker) w.marker.position.y = 2.55 + Math.sin(t * 3) * 0.06; continue; }
     if (w.wait > 0) {
       w.wait -= dt;
     } else {

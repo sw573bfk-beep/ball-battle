@@ -197,7 +197,7 @@ export function openMap(ctx: Ctx): void {
   const render = () => {
     const s = ctx.save();
     const res = getResidences();
-    const order: ZoneId[] = ['villa', ...res.map((r) => r.zone).reverse(), 'f24', 'f23', 'f22', 'f21', 'f20', 'f19', 'f18', 'f17', 'f16', 'f15', 'f14', 'f13', 'f12', 'f11', 'f10', 'f9', 'f8', 'f7', 'f6', 'f5', 'f4', 'f3', 'f2', 'f1', 'b', 'park'];
+    const order: ZoneId[] = ['villa', ...res.map((r) => r.zone).reverse(), 'f24', 'f23', 'f22', 'f21', 'f20', 'f19', 'f18', 'f17', 'f16', 'f15', 'f14', 'f13', 'f12', 'f11', 'f10', 'f9', 'f8', 'f7', 'f6', 'f5', 'f4', 'f3', 'f2', 'f1', 'b', 'park', 'beach', 'mall', 'town'];
     fill(body, ...order.map((z) => {
       const here = ctx.zone() === z;
       const open = canEnter(s, z);

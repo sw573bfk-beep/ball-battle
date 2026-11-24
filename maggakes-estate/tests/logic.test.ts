@@ -4,6 +4,8 @@ import { FLOORS, TASK_AURA } from '../src/shared/floors';
 import { findResident, RESIDENTS } from '../src/shared/people';
 import { villaChallenge, winFinal, FINAL_POINTS } from '../src/shared/villa';
 import { SHOP } from '../src/shared/shop';
+import { QUESTS, NPCS, acceptQuest, advanceQuests, claimQuest, questStatus } from '../src/shared/quests';
+import { zoneNeed } from '../src/shared/floors';
 import { ACHIEVEMENTS, EVENTS, claimAchievement, claimEventGoal, claimLevels, currentEvent, levelOf, levelStart, newlyReady, weekIndex } from '../src/shared/progress';
 import { earn } from '../src/shared/save';
 
@@ -403,7 +405,7 @@ test('SKY FLOORS: four new floors chain on from the rooftop (1,000 apart)', () =
   assert.deepEqual(sky.map((f) => f.need), [8000, 9000, 10000, 11000]);
   const s = newSave('Phoebe');
   s.room = [1, 2, 3].map((i) => ({ uid: String(i), item: 'd_teddy', x: i, z: 1, rot: 0 }));
-  for (const f of FLOORS) for (const t of f.tasks) { assert.ok(zoneUnlocked(s, f.id), `${f.id} open in time`); assert.ok(completeTask(s, f.id, t.id, 0).ok); }
+  for (const f of FLOORS.filter((f) => !f.outside)) for (const t of f.tasks) { assert.ok(zoneUnlocked(s, f.id), `${f.id} open in time`); assert.ok(completeTask(s, f.id, t.id, 0).ok); }
   assert.equal(s.totalAura, 24000, 'all 24 floors = 24,000 Total Aura');
 });
 
@@ -467,5 +469,28 @@ test('LOVE ISLAND: 5 chats a day and no repeated topics in a row of 15', () => {
   }
   assert.ok(topics.length >= 10, 'chats happened');
   assert.equal(new Set(topics).size, topics.length, `no repeats: ${topics}`);
+});
+test('QUESTS: 15 quests with real characters; steps count only after you accept; claim once', () => {
+  assert.ok(QUESTS.length >= 15);
+  for (const q of QUESTS) { assert.ok(NPCS.some((n) => n.id === q.npc), q.id); if (q.after) assert.ok(QUESTS.some((x) => x.id === q.after), q.id); }
+  const s = newSave('Phoebe');
+  s.totalAura = 6000;
+  const tour = QUESTS.find((q) => q.id === 'q_tour')!;
+  s.life = { go_beach: 1 }; // visiting BEFORE accepting doesn't count
+  assert.equal(questStatus(s, tour, zoneNeed), 'available');
+  assert.ok(acceptQuest(s, 'q_tour', zoneNeed).ok);
+  assert.equal(s.quests!.q_tour.step, 0);
+  s.life.go_beach = 2; advanceQuests(s);
+  assert.equal(s.quests!.q_tour.step, 1);
+  s.life.go_mall = 1; advanceQuests(s); // each step only counts what you do after reaching it
+  bumpStat(s, 'tasks', 3); advanceQuests(s);
+  assert.equal(questStatus(s, tour, zoneNeed), 'ready');
+  const a = s.aura;
+  assert.ok(claimQuest(s, 'q_tour', earn).ok && s.aura === a + tour.reward.aura);
+  assert.equal(claimQuest(s, 'q_tour', earn).ok, false, 'only once');
+  assert.equal(questStatus(s, QUESTS.find((q) => q.id === 'q_helper')!, zoneNeed), 'available', 'next quest in the chain opens');
+  assert.equal(questStatus(s, QUESTS.find((q) => q.id === 'q_turtles')!, zoneNeed), 'locked', 'needs the one before');
+  const fin = QUESTS[QUESTS.length - 1];
+  assert.equal(fin.steps[0].n, QUESTS.length - 1, 'finale needs every other quest');
 });
 console.log(`\n${n} tests passed`);

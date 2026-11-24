@@ -1,5 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { claimAchievement, claimEventGoal, claimLevels, levelOf, newlyReady } from '../shared/progress';
+import { acceptQuest, advanceQuests, claimQuest } from '../shared/quests';
+import { zoneNeed } from '../shared/floors';
 import { RESIDENTS, checkUsername, isResidence, residenceHome, residenceNumber, type Home, type ZoneId } from '../shared/people';
 import { ALL_ZONES } from '../shared/floors';
 import { SHOP, shopItem } from '../shared/shop';
@@ -392,10 +394,12 @@ export class Estate extends DurableObject {
   }
 
   private async saved(conn: Conn, toast?: { ok: boolean; msg: string }): Promise<void> {
+    const questNews = advanceQuests(conn.save);
     const ready = newlyReady(conn.save);
     await this.store(conn.save);
     this.send(conn, { t: 'save', save: conn.save });
     if (toast) this.send(conn, { t: 'toast', text: toast.msg, good: toast.ok });
+    for (const q of questNews.slice(0, 3)) this.send(conn, { t: 'toast', text: q, good: true });
     for (const a of ready.slice(0, 3)) this.send(conn, { t: 'toast', text: `🏆 Achievement unlocked: ${a.emoji} ${a.label}! Claim it in ⭐ Progress.`, good: true });
     const lv = levelOf(conn.save.xp ?? 0);
     if (lv > (conn.lastLevel ?? lv)) {
@@ -415,6 +419,9 @@ export class Estate extends DurableObject {
         c.car = null;
         c.save.lastZone = m.zone;
         if (!c.save.daily.stats[`v_${m.zone}`]) { bumpStat(c.save, `v_${m.zone}`, 1); bumpStat(c.save, 'floors', 1); }
+        // Every visit (not just the first each day) — used by quests.
+        c.save.life ??= {};
+        c.save.life[`go_${m.zone}`] = (c.save.life[`go_${m.zone}`] ?? 0) + 1;
         const list = [...this.conns.values()].filter((o) => o.zone === m.zone && o !== c);
         this.send(c, { t: 'peers', zone: m.zone, list: list.map((o) => this.info(o)) });
         for (const o of list) this.send(c, { t: 'pos', p: o.pos });
@@ -536,6 +543,7 @@ export class Estate extends DurableObject {
       }
       case 'outfit': await this.saved(c, saveOutfit(c.save, Number(m.slot), String(m.name ?? ''), m.look)); return;
       case 'claimLevel': await this.saved(c, claimLevels(c.save, earn)); return;
+      case 'quest': await this.saved(c, m.a === 'accept' ? acceptQuest(c.save, String(m.id), zoneNeed) : claimQuest(c.save, String(m.id), earn)); return;
       case 'claimAch': await this.saved(c, claimAchievement(c.save, String(m.id), earn)); return;
       case 'claimEvent': await this.saved(c, claimEventGoal(c.save, Number(m.i), earn)); return;
       case 'profile': {
