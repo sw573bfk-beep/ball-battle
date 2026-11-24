@@ -12,6 +12,7 @@ import { Input } from './input';
 import type { Net } from './net';
 import { h, sheet, toast, confetti, closeAllSheets, $, fill } from './ui/dom';
 import { choiceGame, holdGame, sequenceGame, simonGame, timingGame } from './ui/minigames';
+import { catchGame, mazeGame, memoryGame, rhythmGame, spotGame, unscrambleGame } from './ui/minigames2';
 import { openBoard, openDaily, openGarage, openMap, openSettings, openShop, openWardrobe, nextGoal, taskList, type Ctx } from './ui/panels';
 import type { ZoneId } from '../shared/people';
 import { setResidences, getResidences, setRoomStyles, setRoomStyle, roomOwnerZone } from './world/layouts';
@@ -919,7 +920,7 @@ export class Game {
       case 'task': {
         const task = floorById(this.zoneId)?.tasks.find((t) => t.id === st.id)!;
         const done = s.tasks[`${this.zoneId}:${task.id}`];
-        return { key: `task:${task.id}`, label: `${TASK_EMOJI[task.id] ?? '⭐'} ${task.label}${done ? ' (replay +50)' : ' +200'}`, run: () => this.startTask(task) };
+        return { key: `task:${task.id}`, label: `${TASK_EMOJI[task.id] ?? task.item ?? task.steps?.[0]?.split(' ')[0] ?? '⭐'} ${task.label}${done ? ' (replay +50)' : ' +200'}`, run: () => this.startTask(task) };
       }
       case 'garage': return { key: 'garage', label: '🚗 Garage', run: () => openGarage(this.ctx, () => this.startDriving()) };
       case 'carwash': return { key: 'carwash', label: '🫧 Wash your car', run: () => holdGame('Car Wash', 'Hold to scrub your car until it gleams!', (ok) => { if (ok) toast('✨ Sparkling clean!', true); }) };
@@ -987,6 +988,12 @@ export class Game {
         break;
       }
       case 'photo': this.photo(() => finish(true)); break;
+      case 'catch': catchGame(task.label, task.hint, task.item ?? '⭐', task.bad ?? '💣', task.count ?? 10, finish); break;
+      case 'memory': memoryGame(task.label, task.hint, task.symbols ?? ['⭐', '💖', '🌸', '🍓', '🦋', '🌈'], finish); break;
+      case 'rhythm': rhythmGame(task.label, task.hint, finish); break;
+      case 'spot': spotGame(task.label, task.hint, task.odd ?? [['🌸', '🌼']], finish); break;
+      case 'maze': mazeGame(task.label, task.hint, task.item ?? '🙂', task.goal ?? '⭐', finish); break;
+      case 'unscramble': unscrambleGame(task.label, task.hint, task.words ?? ['STAR', 'HEART', 'PARTY'], finish); break;
     }
   }
 

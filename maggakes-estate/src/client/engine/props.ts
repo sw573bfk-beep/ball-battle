@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { emojiTexture, glowTexture, posterTexture, textTexture, type PosterKind } from './tex';
 import { waterMaterial } from './gfx';
 import { PROPS2 } from './props2';
+import { PROPS3 } from './props3';
 
 /**
  * Procedural furniture. Every builder returns a group whose origin is the
@@ -1576,7 +1577,7 @@ export function goldenShell(): THREE.Group {
 }
 
 /** Furniture whose builder uses the chosen colour directly. */
-export const COLOR_MODELS = new Set(['arcade', 'claw', 'popcorn', 'cinemaseats', 'bed', 'canopybed', 'rug', 'beanbag', 'lavalamp', 'surfboard', 'gamingchair', 'neon', 'teddy', 'floorlamp', 'vanity', 'bookshelf', 'shelf', 'closet', 'sofa', 'armchair', 'desk']);
+export const COLOR_MODELS = new Set(['mannequin', 'cakestand', 'salonchair', 'lollipop', 'cauldron', 'tent', 'arcade', 'claw', 'popcorn', 'cinemaseats', 'bed', 'canopybed', 'rug', 'beanbag', 'lavalamp', 'surfboard', 'gamingchair', 'neon', 'teddy', 'floorlamp', 'vanity', 'bookshelf', 'shelf', 'closet', 'sofa', 'armchair', 'desk']);
 
 /** Tints every solid, non-glowing material of an object toward a colour (for furniture without a colour option). */
 export function tint(obj: THREE.Object3D, color: string): void {
@@ -1634,6 +1635,7 @@ export const PROPS: Record<string, (o: Opts) => Prop> = {
   lantern, hammock, telescope, cushions: floorCushions, volleynet: volleyNet,
   waterslide: waterSlide, gantry, cone,
   ...PROPS2,
+  ...PROPS3,
 };
 
 export function makeProp(type: string, o: Opts = {}): Prop {

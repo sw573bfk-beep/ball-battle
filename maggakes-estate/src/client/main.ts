@@ -145,6 +145,7 @@ function showLogin(message?: string): void {
 if (location.search.includes('debug')) {
   import('./world/check').then((m) => { (window as unknown as Record<string, unknown>).__checkZones = m.checkZones; (window as unknown as Record<string, unknown>).__near = m.near; (window as unknown as Record<string, unknown>).__dbg = m; });
   (window as unknown as Record<string, unknown>).__game = () => game;
+  import('./ui/minigames2').then((m) => { (window as unknown as Record<string, unknown>).__mg = m; });
 }
 
 const saved = localStorage.getItem(KEY);

@@ -10,7 +10,13 @@ export type TaskKind =
   | 'choice'   // pick the right answer
   | 'outfit'   // open the wardrobe and save a look
   | 'decorate' // have decorations placed in your own bedroom
-  | 'photo';   // take a photo
+  | 'photo'    // take a photo
+  | 'catch'    // move a basket to catch falling items (and dodge the bad ones)
+  | 'memory'   // flip cards to find pairs
+  | 'rhythm'   // tap the lanes in time with the notes
+  | 'spot'     // find the odd one out
+  | 'maze'     // guide a character through a maze
+  | 'unscramble'; // spell the words from jumbled letters
 
 export interface TaskDef {
   id: string;
@@ -22,7 +28,12 @@ export interface TaskDef {
   steps?: string[];        // sequence: emoji + word in the correct order
   count?: number;          // collect: how many pickups / decorate: how many items
   question?: { q: string; options: string[]; answer: number }[]; // choice
-  item?: string;           // collect: emoji of the pickup
+  item?: string;           // collect / catch / maze: emoji of the pickup, the good thing, or the player
+  bad?: string;            // catch: the thing to dodge
+  goal?: string;           // maze: emoji at the finish
+  symbols?: string[];      // memory: the card faces (each appears twice)
+  odd?: [string, string][]; // spot: [lots of these, one of these] per round
+  words?: string[];        // unscramble: words to spell (3 are picked)
 }
 
 export interface FloorDef {
@@ -319,6 +330,167 @@ export const FLOORS: FloorDef[] = [
       { id: 'skyphoto', label: 'Take a penthouse photo', kind: 'photo', hint: 'Strike a pose at the top of the Maggakes Estate!' },
     ],
   },
+  // ------------------------------------------------------------ the tower (13th–24th)
+  {
+    id: 'f13', short: '13', name: '13th Floor – Aquarium', need: 12000,
+    blurb: 'Walk-through fish tanks, glowing jellyfish and a touch pool.',
+    tasks: [
+      { id: 'feedfish', label: 'Feed the fish', kind: 'catch', hint: 'Catch the fish food — dodge the jellyfish!', item: '🦐', bad: '🪼', count: 10 },
+      { id: 'seamemory', label: 'Sea creature memory', kind: 'memory', hint: 'Find all the matching sea creatures.', symbols: ['🐠', '🐙', '🦀', '🐢', '🦈', '🐬'] },
+      { id: 'cleantank', label: 'Clean the big tank', kind: 'hold', hint: 'Hold to scrub the glass until it sparkles.' },
+      { id: 'turtle', label: 'Guide the baby turtle', kind: 'maze', hint: 'Help the baby turtle find the sea!', item: '🐢', goal: '🌊' },
+      {
+        id: 'oceanquiz', label: 'Ocean quiz', kind: 'choice', hint: 'Answer the ocean questions.',
+        question: [
+          { q: 'Which of these is a mammal?', options: ['Shark', 'Dolphin', 'Clownfish'], answer: 1 },
+          { q: 'How many arms does an octopus have?', options: ['6', '8', '10'], answer: 1 },
+          { q: 'What is the biggest animal ever?', options: ['Blue whale', 'Great white shark', 'Elephant'], answer: 0 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'f14', short: '14', name: '14th Floor – Fashion Studio', need: 13000,
+    blurb: 'A real runway, a sewing room and a professional photo set.',
+    tasks: [
+      { id: 'design', label: 'Design a dress', kind: 'sequence', hint: 'Make a dress from start to finish.', steps: ['✏️ Sketch', '🧵 Pick fabric', '✂️ Cut', '🪡 Sew', '✨ Add sparkle'] },
+      { id: 'strut', label: 'Walk the runway', kind: 'rhythm', hint: 'Strut to the beat — tap the lanes as the notes hit the line!' },
+      { id: 'fashionshoot', label: 'Fashion photoshoot', kind: 'photo', hint: 'Strike your best pose for the cover!' },
+      { id: 'spotfake', label: 'Spot the fake handbag', kind: 'spot', hint: 'One of these is different — find it!', odd: [['👜', '👛'], ['👠', '👡'], ['💍', '💎']] },
+      { id: 'hem', label: 'Sew a perfect hem', kind: 'timing', hint: 'Stitch when the needle is in the sweet spot.' },
+    ],
+  },
+  {
+    id: 'f15', short: '15', name: '15th Floor – Bakery Café', need: 14000,
+    blurb: 'Fresh cakes, a cosy café and the best hot chips in the tower.',
+    tasks: [
+      { id: 'bakecake', label: 'Bake a birthday cake', kind: 'sequence', hint: 'Bake the cake in the right order.', steps: ['🥚 Eggs', '🧈 Butter', '🌾 Flour', '🔥 Bake', '🎂 Ice it'] },
+      { id: 'catchcookies', label: 'Catch the cookies', kind: 'catch', hint: 'Catch the cookies coming out of the oven — not the salt!', item: '🍪', bad: '🧂', count: 10 },
+      { id: 'latteart', label: 'Make latte art', kind: 'hold', hint: 'Hold to pour a perfect heart.' },
+      { id: 'bakerywords', label: 'Write the menu', kind: 'unscramble', hint: 'Unscramble the menu words.', words: ['CAKE', 'BREAD', 'DONUT', 'MUFFIN', 'COOKIE', 'LATTE'] },
+      { id: 'servecafe', label: 'Serve the customers', kind: 'collect', hint: 'Deliver the 6 coffees around the café.', count: 6, item: '☕' },
+    ],
+  },
+  {
+    id: 'f16', short: '16', name: '16th Floor – Spa & Salon', need: 15000,
+    blurb: 'Hair salon, nail bar, sauna and the comfiest massage beds.',
+    tasks: [
+      { id: 'nails', label: 'Match the nail colours', kind: 'memory', hint: 'Find all the matching nail polish pairs.', symbols: ['💅', '💄', '🌸', '💖', '✨', '🎀'] },
+      { id: 'facemask', label: 'Do a face mask', kind: 'sequence', hint: 'Do your skincare in the right order.', steps: ['🧼 Cleanse', '💧 Tone', '🥒 Mask', '🧴 Moisturise', '😎 Relax'] },
+      { id: 'sauna', label: 'Relax in the sauna', kind: 'hold', hint: 'Hold to relax and breathe in the steam.' },
+      { id: 'blowdry', label: 'Blow-dry a perfect style', kind: 'timing', hint: 'Style the hair when the brush is in the sweet spot.' },
+      { id: 'towels', label: 'Fold the fluffy towels', kind: 'collect', hint: 'Collect the 6 towels around the spa.', count: 6, item: '🧖' },
+    ],
+  },
+  {
+    id: 'f17', short: '17', name: '17th Floor – Art Studio', need: 16000,
+    blurb: 'Easels, a pottery wheel and a gallery for your masterpieces.',
+    tasks: [
+      { id: 'paint', label: 'Paint a masterpiece', kind: 'sequence', hint: 'Paint in the right order.', steps: ['🖌️ Sketch', '🎨 Background', '🌳 Trees', '🌅 Sunset', '✍️ Sign it'] },
+      { id: 'pottery', label: 'Make a pot', kind: 'hold', hint: 'Hold to shape the clay on the wheel.' },
+      { id: 'gallery', label: 'Spot the forgery', kind: 'spot', hint: 'One painting is a fake — find it!', odd: [['🖼️', '🪞'], ['🎨', '🖌️'], ['🌻', '🌼']] },
+      {
+        id: 'colourquiz', label: 'Colour mixing quiz', kind: 'choice', hint: 'What colour do you get?',
+        question: [
+          { q: 'Blue + yellow = ?', options: ['Green', 'Purple', 'Orange'], answer: 0 },
+          { q: 'Red + white = ?', options: ['Pink', 'Brown', 'Grey'], answer: 0 },
+          { q: 'Red + blue = ?', options: ['Green', 'Purple', 'Yellow'], answer: 1 },
+        ],
+      },
+      { id: 'brushes', label: 'Wash the brushes', kind: 'collect', hint: 'Collect the 6 messy paintbrushes.', count: 6, item: '🖌️' },
+    ],
+  },
+  {
+    id: 'f18', short: '18', name: '18th Floor – Theme Park', need: 17000,
+    blurb: 'A rooftop fair: carousel, Ferris wheel, game stalls and fairy floss.',
+    tasks: [
+      { id: 'ringtoss', label: 'Win at ring toss', kind: 'timing', hint: 'Throw when the ring lines up!' },
+      { id: 'balloonpop', label: 'Catch the prizes', kind: 'catch', hint: 'Catch the prizes — not the popped balloons!', item: '🧸', bad: '💥', count: 10 },
+      { id: 'fairyfloss', label: 'Spin fairy floss', kind: 'hold', hint: 'Hold to spin the biggest fairy floss ever.' },
+      { id: 'carouselride', label: 'Carousel music', kind: 'rhythm', hint: 'Tap along to the carousel music!' },
+      { id: 'lostkid', label: 'Help the lost teddy', kind: 'maze', hint: 'Get the teddy back to the prize stall!', item: '🧸', goal: '🎪' },
+    ],
+  },
+  {
+    id: 'f19', short: '19', name: '19th Floor – Space Observatory', need: 18000,
+    blurb: 'A giant telescope, a model rocket and mission control.',
+    tasks: [
+      { id: 'planets', label: 'Name the planets', kind: 'unscramble', hint: 'Unscramble the planet names.', words: ['MARS', 'VENUS', 'EARTH', 'SATURN', 'PLUTO', 'JUPITER'] },
+      { id: 'launch', label: 'Launch the rocket', kind: 'timing', hint: 'Hit LAUNCH in the sweet spot!' },
+      { id: 'orbit', label: 'Fly to the planet', kind: 'maze', hint: 'Steer the rocket through the asteroid field.', item: '🚀', goal: '🪐' },
+      { id: 'stardust', label: 'Catch stardust', kind: 'catch', hint: 'Catch the stars — dodge the comets!', item: '⭐', bad: '☄️', count: 10 },
+      {
+        id: 'spacequiz', label: 'Space quiz', kind: 'choice', hint: 'Answer the space questions.',
+        question: [
+          { q: 'Which planet do we live on?', options: ['Mars', 'Earth', 'Venus'], answer: 1 },
+          { q: 'What is the Sun?', options: ['A planet', 'A star', 'A moon'], answer: 1 },
+          { q: 'Which planet is called the Red Planet?', options: ['Mars', 'Jupiter', 'Neptune'], answer: 0 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'f20', short: '20', name: '20th Floor – Jungle Conservatory', need: 19000,
+    blurb: 'A glasshouse rainforest with a waterfall, parrots and butterflies.',
+    tasks: [
+      { id: 'butterflies', label: 'Count the butterflies', kind: 'collect', hint: 'Find the 6 butterflies hiding in the jungle.', count: 6, item: '🦋' },
+      { id: 'mist', label: 'Mist the plants', kind: 'hold', hint: 'Hold to mist the rainforest plants.' },
+      { id: 'parrot', label: 'Lead the parrot home', kind: 'maze', hint: 'Fly the parrot through the jungle to its nest.', item: '🦜', goal: '🪺' },
+      { id: 'spotfrog', label: 'Spot the frog', kind: 'spot', hint: 'One of these is a frog — find it!', odd: [['🦎', '🐸'], ['🌿', '🍀'], ['🐒', '🦧']] },
+      {
+        id: 'animalquiz', label: 'Rainforest quiz', kind: 'choice', hint: 'Answer the jungle questions.',
+        question: [
+          { q: 'Which animal can change colour?', options: ['Chameleon', 'Toucan', 'Sloth'], answer: 0 },
+          { q: 'What do caterpillars turn into?', options: ['Bees', 'Butterflies', 'Beetles'], answer: 1 },
+          { q: 'Which is the slowest?', options: ['Sloth', 'Jaguar', 'Monkey'], answer: 0 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'f21', short: '21', name: '21st Floor – Candy Land', need: 20000,
+    blurb: 'Giant lollipops, gummy trees and a chocolate fountain.',
+    tasks: [
+      { id: 'catchcandy', label: 'Catch the candy', kind: 'catch', hint: 'Catch the lollies — dodge the broccoli!', item: '🍬', bad: '🥦', count: 12 },
+      { id: 'candymemory', label: 'Candy memory', kind: 'memory', hint: 'Find all the matching sweets.', symbols: ['🍭', '🍫', '🍩', '🧁', '🍪', '🍬'] },
+      { id: 'chocdip', label: 'Dip in the chocolate fountain', kind: 'hold', hint: 'Hold to dip the strawberries.' },
+      { id: 'candywords', label: 'Name the sweets', kind: 'unscramble', hint: 'Unscramble the sweet treats.', words: ['FUDGE', 'TOFFEE', 'GUMMY', 'CANDY', 'SWEETS', 'COOKIE'] },
+      { id: 'cupcake', label: 'Decorate a giant cupcake', kind: 'sequence', hint: 'Decorate it in the right order.', steps: ['🧁 Cupcake', '🍦 Icing', '🌈 Sprinkles', '🍓 Strawberry', '✨ Glitter'] },
+    ],
+  },
+  {
+    id: 'f22', short: '22', name: '22nd Floor – Haunted Floor', need: 21000,
+    blurb: 'Spooky (but friendly) ghosts, a bubbling cauldron and a pumpkin patch.',
+    tasks: [
+      { id: 'ghosthunt', label: 'Find the friendly ghosts', kind: 'collect', hint: 'Find the 6 friendly ghosts hiding around the floor.', count: 6, item: '👻' },
+      { id: 'potion', label: 'Brew a potion', kind: 'sequence', hint: 'Add the ingredients in the right order.', steps: ['💧 Water', '🍄 Mushroom', '🕸️ Cobweb', '🌙 Moonlight', '✨ Stir'] },
+      { id: 'escape', label: 'Escape the haunted maze', kind: 'maze', hint: 'Find your way out by candlelight!', item: '🕯️', goal: '🚪' },
+      { id: 'spooky', label: 'Spot the real skeleton', kind: 'spot', hint: 'One is different — find it!', odd: [['👻', '💀'], ['🎃', '🍊'], ['🦇', '🐦']] },
+      { id: 'carve', label: 'Carve a pumpkin', kind: 'hold', hint: 'Hold to carve the spookiest pumpkin face.' },
+    ],
+  },
+  {
+    id: 'f23', short: '23', name: '23rd Floor – Music Festival', need: 22000,
+    blurb: 'A rooftop festival with a huge stage, food trucks and glitter tents.',
+    tasks: [
+      { id: 'soundcheck', label: 'Do the sound check', kind: 'rhythm', hint: 'Hit the beats as they reach the line!' },
+      { id: 'setlist', label: 'Plan the setlist', kind: 'sequence', hint: 'Put the show in the right order.', steps: ['🎤 Intro', '🎸 Big song', '💃 Dance song', '🎹 Slow song', '🎆 Encore'] },
+      { id: 'glitter', label: 'Glitter face paint', kind: 'hold', hint: 'Hold to add the glitter.' },
+      { id: 'crowdsurf', label: 'Light up the crowd', kind: 'timing', hint: 'Fire the confetti cannons in the sweet spot!' },
+      { id: 'merch', label: 'Sell the festival merch', kind: 'collect', hint: 'Grab the 6 festival tees around the grounds.', count: 6, item: '👕' },
+    ],
+  },
+  {
+    id: 'f24', short: '24', name: '24th Floor – Sky Garden', need: 23000,
+    blurb: 'The very top of the tower: cherry blossoms, a koi pond and a rose maze.',
+    tasks: [
+      { id: 'koi', label: 'Feed the koi', kind: 'catch', hint: 'Catch the fish food for the koi — not the leaves!', item: '🍙', bad: '🍂', count: 10 },
+      { id: 'blossom', label: 'Collect cherry blossoms', kind: 'collect', hint: 'Collect the 6 blossoms that fell on the paths.', count: 6, item: '🌸' },
+      { id: 'rosemaze', label: 'Solve the rose maze', kind: 'maze', hint: 'Help the bee find the golden rose!', item: '🐝', goal: '🌹' },
+      { id: 'zen', label: 'Rake the zen garden', kind: 'hold', hint: 'Hold to rake calm patterns in the sand.' },
+      { id: 'gardenwords', label: 'Label the flowers', kind: 'unscramble', hint: 'Unscramble the flower names.', words: ['ROSE', 'TULIP', 'DAISY', 'LILY', 'ORCHID', 'LOTUS'] },
+    ],
+  },
 ];
 
 export const PARK = { id: 'park' as ZoneId, short: 'P', name: 'Underground Car Park', need: 0 };
@@ -343,4 +515,4 @@ export function zoneNeed(id: ZoneId): number {
 }
 
 /** The fixed zones. Residence floors (r1, r2, …) are added as people join. */
-export const ALL_ZONES: ZoneId[] = ['park', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'villa'];
+export const ALL_ZONES: ZoneId[] = ['park', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24', 'villa'];

@@ -55,6 +55,13 @@ export const SHOP: ShopItem[] = [
   o('fit_snow', 'Snow Bunny Fit', '❄️', 1000, 'track', '#ffffff', '#bfe3f2', { floor: 'f11' }),
   o('fit_penthouse', 'Penthouse Tux', '🤵', 1600, 'suit', '#111216', '#111216', { floor: 'f12' }),
   o('fit_starlight', 'Starlight Gown', '🌌', 1800, 'gown', '#2a2340', '#b388ff', { floor: 'f12' }),
+  o('fit_mermaid', 'Mermaid Sequins', '🧜', 1500, 'sequin', '#33c4c4', '#7f5bd5', { floor: 'f13' }),
+  o('fit_designer', 'Designer Blazer Set', '🧥', 1700, 'blazer', '#ffffff', '#1b1c24', { floor: 'f14' }),
+  o('fit_spa', 'Fluffy Spa Robe', '🧖', 900, 'pjs', '#ffffff', '#ffffff', { floor: 'f16' }),
+  o('fit_astro', 'Astronaut Suit', '👩‍🚀', 1900, 'track', '#f0f0f0', '#d0d0d0', { floor: 'f19' }),
+  o('fit_candy', 'Candy Pop Dress', '🍬', 1400, 'sundress', '#ff9fc4', '#ff9fc4', { floor: 'f21' }),
+  o('fit_festival', 'Festival Fit', '🎪', 1500, 'coord', '#ffd23f', '#ff6fb5', { floor: 'f23' }),
+  o('fit_blossom', 'Cherry Blossom Gown', '🌸', 2200, 'gown', '#ffd6e7', '#ffc0d9', { floor: 'f24' }),
   o('fit_vip', 'Gold VIP Fit', '👑', 1200, 'suit', '#d4af37', '#2a2416', { vip: true }),
 
   // ---------- Accessories ----------
@@ -109,6 +116,19 @@ export const SHOP: ShopItem[] = [
   { id: 'd_fireplace', name: 'Cosy Fireplace', emoji: '🔥', cat: 'furniture', price: 1500, floor: 'f11', r: { model: 'fireplace', w: 1.8 } },
   { id: 'd_piano', name: 'Grand Piano', emoji: '🎹', cat: 'furniture', price: 2500, floor: 'f12', r: { model: 'grandpiano' } },
   { id: 'd_champagne', name: 'Sparkle Glass Tower', emoji: '🥂', cat: 'furniture', price: 1800, floor: 'f12', r: { model: 'champagne' } },
+  // Tower floors (13th–24th)
+  { id: 'd_jelly', name: 'Jellyfish Tank', emoji: '🪼', cat: 'furniture', price: 1600, floor: 'f13', r: { model: 'jellytube' } },
+  { id: 'd_mannequin', name: 'Fashion Mannequin', emoji: '👗', cat: 'furniture', price: 900, floor: 'f14', r: { model: 'mannequin', color: '#ff6fb5' } },
+  { id: 'd_cakestand', name: 'Cake Stand', emoji: '🎂', cat: 'furniture', price: 700, floor: 'f15', r: { model: 'cakestand' } },
+  { id: 'd_salonchair', name: 'Salon Chair & Mirror', emoji: '💇', cat: 'furniture', price: 1100, floor: 'f16', r: { model: 'salonchair' } },
+  { id: 'd_easel', name: 'Art Easel', emoji: '🎨', cat: 'furniture', price: 600, floor: 'f17', r: { model: 'easel' } },
+  { id: 'd_balloons', name: 'Balloon Bunch', emoji: '🎈', cat: 'furniture', price: 500, floor: 'f18', r: { model: 'balloons' } },
+  { id: 'd_orrery', name: 'Planet Model', emoji: '🪐', cat: 'furniture', price: 1500, floor: 'f19', r: { model: 'orrery' } },
+  { id: 'd_perch', name: 'Parrot Perch', emoji: '🦜', cat: 'furniture', price: 900, floor: 'f20', r: { model: 'perch' } },
+  { id: 'd_lollipop', name: 'Giant Lollipop', emoji: '🍭', cat: 'furniture', price: 800, floor: 'f21', r: { model: 'lollipop', h: 1.8 } },
+  { id: 'd_cauldron', name: 'Bubbling Cauldron', emoji: '🧪', cat: 'furniture', price: 1300, floor: 'f22', r: { model: 'cauldron' } },
+  { id: 'd_tent', name: 'Glitter Tent', emoji: '⛺', cat: 'furniture', price: 1200, floor: 'f23', r: { model: 'tent', r: 1 } },
+  { id: 'd_bonsai', name: 'Bonsai Tree', emoji: '🌳', cat: 'furniture', price: 1000, floor: 'f24', r: { model: 'bonsai' } },
 
   // ---------- Cars ----------
   { id: 'car_kart', name: 'Mini Kart', emoji: '🏎️', cat: 'car', price: 0, free: true, r: { model: 'kart', color: '#ff3d7f' } },

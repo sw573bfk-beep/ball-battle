@@ -3,6 +3,7 @@ import type { RoomStyle } from '../../shared/save';
 import type { Residence } from '../../shared/protocol';
 import type { FloorMat } from '../engine/tex';
 import { P, bedroomKit, ensuiteKit, label, on, wardrobeKit, type PropDef, type Rect } from './kit';
+import { TOWER_LAYOUTS } from './layouts2';
 
 export interface RoomDef { id: string; name: string; r: Rect; floor: FloorMat; tint?: string; wall?: string }
 
@@ -734,7 +735,7 @@ const villa: Layout = {
 
 export const LAYOUTS: Record<FixedZone, Layout> = {
   b: basement, f1: floor1, f2: floor2, f3: floor3, f4: floor4, f5: floor5, f6: floor6, f7: floor7, f8: floor8,
-  f9: floor9, f10: floor10, f11: floor11, f12: floor12, park, villa,
+  f9: floor9, f10: floor10, f11: floor11, f12: floor12, ...TOWER_LAYOUTS, park, villa,
 };
 
 // ===================================================================== Residence floors
@@ -798,7 +799,7 @@ function baseLayout(id: ZoneId): Layout {
   };
   const name = (room: string) => (who(room) ? `${who(room)}'s Bedroom` : 'Empty Bedroom');
   return {
-    id, w: 30, d: 18, mood: n % 2 ? 'golden' : 'day', exterior: 'glass', wall: '#f7f1ec', backdrop: 'city', storey: 13 + n,
+    id, w: 30, d: 18, mood: n % 2 ? 'golden' : 'day', exterior: 'glass', wall: '#f7f1ec', backdrop: 'city', storey: 25 + n,
     rooms: [
       { id: 'a', name: name('a'), r: R.a, floor: 'carpet', tint: ta.rug, wall: ta.wall },
       { id: 'ward', name: 'Walk-in Wardrobe', r: R.ward, floor: 'wood' },

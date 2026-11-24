@@ -381,13 +381,30 @@ test('EXPLOIT FIX: replays can\'t be spam-clicked for Aura', () => {
   assert.equal(s.aura, a0 + 50, 'only one replay paid');
   assert.ok(completeTask(s, 'f1', id, 1_000_000 + 2 * 60_000).ok, 'fine again after 2 minutes');
 });
+test('TOWER: floors 13–24, each 1,000 above the last, every new-game task has its data', () => {
+  const tower = FLOORS.filter((f) => /^f(1[3-9]|2[0-4])$/.test(f.id));
+  assert.equal(tower.length, 12);
+  tower.forEach((f, i) => assert.equal(f.need, 12000 + i * 1000, f.id));
+  const ids = new Set<string>();
+  for (const f of FLOORS) for (const t of f.tasks) {
+    assert.ok(!ids.has(`${f.id}:${t.id}`)); ids.add(`${f.id}:${t.id}`);
+    if (t.kind === 'catch') assert.ok(t.item && t.bad && t.count, `${f.id}:${t.id}`);
+    if (t.kind === 'memory') assert.ok((t.symbols?.length ?? 0) >= 3, `${f.id}:${t.id}`);
+    if (t.kind === 'spot') assert.ok(t.odd?.length && t.odd.every(([a, b]) => a !== b), `${f.id}:${t.id}`);
+    if (t.kind === 'maze') assert.ok(t.item && t.goal, `${f.id}:${t.id}`);
+    if (t.kind === 'unscramble') assert.ok((t.words?.length ?? 0) >= 3 && t.words!.every((w) => /^[A-Z]+$/.test(w)), `${f.id}:${t.id}`);
+    if (t.kind === 'sequence') assert.ok((t.steps?.length ?? 0) >= 3, `${f.id}:${t.id}`);
+    if (t.kind === 'choice') assert.ok(t.question?.every((q) => q.answer < q.options.length), `${f.id}:${t.id}`);
+  }
+});
+
 test('SKY FLOORS: four new floors chain on from the rooftop (1,000 apart)', () => {
   const sky = FLOORS.filter((f) => ['f9', 'f10', 'f11', 'f12'].includes(f.id));
   assert.deepEqual(sky.map((f) => f.need), [8000, 9000, 10000, 11000]);
   const s = newSave('Phoebe');
   s.room = [1, 2, 3].map((i) => ({ uid: String(i), item: 'd_teddy', x: i, z: 1, rot: 0 }));
   for (const f of FLOORS) for (const t of f.tasks) { assert.ok(zoneUnlocked(s, f.id), `${f.id} open in time`); assert.ok(completeTask(s, f.id, t.id, 0).ok); }
-  assert.equal(s.totalAura, 12000, 'all 12 floors = 12,000 Total Aura');
+  assert.equal(s.totalAura, 24000, 'all 24 floors = 24,000 Total Aura');
 });
 
 test('LEVELS: XP from every Aura earned, rewards only when claimed', () => {

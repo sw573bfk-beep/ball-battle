@@ -1,9 +1,9 @@
 import { h, sheet, fill } from './dom';
 
 /** Every mini-game resolves true when completed, false if closed early. */
-type Done = (ok: boolean) => void;
+export type Done = (ok: boolean) => void;
 
-function shell(title: string, hint: string, body: HTMLElement, done: Done): { finish: () => void; close: () => void } {
+export function shell(title: string, hint: string, body: HTMLElement, done: Done): { finish: () => void; close: () => void } {
   let finished = false;
   const wrap = h('div.mg', {}, h('p.mg-hint', {}, hint), body);
   const close = sheet(title, wrap, { onClose: () => { if (!finished) done(false); }, className: 'mg-modal' });
@@ -17,7 +17,7 @@ function shell(title: string, hint: string, body: HTMLElement, done: Done): { fi
   };
 }
 
-function shuffle<T>(a: T[]): T[] {
+export function shuffle<T>(a: T[]): T[] {
   const b = [...a];
   for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
   return b;
