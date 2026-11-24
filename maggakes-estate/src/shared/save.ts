@@ -460,16 +460,24 @@ export function collectShell(save: Save, id: string): Result {
   return { ok: true, msg: `🐚 Golden shell ${save.shells.length}/${SHELL_TOTAL}! +${SHELL_AURA} Aura` };
 }
 
-export const MIN_LAP_MS = 9000;
+/**
+ * The race is ~100 m and the fastest car with boost does ~22 m/s, so a real lap takes
+ * at least ~5 s. Anything under 4.5 s can't happen without cheating.
+ */
+export const MIN_LAP_MS = 4500;
+/** Laps that pay Aura each day (best times always count). */
+export const PAID_LAPS_PER_DAY = 10;
 
 export function recordLap(save: Save, ms: number): Result {
-  if (!Number.isFinite(ms) || ms < MIN_LAP_MS || ms > 600_000) return { ok: false, msg: 'That lap time looks wrong.' };
+  if (!Number.isFinite(ms) || ms < MIN_LAP_MS || ms > 600_000) return { ok: false, msg: 'That lap time looks too fast to be real — try again!' };
   const t = Math.round(ms);
   const best = !save.bestLap || t < save.bestLap;
   if (best) save.bestLap = t;
+  rollDaily(save);
+  const paid = (save.daily.stats.laps ?? 0) < PAID_LAPS_PER_DAY;
   bumpStat(save, 'laps', 1);
-  earn(save, 20, 0, 'Kart lap');
-  return { ok: true, msg: `🏁 Lap ${(t / 1000).toFixed(2)}s${best ? ' — new personal best! 🏆' : ''} (+20 Aura)` };
+  if (paid) earn(save, 20, 0, 'Kart lap');
+  return { ok: true, msg: `🏁 Lap ${(t / 1000).toFixed(2)}s${best ? ' — new personal best! 🏆' : ''}${paid ? ' (+20 Aura)' : ''}` };
 }
 
 export function adoptPet(save: Save, kind: string, name: string, fur?: string, collar?: string): Result {

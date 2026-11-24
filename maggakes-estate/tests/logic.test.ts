@@ -242,9 +242,12 @@ test('golden shells: 30 total, no duplicates or fakes, bonus at the end', () => 
 test('kart laps: impossible times refused, personal best kept', () => {
   const s = newSave('Ava');
   assert.equal(recordLap(s, 2000).ok, false);
+  assert.ok(recordLap(s, 6000).ok, 'BUG FIX (Phoebe): a real 6-second lap in a fast car counts');
   assert.ok(recordLap(s, 31000).ok);
-  assert.ok(recordLap(s, 40000).ok);
-  assert.equal(s.bestLap, 31000);
+  assert.equal(s.bestLap, 6000);
+  const a = s.aura;
+  for (let i = 0; i < 20; i++) recordLap(s, 7000);
+  assert.equal(s.aura, a + 20 * 8, 'only 10 laps a day pay Aura (2 already done)');
 });
 
 test('pets: puppy/kitten/bunny with a clean name; fireworks stack in the shop', () => {
