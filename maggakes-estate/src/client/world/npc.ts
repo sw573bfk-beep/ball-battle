@@ -125,7 +125,7 @@ export function updateWanderers(list: Wanderer[], zone: Zone, dt: number, t: num
       else if (Math.hypot(dx, dz) > 2.2) { w.tx = f.x - dx * 0.3; w.tz = f.z - dz * 0.3; w.wait = 0; }
     }
     let moving = 0;
-    if (w.kind === 'host') { w.avatar?.update(dt, t, 0, 'walk'); continue; }
+    if (w.kind === 'host') { if (w.obj.visible) w.avatar?.update(dt, t, 0, 'walk'); continue; }
     if (w.wait > 0) {
       w.wait -= dt;
     } else {
@@ -149,6 +149,8 @@ export function updateWanderers(list: Wanderer[], zone: Zone, dt: number, t: num
     }
     w.obj.position.set(w.x, 0, w.z);
     w.obj.rotation.y = w.ry;
+    // Far-away characters are hidden (see Game.lod) — skip animating them.
+    if (!w.obj.visible) continue;
     if (w.avatar) w.avatar.update(dt, t, moving * 0.6, 'walk');
     else w.tick(dt, t, moving);
   }

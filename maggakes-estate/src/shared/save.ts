@@ -394,7 +394,7 @@ export function migrate(raw: Partial<Save> & { name: string }): Save {
   s.look = normalizeLook(s.look);
   if (s.villa.look) s.villa.look = normalizeLook(s.villa.look);
   for (const id of FREE_ITEMS) if (!s.inventory[id]) s.inventory[id] = 1;
-  s.xp ??= s.totalAura;
+  s.xp = Math.max(s.xp ?? 0, s.totalAura); // XP always covers at least your Total Aura
   s.levelClaimed ??= 1;
   return s;
 }

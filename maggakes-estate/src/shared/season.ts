@@ -78,6 +78,30 @@ const TOPICS: Topic[] = [
   { prompt: "What's your love language?", opts: { sweet: 'Little notes and surprises.', funny: 'Memes. Lots of memes.', bold: 'Quality time — with me.', deep: 'Really listening to each other.', sporty: 'Training together.', chill: 'Just hanging out, no pressure.' } },
   { prompt: 'Rate the villa food out of 10.', opts: { sweet: "A 10, because you're here.", funny: 'A 4. The toast fears me.', bold: "An 8. Would be a 10 if you cooked.", deep: "Honestly, I'm grateful for it.", sporty: 'Needs more protein. 6.', chill: "It's food, it's sunny — 9." } },
   { prompt: 'Where do you see us in a week?', opts: { sweet: 'Still chatting at the firepit every night.', funny: 'Arguing over who gets the hammock.', bold: "Coupled up. Obviously.", deep: "Knowing each other properly. That's the goal.", sporty: 'Winning challenges as a team.', chill: "Let's just enjoy today, yeah?" } },
+  { prompt: "If we went on a road trip, what's the playlist?", opts: { sweet: 'Love songs, obviously. All of them.', funny: 'Kids TV theme songs on repeat.', bold: "Whatever makes you dance in the passenger seat.", deep: 'Songs that remind me of home.', sporty: 'Gym bangers. We are getting PUMPED.', chill: 'Lo-fi beats and ocean sounds.' } },
+  { prompt: "What's the most romantic thing anyone's done for you?", opts: { sweet: 'Someone made me a scrapbook of us. I cried.', funny: 'Someone shared their last hot chip. True love.', bold: "Nothing yet… but you could change that.", deep: 'Someone remembered a tiny thing I said months earlier.', sporty: 'Someone ran my parkrun with me in the rain.', chill: 'A surprise sunset picnic. Simple but perfect.' } },
+  { prompt: "Dogs or cats?", opts: { sweet: 'Puppies! I want ten.', funny: 'Cats. They judge me and I respect it.', bold: "Whatever you've got, I'll win it over.", deep: 'My childhood dog was my best friend.', sporty: 'Dogs — running buddies!', chill: "Both. A dog and a cat who are best mates." } },
+  { prompt: "What's your hidden talent?", opts: { sweet: 'I bake the best cupcakes in my street.', funny: 'I can do every single animal noise.', bold: "Winning people over. Is it working?", deep: 'I write poems when I can\'t sleep.', sporty: 'I can do a backflip into the pool.', chill: 'I can fall asleep literally anywhere.' } },
+  { prompt: "What's the first thing you notice about someone?", opts: { sweet: 'Their smile. Yours is lovely, by the way.', funny: 'Whether they laugh at my jokes. You did. Phew.', bold: "Confidence. You've got it.", deep: 'How they treat other people.', sporty: 'If they can keep up with me.', chill: 'Their vibe. Yours is good.' } },
+  { prompt: "Beach day or pool day?", opts: { sweet: 'Beach, so we can build sandcastles together.', funny: 'Pool, sharks can\'t get me there.', bold: "Wherever you are, I'll be there.", deep: 'Beach — the waves calm my mind.', sporty: 'Beach. Volleyball tournament, you and me.', chill: 'Pool. Lilo. Nap. Done.' } },
+  { prompt: "What's something you'd never do on a first date?", opts: { sweet: 'Be on my phone. You deserve my attention.', funny: 'Order spaghetti. Too risky.', bold: "Play it cool. I go all in.", deep: 'Pretend to be someone I\'m not.', sporty: 'Skip dessert. Fuel matters.', chill: 'Over-plan it. Keep it relaxed.' } },
+  { prompt: "If you won the final, what would you do with the prize?", opts: { sweet: 'Shout my family a holiday.', funny: 'Buy a lifetime supply of nuggets.', bold: "Take you on a fancy date. Obviously.", deep: 'Give some to a charity I care about.', sporty: 'New running shoes. Then more running shoes.', chill: 'Travel. No itinerary, just vibes.' } },
+  { prompt: "What's the best advice you've ever been given?", opts: { sweet: 'Always be kind — it costs nothing.', funny: 'Never trust a seagull near your chips.', bold: "Go after what you want. So… hi.", deep: 'Be yourself. Everyone else is taken.', sporty: 'Train hard, rest harder.', chill: "Don't sweat the small stuff." } },
+  { prompt: "Who would you call first when you leave the villa?", opts: { sweet: 'My mum. She\'ll be so proud.', funny: 'My pizza delivery guy. I miss him.', bold: "You, if you give me your number.", deep: 'My best friend. She knows me better than anyone.', sporty: 'My coach, to book a session.', chill: 'Nobody, I\'m going straight to the beach.' } },
+  { prompt: "What's your idea of a perfect Sunday?", opts: { sweet: 'Brunch with my favourite people.', funny: 'Pyjamas until 3pm. Zero regrets.', bold: "A spontaneous adventure. Want to come?", deep: 'A long walk and a good chat.', sporty: 'Long run, then a big feed.', chill: 'Hammock, book, maybe a nap.' } },
+  { prompt: "Have you ever been in love?", opts: { sweet: "Not yet… but I'm hopeful.", funny: "With a cheese toastie, yes. Deeply.", bold: "I think I'm getting there…", deep: 'Once. It taught me a lot.', sporty: 'With winning. Does that count?', chill: "Maybe? I don't overthink it." } },
+  { prompt: "What did you think when you first saw me?", opts: { sweet: '"Wow, they seem really lovely."', funny: '"Is that my future dance partner?"', bold: "I thought, 'I need to talk to them.'", deep: 'I wondered what your story was.', sporty: '"They look like they could win a challenge."', chill: '"Good vibes." Simple as that.' } },
+  { prompt: "What's your go-to dance move?", opts: { sweet: 'The twirl, so I can hold your hand.', funny: 'The sprinkler. It never fails.', bold: "Show me yours and I'll show you mine.", deep: "I just dance how the song makes me feel.", sporty: 'Full choreography. I\'ve practised.', chill: 'The gentle sway. Low effort, high vibes.' } },
+  { prompt: "Which islander would be the worst roommate?", opts: { sweet: "I couldn't pick, everyone's sweet!", funny: 'Whoever keeps eating the last Tim Tam.', bold: "Anyone who isn't you.", deep: "Honestly, we'd all learn to get along.", sporty: 'Anyone who sleeps in past 6am.', chill: 'Nobody, I could live with anyone.' } },
+  { prompt: "What scares you the most?", opts: { sweet: 'Not having my people around me.', funny: 'Spiders. And geese. Mostly geese.', bold: "Nothing. Well… maybe losing you.", deep: 'Not living up to my potential.', sporty: 'Coming second.', chill: "Not much, I keep things easy." } },
+  { prompt: "Describe me in one word.", opts: { sweet: 'Lovely.', funny: 'Chaotic. In a good way.', bold: 'Irresistible.', deep: 'Genuine.', sporty: 'Competitive.', chill: 'Easy.' } },
+  { prompt: "Would you rather have a candlelit dinner or a picnic?", opts: { sweet: 'A picnic with fairy lights. Best of both.', funny: 'Whichever has more snacks.', bold: "Candlelit. Fancy suits me.", deep: 'A picnic where we can actually talk.', sporty: 'Picnic after a hike!', chill: 'Picnic. Shoes off, sun out.' } },
+  { prompt: "What's the cheesiest pick-up line you know?", opts: { sweet: '"Are you a sunset? Because you make my day."', funny: '"Are you a toaster? Because I want to take a bath with— wait no."', bold: '"I\'m not a photographer, but I can picture us together."', deep: "I don't need one. I'd just be honest.", sporty: '"Are you a gym? Because I want to see you every day."', chill: '"Hey." That\'s it. Works every time.' } },
+  { prompt: "What's your star sign — and do you believe in it?", opts: { sweet: "I'm a Cancer, so yes, I cry at ads.", funny: "I'm a Leo, which explains a LOT.", bold: "Doesn't matter. We're written in the stars.", deep: "I like reading it, but we make our own path.", sporty: "Aries. Born competitive.", chill: "No idea, honestly." } },
+  { prompt: "What's the best holiday you've ever had?", opts: { sweet: 'A family trip to the snow. So cosy.', funny: 'The one where I got lost for 6 hours. Iconic.', bold: "This one. It's not over yet.", deep: 'Volunteering overseas. Changed my life.', sporty: 'A surf camp in Bali.', chill: 'A week doing absolutely nothing at the beach.' } },
+  { prompt: "Truth or dare?", opts: { sweet: "Truth — I've got nothing to hide.", funny: "Dare. I'll regret it immediately.", bold: "Dare. Make it a good one.", deep: "Truth. I like real conversations.", sporty: "Dare! Bring on the challenge.", chill: "Whatever, I'm easy." } },
+  { prompt: "What's your favourite thing about Australia?", opts: { sweet: 'How friendly everyone is.', funny: 'We call our friends "mate" and our enemies "mate".', bold: "The beaches. And the people on them.", deep: 'The land and its history — so special.', sporty: 'Sport is basically a religion here.', chill: 'Sunshine nearly every day.' } },
+  { prompt: "Do you think you could fall for someone in here?", opts: { sweet: "I think I already might be… 🙈", funny: "I fall for everyone. I'm very clumsy.", bold: "I'm falling as we speak.", deep: "If it's real, yes. I'm open to it.", sporty: "I'll give it everything I've got.", chill: "If it happens, it happens." } },
 ];
 
 const BEACH_HUT: Topic[] = [
@@ -85,15 +109,25 @@ const BEACH_HUT: Topic[] = [
   { prompt: '🎥 Beach Hut: Who\'s the biggest gossip in the villa?', opts: { sweet: "I won't say! I love everyone.", funny: 'The pool flamingo. It hears everything.', bold: "Me. I know everything, darling.", deep: "Gossip hurts people, I stay out of it.", sporty: 'Whoever loses the challenges, ha.', chill: 'No clue, I was asleep.' } },
   { prompt: '🎥 Beach Hut: Any secrets you want to share?', opts: { sweet: "I might be catching feelings…", funny: "I've never actually surfed. Shh.", bold: "I'm about to shake things up.", deep: "I miss my family a lot.", sporty: 'I do sit-ups at 3am.', chill: "Nope. Open book, babe." } },
   { prompt: '🎥 Beach Hut: Describe your partner in three words.', opts: { sweet: 'Kind. Gorgeous. Special.', funny: 'Snores. So. Loud.', bold: "Lucky to have me.", deep: 'Honest, thoughtful, real.', sporty: 'Fast, strong, competitive.', chill: 'Easy-going, fun, sunny.' } },
+  { prompt: '🎥 Beach Hut: What was the best part of today?', opts: { sweet: 'A really sweet chat by the pool.', funny: 'Watching someone fall in the pool fully dressed.', bold: "My big move. You'll see it soon.", deep: 'Opening up to someone for the first time.', sporty: 'Smashing the challenge.', chill: 'A two-hour nap in the sun.' } },
+  { prompt: '🎥 Beach Hut: Is anyone being fake in the villa?', opts: { sweet: 'I really hope not, everyone seems lovely.', funny: "Someone's tan. That's all I'll say.", bold: "Yes. And I'm going to call it out.", deep: "Some people are scared to show the real them.", sporty: "The people who say they don't care about winning.", chill: "Not my business, babe." } },
+  { prompt: '🎥 Beach Hut: Who would you steal if you could?', opts: { sweet: "I'd never steal… but I do have a little crush.", funny: 'The chef. I need better toast.', bold: "Oh, I've already got my eye on someone.", deep: "I'd rather build something honest.", sporty: 'Whoever won the last challenge.', chill: "Nobody, I'm happy floating." } },
+  { prompt: '🎥 Beach Hut: Give us your best villa prediction.', opts: { sweet: 'A wedding! Okay maybe not yet.', funny: 'Someone will cry over a burnt pancake.', bold: "I'm winning. Write that down.", deep: "A few couples are going to get really strong.", sporty: 'The next challenge is going to be messy.', chill: 'More sun, more vibes.' } },
+  { prompt: '🎥 Beach Hut: What would your mum say if she was watching?', opts: { sweet: '"I\'m so proud of you, darling!"', funny: '"Put some sunscreen on!"', bold: '"That\'s my kid! Go get them!"', deep: "She'd tell me to follow my heart.", sporty: '"Why aren\'t you stretching?"', chill: '"Are you sleeping enough?" Yes, Mum.' } },
+  { prompt: '🎥 Beach Hut: Rate your outfit today out of 10.', opts: { sweet: 'A 10 because I felt cute!', funny: 'A 3. I got dressed in the dark.', bold: "11. I know I looked good.", deep: "I wore my lucky necklace. That's a 10.", sporty: 'Sports kit is always a 10.', chill: 'Comfy. That\'s a 10 for me.' } },
+  { prompt: '🎥 Beach Hut: Any regrets so far?', opts: { sweet: 'Not telling someone how I feel sooner.', funny: "Eating six pancakes before the challenge.", bold: "None. I'd do it all again.", deep: "Maybe trusting too quickly.", sporty: 'Not winning by more.', chill: 'Nah, no regrets.' } },
+  { prompt: '🎥 Beach Hut: Send a message to someone at home.', opts: { sweet: 'Love you, Mum and Dad! 💕', funny: "To my dog: please don't eat my shoes.", bold: "To everyone at home: watch me win!", deep: "To my best friend: thank you for everything.", sporty: "To my team: I'm still training!", chill: "Hey legends, all good here!" } },
 ];
 
 const REACT = {
   liked: [
     '{n} lights up. "Okay, I love that answer!"', '{n} grins. "You actually get me, you know?"', '"Stop it, that\'s so me!" says {n}.',
     '{n} laughs and leans in. "Tell me more."', '"Right, you\'ve got my attention," says {n}.',
+    '{n} blushes. "Okay, that was really cute."', '"See, THIS is why I like talking to you," says {n}.', '{n} high-fives you. "Same energy!"',
+    '{n} can\'t stop smiling. "You\'re dangerous, you know that?"', '"I was hoping you\'d say that," says {n}.', '{n} bumps your shoulder. "You\'re fun."',
   ],
-  neutral: ['{n} nods. "Fair enough!"', '"Ha, cute," says {n}.', '{n} smiles. "Good to know."', '"Okay, okay, I see you," says {n}.'],
-  hated: ['{n} raises an eyebrow. "Hmm… not sure about that."', '"Oh. Okay then," says {n}, looking away.', '{n} goes a bit quiet.', '"That\'s a bit much," says {n}.'],
+  neutral: ['{n} nods. "Fair enough!"', '"Ha, cute," says {n}.', '{n} smiles. "Good to know."', '"Okay, okay, I see you," says {n}.', '"Interesting…" says {n}, thinking about it.', '{n} shrugs and smiles. "I can work with that."', '"Not what I expected, but I like it," says {n}.'],
+  hated: ['{n} raises an eyebrow. "Hmm… not sure about that."', '"Oh. Okay then," says {n}, looking away.', '{n} goes a bit quiet.', '"That\'s a bit much," says {n}.', '{n} checks on the pool. "Anyway…"', '"Right…" says {n}, sipping a drink awkwardly.', '{n} forces a smile. "Cool cool cool."'],
 };
 
 // --------------------------------------------------------------- season state
@@ -152,7 +186,7 @@ export type SeasonAction =
   | { a: 'breakup' };
 
 export const FINAL_DAY = 10;
-export const ACTIONS_PER_DAY = 3;
+export const ACTIONS_PER_DAY = 5;
 export const DAY_AURA = 25;
 export const WIN_AURA = 1000;
 export const RUNNERUP_AURA = 300;
@@ -323,7 +357,7 @@ function chat(s: Season, r: () => number, who: string): ActResult {
   if (s.actions <= 0) return { ok: false, msg: "You're out of chats today. Head to the firepit!" };
   const isl = islander(who);
   if (!isl || !s.cast.includes(who)) return { ok: false, msg: `${who} isn't in the villa right now.` };
-  const topic = Math.floor(r() * TOPICS.length);
+  const topic = freshTopic(s, r, TOPICS.length, 'c');
   const tones = shuffle(r, Object.keys(TONE_LABEL) as Tone[]).slice(0, 3);
   // Always offer at least one tone they like, so a good answer is possible.
   if (!tones.some((t) => PERSONAS[isl.persona].likes.includes(t))) tones[Math.floor(r() * 3)] = pickOne(r, PERSONAS[isl.persona].likes);
@@ -337,13 +371,25 @@ function chat(s: Season, r: () => number, who: string): ActResult {
 function hut(s: Season, r: () => number): ActResult {
   if (s.pending) return { ok: false, msg: 'Finish what you were doing first!' };
   if (s.phase !== 'morning' || s.actions <= 0) return { ok: false, msg: 'The Beach Hut is closed until tomorrow morning.' };
-  const topic = Math.floor(r() * BEACH_HUT.length);
+  const topic = freshTopic(s, r, BEACH_HUT.length, 'h');
   const tones = shuffle(r, Object.keys(TONE_LABEL) as Tone[]).slice(0, 3);
   s.pending = { type: 'hut', topic, tones };
   return {
     ok: true,
     scene: { kind: 'chat', speaker: 'Beach Hut', title: '🎥 The Beach Hut', lines: [BEACH_HUT[topic].prompt.replace('🎥 Beach Hut: ', '')], choices: tones.map((t) => ({ id: t, label: `${TONE_LABEL[t]} — "${BEACH_HUT[topic].opts[t]}"` })) },
   };
+}
+
+/** Picks a topic you haven't had recently (remembered in `s.seen` as "c12", "h3", …). */
+function freshTopic(s: Season, r: () => number, count: number, tag: string): number {
+  const recent = new Set(s.seen.filter((x) => x.startsWith(tag)));
+  const fresh = [...Array(count).keys()].filter((i) => !recent.has(`${tag}${i}`));
+  const pick = fresh.length ? fresh[Math.floor(r() * fresh.length)] : Math.floor(r() * count);
+  s.seen = [...s.seen.filter((x) => x !== `${tag}${pick}`), `${tag}${pick}`];
+  // Forget the oldest once most topics have been used, so they come round again.
+  const mine = s.seen.filter((x) => x.startsWith(tag));
+  if (mine.length > Math.floor(count * 0.75)) s.seen = s.seen.filter((x) => x !== mine[0]);
+  return pick;
 }
 
 function useAction(s: Season, lines: string[]): void {
@@ -365,7 +411,7 @@ function evening(s: Season, r: () => number): ActResult {
   if (s.phase !== 'morning') return { ok: false, msg: 'Not right now!' };
   s.phase = 'evening';
   const p = partnerName(s);
-  let pool = EVENTS.filter((e) => !s.seen.slice(-2).includes(e));
+  let pool = EVENTS.filter((e) => !s.seen.filter((x) => !/^[ch]\d+$/.test(x)).slice(-2).includes(e));
   if (!s.pool.length) pool = pool.filter((e) => e !== 'bombshell');
   if (!p) pool = pool.filter((e) => e !== 'heart');
   if (s.day <= 1) pool = pool.filter((e) => e !== 'movie');

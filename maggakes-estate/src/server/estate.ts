@@ -92,7 +92,30 @@ export class Estate extends DurableObject {
       await this.store(save);
       await ctx.storage.put('fix:jess-aura', true);
     });
-    // Fix 2026-11: Grace asked to move to Hayley's floor.
+    // Fix 2026-11 (take 2): Hayley's floor was full, so Grace gets the nearest free bedroom above it.
+    ctx.blockConcurrencyWhile(async () => {
+      if (await ctx.storage.get('fix:grace-move2')) return;
+      const note = (msg: string) => ctx.storage.put('fix:grace-move2', msg);
+      const grace = this.profile('Grace'), hayley = this.profile('Hayley');
+      if (!grace || !hayley?.home || !isResidence(hayley.home.zone)) { await note('skipped: Hayley has no residence floor'); return; }
+      if (grace.home && isResidence(grace.home.zone)) { await note(`already on ${grace.home.zone}`); return; }
+      const taken = new Set([...this.profiles.values()].filter((p) => p.home && isResidence(p.home.zone)).map((p) => `${p.home!.zone}:${p.home!.room}`));
+      let seq = (residenceNumber(hayley.home.zone) - 1) * 2;
+      while (taken.has(`${residenceHome(seq).zone}:${residenceHome(seq).room}`)) seq++;
+      const home = residenceHome(seq);
+      grace.home = home;
+      await this.putProfile(grace);
+      const save = await this.load('Grace');
+      save.home = home;
+      save.lastZone = home.zone;
+      save.room = []; // furniture was placed for the old room's shape; it's all still in her inventory
+      await this.store(save);
+      // Newcomers are given rooms in order, so skip past the one Grace took.
+      const next = (await ctx.storage.get<number>('resSeq')) ?? 0;
+      if (next <= seq) await ctx.storage.put('resSeq', seq + 1);
+      await note(`moved Grace to ${home.zone} room ${home.room}`);
+    });
+    // (first attempt, kept so it never runs again)
     ctx.blockConcurrencyWhile(async () => {
       if (await ctx.storage.get('fix:grace-move')) return;
       const note = (msg: string) => ctx.storage.put('fix:grace-move', msg);
@@ -235,7 +258,7 @@ export class Estate extends DurableObject {
       players.push({ name: live.name, vip: live.vip, admin: !!this.profile(live.name)?.admin, aura: live.aura, total: live.totalAura, log: live.auraLog ?? [] });
     }
     const adminlog = (await this.ctx.storage.get('adminlog')) ?? [];
-    const fixes = { grace: await this.ctx.storage.get('fix:grace-move'), homes: [...this.profiles.values()].map((p) => [p.name, p.home?.zone, p.home?.room]) };
+    const fixes = { grace: await this.ctx.storage.get('fix:grace-move2'), resSeq: await this.ctx.storage.get('resSeq'), homes: [...this.profiles.values()].map((p) => [p.name, p.home?.zone, p.home?.room]) };
     await kv.put('reports', JSON.stringify({ at: Date.now(), reports: this.reports, villa, players, adminlog, fixes }));
   }
 

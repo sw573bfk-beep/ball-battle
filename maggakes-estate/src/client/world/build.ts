@@ -54,7 +54,7 @@ export function buildZone(id: ZoneId): Zone {
   const pools: Box2[] = (L.pools ?? []).map(([x, z, w, d]) => ({ x0: W(x), z0: Z(z), x1: W(x + w), z1: Z(z + d) }));
 
   // ---------------------------------------------------------------- floors
-  for (const room of L.rooms) {
+  L.rooms.forEach((room, roomIdx) => {
     const [x, z, w, d] = room.r;
     const shape = new THREE.Shape();
     shape.moveTo(W(x), -Z(z)); shape.lineTo(W(x + w), -Z(z)); shape.lineTo(W(x + w), -Z(z + d)); shape.lineTo(W(x), -Z(z + d)); shape.closePath();
@@ -70,11 +70,65 @@ export function buildZone(id: ZoneId): Zone {
     const uv = geo.attributes.uv as THREE.BufferAttribute;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 4, uv.getY(i) / 4);
     const tex = floorTexture(room.floor, room.tint);
-    const m = new THREE.MeshStandardMaterial({ map: tex, roughness: ROUGH[room.floor] ?? 0.6, metalness: 0, envMapIntensity: room.floor === 'marble' ? 1.4 : 0.8 });
+    // Rooms can overlap (e.g. the villa lawn runs under every area). Later rooms win, so give
+    // each one a small depth bias — otherwise overlapping floors flicker and stripe.
+    const m = new THREE.MeshStandardMaterial({ map: tex, roughness: ROUGH[room.floor] ?? 0.6, metalness: 0, envMapIntensity: room.floor === 'marble' ? 1.4 : 0.8, polygonOffset: true, polygonOffsetFactor: -roomIdx * 0.5, polygonOffsetUnits: -roomIdx * 2 });
     const floor = new THREE.Mesh(geo, m);
     floor.receiveShadow = true;
     floor.position.y = 0;
     root.add(floor);
+  });
+
+  // ---------------------------------------------------------------- race track
+  if (L.race) {
+    const pts = [[L.race.start[0], L.race.start[1]], ...L.race.checkpoints].map(([x, z]) => new THREE.Vector2(W(x), Z(z)));
+    const ROAD = 6;
+    const asphalt = new THREE.MeshStandardMaterial({ color: '#3a3d44', roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -32 });
+    const paint = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -40 });
+    const kerbA = new THREE.MeshStandardMaterial({ color: '#e63946', roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -40 });
+    const flat = (w: number, d: number, m: THREE.Material, x: number, z: number, ry: number, y = 0.012) => {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m);
+      mesh.rotation.x = -Math.PI / 2; mesh.rotation.z = ry; mesh.position.set(x, y, z);
+      mesh.receiveShadow = true; root.add(mesh);
+      return mesh;
+    };
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      const len = a.distanceTo(b);
+      if (len < 0.5) continue;
+      const ang = Math.atan2(b.x - a.x, b.y - a.y);
+      const mx = (a.x + b.x) / 2, mz = (a.y + b.y) / 2;
+      // road, with white edge lines and red/white kerbs
+      flat(ROAD, len + ROAD, asphalt, mx, mz, -ang);
+      const nx = Math.cos(ang), nz = -Math.sin(ang);
+      for (const side of [-1, 1]) {
+        flat(0.18, len, paint, mx + nx * side * (ROAD / 2 - 0.3), mz + nz * side * (ROAD / 2 - 0.3), -ang, 0.016);
+        for (let k = 0; k < Math.floor(len / 1.2); k++) {
+          const t = (k + 0.5) / Math.floor(len / 1.2) - 0.5;
+          flat(0.35, 0.6, k % 2 ? paint : kerbA, mx + nx * side * (ROAD / 2 + 0.17) + Math.sin(ang) * t * len, mz + nz * side * (ROAD / 2 + 0.17) + Math.cos(ang) * t * len, -ang, 0.014);
+        }
+      }
+      // direction arrows painted on the road
+      for (let k = 1; k < Math.floor(len / 7); k++) {
+        const t = k / Math.floor(len / 7) - 0.5;
+        const arrow = new THREE.Shape();
+        arrow.moveTo(0, 0.9); arrow.lineTo(0.9, -0.3); arrow.lineTo(0.45, -0.3); arrow.lineTo(0, 0.25); arrow.lineTo(-0.45, -0.3); arrow.lineTo(-0.9, -0.3); arrow.closePath();
+        const g = new THREE.ShapeGeometry(arrow);
+        g.rotateX(-Math.PI / 2);
+        const am = new THREE.Mesh(g, paint);
+        am.rotation.y = ang + Math.PI; // the shape points along -z after rotateX, so turn it round
+        am.position.set(mx + Math.sin(ang) * t * len, 0.017, mz + Math.cos(ang) * t * len);
+        root.add(am);
+      }
+    }
+    // chequered start / finish line at the last checkpoint
+    const fin = pts[pts.length - 1], prev = pts[pts.length - 2];
+    const fang = Math.atan2(fin.x - prev.x, fin.y - prev.y);
+    const black = new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -40 });
+    for (let i = 0; i < 10; i++) for (let j = 0; j < 2; j++) {
+      const u = (i - 4.5) * 0.6, v = (j - 0.5) * 0.6;
+      flat(0.6, 0.6, (i + j) % 2 ? paint : black, fin.x + Math.cos(fang) * u + Math.sin(fang) * v, fin.y - Math.sin(fang) * u + Math.cos(fang) * v, -fang, 0.018);
+    }
   }
 
   // ---------------------------------------------------------------- walls

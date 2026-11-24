@@ -38,14 +38,18 @@ Charis & Gabby (6th), Milla (7th).
   Some items need a certain floor, some are VIP-only.
 - **Decorate:** stand in your own bedroom and press *Decorate my room*. Everyone on that floor sees it.
 - **Car park:** pick a car, paint and wheels at the garage, then press *Drive*.
-- **Love Island Mode:** couple up with friends or the islanders, win challenges for Villa Points,
+- **Love Island Mode:** 5 chats a day, 36 chat topics and 12 Beach Hut questions (no repeats until
+  you've seen most of them). Couple up with friends or the islanders, win challenges for Villa Points,
   recouple at the firepit, and reach 1,500 Villa Points while coupled to win the final.
 
 - **🎉 Fun menu (F):** hop in a **mini kart** and drive on any floor, **daily spin wheel**, **party**
   (disco lights + music; dancing earns Aura), **tag** with friends, **fireworks** (buy in the shop),
   your **pet** (adopt a puppy, kitten or bunny at the 2nd floor Pet Room — it follows you everywhere),
   **golden shell** tracker (30 hidden around the mansion, +1,000 Aura for finding them all) and **music**.
-- **🏁 Kart race** at the car park (lap timer + best-lap board) and a **🌊 water slide** on the rooftop.
+- **🏁 Kart race** at the car park on a painted track (kerbs, arrows, start/finish line), with a
+  3-2-1 countdown, a yellow arrow over your kart pointing to the next checkpoint, a light beam on
+  each checkpoint, **↺ Reset kart** (or **R**) if you get stuck, a lap timer and a best-lap board.
+  Plus a **🌊 water slide** on the rooftop.
 - **Day & night:** a shared 20-minute day — sunrise, sunset and starry nights for everyone at once.
 - **⭐ Progress (levels, achievements, weekly events).** Every Aura you earn is XP. Levels go up to
   100, and each gives an Aura reward, with badges and free items at milestones. There are 46

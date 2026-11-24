@@ -1526,8 +1526,11 @@ function gantry(o: Opts): Prop {
   const w = o.w ?? 5;
   for (const x of [-w / 2, w / 2]) cyl(g, 0.1, 0.1, 3.6, mat('#ffffff', 0.4), x, 0, 0, 10);
   const tex = textTexture(String(o.text ?? '🏁 START  ·  FINISH 🏁'), { color: '#ffffff', bg: '#111111', w: 1024, h: 160, size: 76 });
-  const banner = plane(g, w, w * 0.156, new THREE.MeshStandardMaterial({ map: tex, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.6, side: THREE.DoubleSide }), 0, 3.3, 0);
+  // Two one-sided banners back to back, so the words read correctly from both directions.
+  const bm = new THREE.MeshStandardMaterial({ map: tex, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.6 });
+  const banner = plane(g, w, w * 0.156, bm, 0, 3.3, 0.01);
   banner.castShadow = true;
+  plane(g, w, w * 0.156, bm, 0, 3.3, -0.01).rotation.y = Math.PI;
   // Checkered line on the road
   const c = document.createElement('canvas');
   c.width = 256; c.height = 32;

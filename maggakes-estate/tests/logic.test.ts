@@ -434,4 +434,21 @@ test('WEEKLY EVENTS: rotate each week, goals from stats, exclusives only that we
   assert.equal(buy(s, other.id).ok, false, 'other weeks\' exclusives can\'t');
   assert.equal(typeof weekIndex(), 'number');
 });
+test('LOVE ISLAND: 5 chats a day and no repeated topics in a row of 15', () => {
+  let s = seasonAct(undefined, { a: 'start' }).season!;
+  s = seasonAct(s, { a: 'answer', choice: s.cast[0] }).season!;
+  assert.equal(s.actions, 5);
+  const topics: number[] = [];
+  for (let i = 0; i < 15; i++) {
+    const who = s.cast[i % s.cast.length];
+    const r = seasonAct(s, { a: 'chat', who });
+    if (!r.ok) { s.actions = 5; s.phase = 'morning'; continue; }
+    const pend = r.season!.pending as { topic: number; tones: string[] };
+    topics.push(pend.topic);
+    s = seasonAct(r.season, { a: 'answer', choice: pend.tones[0] }).season!;
+    s.actions = 5; s.phase = 'morning';
+  }
+  assert.ok(topics.length >= 10, 'chats happened');
+  assert.equal(new Set(topics).size, topics.length, `no repeats: ${topics}`);
+});
 console.log(`\n${n} tests passed`);

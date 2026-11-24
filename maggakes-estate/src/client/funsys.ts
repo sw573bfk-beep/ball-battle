@@ -25,7 +25,8 @@ export class Fun {
   private rockets: { s: THREE.Sprite; x: number; z: number; y: number; top: number; color: number }[] = [];
   private party: { until: number; group: THREE.Group; lights: THREE.PointLight[] } | null = null;
   private tag: { it: string; until: number; marker: THREE.Group; lastSent: number } | null = null;
-  private race: { start: number; next: number; cps: { x: number; z: number }[]; ring: THREE.Mesh; begun: boolean } | null = null;
+  private race: { start: number; next: number; cps: { x: number; z: number }[]; ring: THREE.Mesh; beam: THREE.Mesh; arrow: THREE.Mesh; begun: boolean; sx: number; sz: number; heading: number } | null = null;
+  get racing(): boolean { return !!this.race; }
   private slide: { t0: number; pts: THREE.CatmullRomCurve3 } | null = null;
   private dayTimer = 0;
   private spinUI: { land: (i: number, msg: string) => void } | null = null;
@@ -387,7 +388,15 @@ export class Fun {
     this.g.placeCar(W(sx), Z(sz), heading);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.15, 10, 40), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.9 }));
     zone.root.add(ring);
-    this.race = { start: performance.now() + 3000, next: 0, cps: L.race.checkpoints.map(([x, z]) => ({ x: W(x), z: Z(z) })), ring, begun: false };
+    // A tall glowing beam so the next checkpoint is easy to spot from anywhere.
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 14, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
+    zone.root.add(beam);
+    // An arrow floating over your kart that points at the next checkpoint.
+    const ag = new THREE.ConeGeometry(0.35, 0.9, 12);
+    ag.rotateX(Math.PI / 2);
+    const arrow = new THREE.Mesh(ag, new THREE.MeshBasicMaterial({ color: 0xffd23f }));
+    zone.root.add(arrow);
+    this.race = { start: performance.now() + 3000, next: 0, cps: L.race.checkpoints.map(([x, z]) => ({ x: W(x), z: Z(z) })), ring, beam, arrow, begun: false, sx: W(sx), sz: Z(sz), heading };
     this.g.lockMove = true;
     const cd = $('#countdown');
     ['3', '2', '1', 'GO!'].forEach((n, i) => setTimeout(() => { cd.textContent = n; cd.classList.remove('on'); void cd.offsetWidth; cd.classList.add('on'); }, i * 1000));
@@ -397,6 +406,8 @@ export class Fun {
   private cancelRace(): void {
     if (!this.race) return;
     this.race.ring.removeFromParent();
+    this.race.beam.removeFromParent();
+    this.race.arrow.removeFromParent();
     this.race = null;
     this.g.lockMove = false;
   }
@@ -408,6 +419,9 @@ export class Fun {
     const cp = r.cps[r.next];
     r.ring.position.set(cp.x, 2.4, cp.z);
     r.ring.rotation.y = t;
+    r.beam.position.set(cp.x, 7, cp.z);
+    r.arrow.position.set(this.g.pos.x, 2.6 + Math.sin(t * 4) * 0.1, this.g.pos.y);
+    r.arrow.rotation.y = Math.atan2(cp.x - this.g.pos.x, cp.z - this.g.pos.y);
     const now = performance.now();
     if (now < r.start) return;
     if (Math.hypot(this.g.pos.x - cp.x, this.g.pos.y - cp.z) < 4.5) {
@@ -420,6 +434,16 @@ export class Fun {
         return;
       }
     }
+  }
+
+  /** Stuck? Put the kart back on the last checkpoint, facing the next one (the timer keeps going). */
+  resetRace(): void {
+    const r = this.race;
+    if (!r || performance.now() < r.start) return;
+    const from = r.next === 0 ? { x: r.sx, z: r.sz } : r.cps[r.next - 1];
+    const to = r.cps[r.next];
+    this.g.placeCar(from.x, from.z, Math.atan2(to.x - from.x, to.z - from.z));
+    toast('↺ Back on track!');
   }
 
   // ------------------------------------------------------------ water slide
@@ -498,7 +522,7 @@ export class Fun {
     if (this.race) {
       const now = performance.now();
       cls = 'race';
-      text = now < this.race.start ? '🏁 Get ready…' : `🏁 ${((now - this.race.start) / 1000).toFixed(2)}s · checkpoint ${this.race.next + 1}/${this.race.cps.length}`;
+      text = now < this.race.start ? '🏁 Get ready…' : `🏁 ${((now - this.race.start) / 1000).toFixed(2)}s · checkpoint ${this.race.next + 1}/${this.race.cps.length} · follow the yellow arrow (R = reset)`;
     } else if (this.tag) {
       cls = 'tag';
       text = `🏃 TAG · ${this.tag.it === this.g.save.name ? "YOU'RE IT!" : `${this.tag.it} is IT — run!`} · ${fmt(this.tag.until - Date.now())}`;

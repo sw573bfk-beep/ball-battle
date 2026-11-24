@@ -232,6 +232,8 @@ export class Avatar {
   emoteUntil = 0;
   /** Optional prop held in the right hand (e.g. the host's microphone). */
   holding: 'mic' | null = null;
+  /** How far the legs swing when walking — smaller in long skirts so legs stay inside. */
+  private stride = 0.42;
 
   constructor(look: Look, name?: string, vip = false, sub?: string, holding: 'mic' | null = null) {
     this.look = normalizeLook(look);
@@ -415,6 +417,7 @@ export class Avatar {
     }
 
     // ---- legs
+    this.stride = st.legs === 'maxi' ? 0.16 : st.legs === 'midi' ? 0.22 : st.legs === 'knee' ? 0.3 : 0.42;
     if (!['knee', 'midi', 'maxi', 'mini'].includes(st.legs)) mesh(SPHERE, isDress ? top : bottom, p, 0, hipY - 0.035, 0).scale.set(profile[2][0] * 0.98, 0.11, profile[2][0] * depth * 0.98);
     const thighR = (girl ? 0.077 : 0.086) * ((({ slim: 0.9, curvy: 1.08, strong: 1.12, athletic: 1.03 }) as Record<string, number>)[L.build ?? 'average'] ?? 1);
     const thighLen = hipY * 0.47, shinLen = hipY * 0.45;
@@ -505,43 +508,52 @@ export class Avatar {
     nose.scale.set(girl ? 0.014 : 0.017, 0.032, 0.02);
     nose.rotation.x = -0.25;
     mesh(SPHERE, skin, h, 0, -0.045, rz * 1.02).scale.set(girl ? 0.015 : 0.019, 0.013, 0.014);
-    // Eyes
-    const ey = 0.012, ex = girl ? 0.036 : 0.038, ez = rz * 0.935;
-    const white = mat('#f8f6f2', 0.25);
-    const iris = mat(L.eyes ?? '#4a2e1a', 0.2);
+    // Eyes — big, round and friendly, with two sparkles. Each eye is turned to follow
+    // the curve of the face so the iris never sinks into the eye white.
+    const ey = 0.006, ex = girl ? 0.037 : 0.039, ez = rz * 0.9;
+    const white = mat('#ffffff', 0.3);
+    const iris = mat(L.eyes ?? '#4a2e1a', 0.25);
     const pupil = mat('#0b0806', 0.1);
-    const shine = mat('#ffffff', 0.1, 0, '#ffffff', 1.2);
-    const lid = mat(girl ? '#2a1a14' : new THREE.Color(L.skin).multiplyScalar(0.6).getStyle(), 0.6);
+    const shine = mat('#ffffff', 0.1, 0, '#ffffff', 1.4);
+    const lash = mat(girl ? '#1f1410' : new THREE.Color(L.hairColor).multiplyScalar(0.55).getStyle(), 0.6);
     for (const s of [-1, 1]) {
       const eye = new THREE.Group();
       eye.position.set(s * ex, ey, ez);
+      eye.rotation.y = s * 0.3;
       h.add(eye);
-      mesh(SPHERE, white, eye, 0, 0, 0, false).scale.set(0.019, girl ? 0.0125 : 0.011, 0.01);
-      mesh(cached('iris', () => new THREE.CircleGeometry(0.0085, 20)), iris, eye, 0, 0, 0.0098, false);
-      mesh(cached('pupil', () => new THREE.CircleGeometry(0.0042, 16)), pupil, eye, 0, 0, 0.0101, false);
-      mesh(SPHERE, shine, eye, 0.003, 0.003, 0.0105, false).scale.setScalar(0.0022);
-      const lidLine = mesh(cached(girl ? 'lidg' : 'lidb', () => new THREE.TorusGeometry(0.019, girl ? 0.0028 : 0.0018, 6, 18, Math.PI)), lid, eye, 0, girl ? 0.002 : 0.001, 0.004, false);
-      lidLine.scale.y = 0.62;
+      mesh(SPHERE, white, eye, 0, 0, 0, false).scale.set(0.0215, 0.024, 0.009);
+      mesh(cached('iris2', () => new THREE.CircleGeometry(0.0155, 24)), iris, eye, 0, -0.002, 0.0094, false);
+      mesh(cached('pupil2', () => new THREE.CircleGeometry(0.0078, 20)), pupil, eye, 0, -0.002, 0.0096, false);
+      mesh(cached('shine1', () => new THREE.CircleGeometry(0.0048, 14)), shine, eye, s * -0.005, 0.005, 0.0098, false);
+      mesh(cached('shine2', () => new THREE.CircleGeometry(0.0022, 10)), shine, eye, s * 0.005, -0.007, 0.0098, false);
+      // Upper lash line (thicker for girls, with a little flick)
+      const lid = mesh(cached(girl ? 'lid2g' : 'lid2b', () => new THREE.TorusGeometry(0.0215, girl ? 0.0032 : 0.0022, 6, 20, Math.PI)), lash, eye, 0, 0.001, 0.003, false);
+      lid.scale.y = 1.08;
       if (girl) {
-        const flick = mesh(cached('flick', () => new THREE.BoxGeometry(0.012, 0.0025, 0.003)), lid, eye, s * 0.022, 0.006, 0.006, false);
-        flick.rotation.z = s * 0.5;
+        const flick = mesh(cached('flick2', () => new THREE.BoxGeometry(0.011, 0.003, 0.003)), lash, eye, s * 0.023, 0.009, 0.004, false);
+        flick.rotation.z = s * 0.6;
       }
       this.eyes.push(eye);
-      // Eyebrow
-      const browCol = new THREE.Color(L.hairColor).multiplyScalar(0.8).getStyle();
-      const brow = mesh(cached(girl ? 'browg' : 'browb', () => new RoundedBoxGeometry(0.036, girl ? 0.0065 : 0.0095, 0.006, 2, 0.003)), mat(browCol, 0.8), h, s * (ex + 0.002), ey + (girl ? 0.034 : 0.03), rz * 0.9, false);
-      brow.rotation.z = s * (girl ? -0.18 : -0.08);
-      brow.rotation.y = s * 0.25;
+      // Soft, slightly arched eyebrow
+      const browCol = new THREE.Color(L.hairColor).multiplyScalar(0.85).getStyle();
+      const brow = mesh(cached(girl ? 'brow2g' : 'brow2b', () => new THREE.TorusGeometry(0.02, girl ? 0.0028 : 0.004, 6, 14, Math.PI * 0.7)), mat(browCol, 0.8), h, s * (ex + 0.001), ey + 0.036, rz * 0.86, false);
+      brow.rotation.z = Math.PI * 0.15;
+      brow.rotation.y = s * 0.3;
     }
-    // Lips
+    // Mouth — a gentle closed smile (lip colour), with a soft lower lip for girls.
     const lipM = mat(L.lips ?? '#c9867a', girl ? 0.35 : 0.6);
-    mesh(SPHERE, lipM, h, 0, -0.064, rz * 0.96, false).scale.set(girl ? 0.022 : 0.021, girl ? 0.0065 : 0.0045, 0.009);
-    mesh(SPHERE, lipM, h, 0, -0.073, rz * 0.94, false).scale.set(girl ? 0.02 : 0.019, girl ? 0.0085 : 0.006, 0.009);
-    if (girl) for (const s of [-1, 1]) {
-      const b = mesh(SPHERE, mat(new THREE.Color(L.skin).lerp(new THREE.Color('#ff8a9a'), 0.35).getStyle(), 0.9), h, s * 0.056, -0.028, rz * 0.8, false);
-      b.scale.set(0.022, 0.012, 0.008);
-      (b.material as THREE.MeshStandardMaterial).transparent = true;
-      (b.material as THREE.MeshStandardMaterial).opacity = 0.22;
+    const smile = mesh(cached(girl ? 'smileg' : 'smileb', () => new THREE.TorusGeometry(0.018, girl ? 0.0034 : 0.0028, 6, 16, Math.PI)), lipM, h, 0, -0.058, rz * 0.97, false);
+    smile.rotation.z = Math.PI;
+    smile.scale.y = 0.55;
+    if (girl) mesh(SPHERE, lipM, h, 0, -0.069, rz * 0.94, false).scale.set(0.012, 0.0045, 0.007);
+    // Rosy cheeks for everyone (stronger for girls)
+    for (const s of [-1, 1]) {
+      const b = mesh(SPHERE, mat(new THREE.Color(L.skin).lerp(new THREE.Color('#ff7a92'), 0.5).getStyle(), 0.9), h, s * 0.058, -0.03, rz * 0.82, false);
+      b.scale.set(0.02, 0.011, 0.008);
+      b.rotation.y = s * 0.5;
+      const bm = b.material as THREE.MeshStandardMaterial;
+      bm.transparent = true;
+      bm.opacity = girl ? 0.4 : 0.18;
     }
     // Facial hair
     if (!girl && L.beard && L.beard !== 'none') {
@@ -824,10 +836,11 @@ export class Avatar {
       this.head.rotation.z = -0.12;
       this.lLeg.rotation.z = 0.12;
     } else if (speed > 0.05) {
-      this.lLeg.rotation.x = s * 0.6 * speed;
-      this.rLeg.rotation.x = -s * 0.6 * speed;
-      this.lKnee.rotation.x = Math.max(0, -Math.cos(this.phase)) * 0.75 * speed;
-      this.rKnee.rotation.x = Math.max(0, Math.cos(this.phase)) * 0.75 * speed;
+      const st = this.stride * Math.min(1, speed), kn = Math.min(1, speed) * (this.stride < 0.3 ? 0.35 : 0.65);
+      this.lLeg.rotation.x = s * st;
+      this.rLeg.rotation.x = -s * st;
+      this.lKnee.rotation.x = Math.max(0, -Math.cos(this.phase)) * kn;
+      this.rKnee.rotation.x = Math.max(0, Math.cos(this.phase)) * kn;
       L.rotation.x = -s * 0.5 * speed;
       R.rotation.x = s * 0.5 * speed;
       this.lElbow.rotation.x = -0.25 - Math.max(0, s) * 0.4 * speed;

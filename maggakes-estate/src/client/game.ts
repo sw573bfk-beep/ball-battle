@@ -553,6 +553,7 @@ export class Game {
     const t = this.elapsed;
     this.updatePlayer(dt, t);
     this.updatePeers(dt, t);
+    this.lod(dt);
     updateWanderers(this.wanderers, this.zone, dt, t);
     for (const f of this.ticks) f(t, dt);
     for (const m of this.markers) m.prop.tick?.(t, dt);
@@ -675,6 +676,29 @@ export class Game {
     });
   }
 
+  private lodTimer = 0;
+  /**
+   * Level of detail for characters: hide ones far from you and only let nearby ones cast
+   * shadows. Busy floors like the Love Island villa have a dozen islanders plus players.
+   */
+  private lod(dt: number): void {
+    this.lodTimer -= dt;
+    if (this.lodTimer > 0) return;
+    this.lodTimer = 0.25;
+    const far = this.gfx.quality === 'low' ? 18 : this.gfx.quality === 'medium' ? 24 : 30;
+    const shadowNear = this.gfx.quality === 'high' ? 12 : 7;
+    const apply = (obj: THREE.Object3D, d: number) => {
+      obj.visible = d < far;
+      const cast = d < shadowNear;
+      if (obj.userData.cast !== cast) {
+        obj.userData.cast = cast;
+        obj.traverse((o) => { if ((o as THREE.Mesh).isMesh) o.castShadow = cast; });
+      }
+    };
+    for (const w of this.wanderers) apply(w.obj, Math.hypot(w.x - this.pos.x, w.z - this.pos.y));
+    for (const p of this.peers.values()) apply(p.avatar.root, Math.hypot(p.x - this.pos.x, p.z - this.pos.y));
+  }
+
   /** What goes on my own name tag. */
   private myTag(): { color?: string; badge?: string; level: number } {
     return { ...(this.save.profile ?? {}), level: levelOf(this.save.xp ?? this.save.totalAura) };
@@ -771,7 +795,7 @@ export class Game {
         p.avatar.root.position.set(p.x, mode === 'soak' ? 0.15 : 0, p.z);
       }
       p.avatar.root.rotation.y = p.ry;
-      p.avatar.update(dt, t, p.a === 1 ? Math.min(1, dist * 3 + 0.5) : 0, mode);
+      if (p.avatar.root.visible) p.avatar.update(dt, t, p.a === 1 ? Math.min(1, dist * 3 + 0.5) : 0, mode);
     }
   }
 
@@ -836,6 +860,7 @@ export class Game {
     const acts: Action[] = [];
     const near = (x: number, z: number, r: number) => Math.hypot(this.pos.x - x, this.pos.y - z) < r;
     if (this.car) {
+      if (this.fun.racing) acts.push({ key: 'racereset', label: '↺ Reset kart', run: () => this.fun.resetRace() });
       acts.push({ key: 'exitcar', label: '🚪 Get out', run: () => this.stopDriving(true) });
     } else if (this.decor) {
       // decor dock handles its own buttons
@@ -920,6 +945,7 @@ export class Game {
     if (k === 'escape') { closeAllSheets(); if (this.decor) this.endDecor(); return; }
     if (document.querySelector('#modals .modal')) return;
     if (k === ' ' && !this.car) { this.jump(); return; }
+    if (k === 'r' && this.car && this.fun.racing) { this.fun.resetRace(); return; }
     if (k === 'e' || k === ' ') { this.actions[0]?.run(); return; }
     if (k === 'enter') { ($('#chatin') as HTMLInputElement).focus(); return; }
     if (k === 'm') openMap(this.ctx);
