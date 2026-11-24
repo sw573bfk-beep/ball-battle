@@ -262,6 +262,18 @@ export class Avatar {
     this.bubbleUntil = performance.now() + 6000;
   }
 
+  private jumpV = 0;
+  private jumpY = 0;
+  /** A little hop. Does nothing if already in the air. */
+  jump(): boolean {
+    if (this.jumpY > 0 || this.jumpV !== 0) return false;
+    this.jumpV = 5.4;
+    this.emote = null;
+    return true;
+  }
+  get airborne(): boolean { return this.jumpY > 0; }
+  emoteClear(): void { this.emote = null; }
+
   doEmote(e: Emote): void {
     this.emote = e;
     this.emoteUntil = performance.now() + (e === 'sit' ? 600_000 : 3500);
@@ -829,6 +841,18 @@ export class Avatar {
       if (this.holding === 'mic') { R.rotation.x = -0.9; this.rElbow.rotation.x = -1.2; }
     }
     if (mode === 'soak') this.body.position.y = -0.05 - (hip - 0.9);
+    // Jumping: simple gravity arc, knees tucked and arms up.
+    if (this.jumpV !== 0 || this.jumpY > 0) {
+      this.jumpY += this.jumpV * dt;
+      this.jumpV -= 15 * dt;
+      if (this.jumpY <= 0) { this.jumpY = 0; this.jumpV = 0; }
+      else {
+        this.body.position.y += this.jumpY;
+        this.lKnee.rotation.x = this.rKnee.rotation.x = 0.7;
+        this.lLeg.rotation.x = this.rLeg.rotation.x = -0.45;
+        L.rotation.z = 0.9; R.rotation.z = -0.9;
+      }
+    }
     // Blink
     if (t > this.blinkAt) { this.blinkAt = t + 2.5 + Math.random() * 3; }
     const closed = t > this.blinkAt - 0.12;

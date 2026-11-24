@@ -35,7 +35,7 @@ export interface PlacedItem {
 }
 
 /** Your bedroom's look. */
-export interface RoomStyle { wall?: string; floor?: string; tint?: string }
+export interface RoomStyle { wall?: string; floor?: string; tint?: string; /** Hide the bedroom's built-in furniture. */ empty?: boolean }
 export const ROOM_FLOORS = ['wood', 'darkwood', 'marble', 'tile', 'carpet', 'pinkcarpet', 'terrazzo', 'stone', 'deck', 'grass', 'sand'] as const;
 
 export interface DailyState {
@@ -279,6 +279,7 @@ export function setRoomStyle(save: Save, r: RoomStyle): Result {
     wall: isHex(r.wall) ? r.wall.toLowerCase() : undefined,
     floor: (ROOM_FLOORS as readonly string[]).includes(String(r.floor)) ? String(r.floor) : undefined,
     tint: isHex(r.tint) ? r.tint.toLowerCase() : undefined,
+    ...(r.empty === true ? { empty: true } : {}),
   };
   return { ok: true, msg: '🎨 Bedroom updated!' };
 }

@@ -55,8 +55,9 @@ Charis & Gabby (6th), Milla (7th).
   - **Garage:** any paint colour and any wheel colour for every car, including the Mini Kart.
   - **Pets:** any fur and collar colour.
 
-Controls: WASD / arrows (or the joystick on phones) to move, drag to turn the camera,
-scroll / pinch to zoom, **E** to interact, **Enter** to chat, **1–5** for emotes.
+Controls: WASD / arrows (or the joystick on phones) to move, **Shift** to sprint, **Space** to jump
+(🏃 and ⤴️ buttons on phones), drag to turn the camera, scroll / pinch to zoom, **E** to interact,
+**Enter** to chat, **1–5** for emotes. Toilets, sinks, showers and baths can all be used.
 
 ## Developing
 

@@ -82,6 +82,33 @@ export class Estate extends DurableObject {
       }
       await ctx.storage.put('grant:testers-all', true);
     });
+    // Fix 2026-11: Jess spam-clicked a task replay for ~2M Aura. Keep a fair 60,000.
+    ctx.blockConcurrencyWhile(async () => {
+      if (await ctx.storage.get('fix:jess-aura')) return;
+      const save = await this.load('Jess');
+      if (save.aura > 60_000) earn(save, 60_000 - save.aura, 0, 'Adjusted: removed replay-spam Aura');
+      await this.store(save);
+      await ctx.storage.put('fix:jess-aura', true);
+    });
+    // Fix 2026-11: Grace asked to move to Hayley's floor.
+    ctx.blockConcurrencyWhile(async () => {
+      if (await ctx.storage.get('fix:grace-move')) return;
+      const note = (msg: string) => ctx.storage.put('fix:grace-move', msg);
+      const grace = this.profile('Grace'), hayley = this.profile('Hayley');
+      if (!grace || !hayley?.home || !isResidence(hayley.home.zone)) { await note('skipped: Hayley has no residence floor'); return; }
+      const zone = hayley.home.zone;
+      const taken = new Set([...this.profiles.values()].filter((p) => p.home?.zone === zone).map((p) => p.home!.room));
+      const room = ['a', 'b'].find((r) => !taken.has(r));
+      if (!room) { await note(`skipped: ${zone} is full`); return; }
+      grace.home = { zone, room };
+      await this.putProfile(grace);
+      const save = await this.load('Grace');
+      save.home = grace.home;
+      save.lastZone = zone;
+      save.room = []; // furniture was placed for the old room's shape; it's all still in her inventory
+      await this.store(save);
+      await note(`moved Grace to ${zone} room ${room}`);
+    });
   }
 
   async fetch(req: Request): Promise<Response> {
@@ -206,7 +233,8 @@ export class Estate extends DurableObject {
       players.push({ name: live.name, vip: live.vip, admin: !!this.profile(live.name)?.admin, aura: live.aura, total: live.totalAura, log: live.auraLog ?? [] });
     }
     const adminlog = (await this.ctx.storage.get('adminlog')) ?? [];
-    await kv.put('reports', JSON.stringify({ at: Date.now(), reports: this.reports, villa, players, adminlog }));
+    const fixes = { grace: await this.ctx.storage.get('fix:grace-move'), homes: [...this.profiles.values()].map((p) => [p.name, p.home?.zone, p.home?.room]) };
+    await kv.put('reports', JSON.stringify({ at: Date.now(), reports: this.reports, villa, players, adminlog, fixes }));
   }
 
   // ------------------------------------------------------------- problem reports
@@ -387,7 +415,9 @@ export class Estate extends DurableObject {
         return;
       }
       case 'emote': {
-        if (!c.zone || !['wave', 'dance', 'heart', 'sit', 'pose'].includes(m.e)) return;
+        if (!c.zone) return;
+        if (m.e === 'jump') { this.toZone(c.zone, { t: 'emote', from: c.name, e: 'jump' }, c.name); return; }
+        if (!['wave', 'dance', 'heart', 'sit', 'pose'].includes(m.e)) return;
         bumpStat(c.save, 'emote', 1);
         this.toZone(c.zone, { t: 'emote', from: c.name, e: m.e });
         const party = this.parties.get(c.zone);

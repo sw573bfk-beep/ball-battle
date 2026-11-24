@@ -178,6 +178,40 @@ export class Fun {
     }
   }
 
+  /** Bubbles / shower drops around the player for a few seconds (bathroom moments). */
+  bubbles(kind: string, secs: number): void {
+    if (kind === 'none') return;
+    const end = performance.now() + secs * 1000;
+    const emit = () => {
+      if (performance.now() > end || !this.g.zone) return;
+      const me = this.g.me.root.position;
+      for (let k = 0; k < 3; k++) {
+        const shower = kind === 'shower';
+        const s = shower ? sprite(glowTexture(), 0.12, 0x9fdcff, true) : sprite(emojiTexture('🫧'), 0.22);
+        s.position.set(me.x + (Math.random() - 0.5) * 0.6, shower ? 2.3 : 0.9 + Math.random() * 0.4, me.z + (Math.random() - 0.5) * 0.6);
+        this.g.zone.root.add(s);
+        this.particles.push({ s, v: new THREE.Vector3(0, shower ? -3 : 0.5, 0), life: shower ? 0.7 : 1.4, max: shower ? 0.7 : 1.4, gravity: 0 });
+      }
+      setTimeout(emit, 120);
+    };
+    emit();
+  }
+
+  /** A little flush sound. */
+  flush(): void {
+    try {
+      const ctx = new AudioContext();
+      const len = ctx.sampleRate * 1.4;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.sin((i / len) * Math.PI) * 0.35;
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+      src.connect(f).connect(ctx.destination);
+      setTimeout(() => { src.start(); setTimeout(() => ctx.close(), 1600); }, 2600);
+    } catch { /* no audio */ }
+  }
+
   private heart(x: number, z: number): void {
     const s = sprite(emojiTexture('💖'), 0.5);
     s.position.set(x, 0.9, z);

@@ -60,7 +60,11 @@ body.photo-mode #hud, body.photo-mode #menu, body.photo-mode #actions, body.phot
 
 #joy { position: fixed; left: max(28px, env(safe-area-inset-left)); bottom: max(28px, env(safe-area-inset-bottom)); width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.45); z-index: 5; display: none; touch-action: none; }
 #joy .knob { position: absolute; left: 38px; top: 38px; width: 54px; height: 54px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: var(--shadow); }
-@media (pointer: coarse) { #joy { display: block; } #chat { bottom: 176px !important; } }
+#moves { position: fixed; left: calc(max(28px, env(safe-area-inset-left)) + 142px); bottom: max(34px, env(safe-area-inset-bottom)); z-index: 5; display: none; flex-direction: column; gap: 10px; }
+#moves button { width: 54px; height: 54px; border-radius: 50%; border: 2px solid rgba(255,255,255,.6); background: rgba(255,255,255,.3); font-size: 24px; touch-action: manipulation; }
+#moves button.on { background: #ff6fb5; }
+body.photo-mode #moves { display: none !important; }
+@media (pointer: coarse) { body.playing #moves { display: flex; } #joy { display: block; } #chat { bottom: 176px !important; } }
 
 #chat { position: fixed; left: max(12px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom)); width: min(340px, 52vw); z-index: 4; }
 #chatlog { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }

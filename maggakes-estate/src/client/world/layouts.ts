@@ -620,9 +620,10 @@ export function setRoomStyle(owner: string, style: RoomStyle): void { roomStyles
 
 /** Which floor + room someone's bedroom is. */
 function ownerRoom(owner: string): { zone: ZoneId; room: string } | undefined {
+  // A founder who moved to a residence floor lives there now.
+  for (const res of residences) { const o = res.owners.find((x) => x.name === owner); if (o) return { zone: res.zone, room: o.room }; }
   const f = RESIDENTS.find((r) => r.name === owner);
   if (f) return { zone: f.home, room: f.room };
-  for (const res of residences) { const o = res.owners.find((x) => x.name === owner); if (o) return { zone: res.zone, room: o.room }; }
   return undefined;
 }
 export function roomOwnerZone(owner: string): ZoneId | undefined { return ownerRoom(owner)?.zone; }
@@ -631,8 +632,12 @@ export function getLayout(id: ZoneId): Layout {
   const base = baseLayout(id);
   const styled = Object.entries(roomStyles).map(([owner, st]) => ({ at: ownerRoom(owner), st })).filter((x) => x.at?.zone === id);
   if (!styled.length) return base;
+  // "Empty my room": drop the built-in furniture inside those bedrooms (keep the name label).
+  const emptied = styled.filter((x) => x.st.empty).map((x) => base.rooms.find((r) => r.id === x.at!.room)?.r).filter(Boolean) as Rect[];
+  const inside = (x: number, z: number, r: Rect) => x > r[0] - 0.01 && x < r[0] + r[2] + 0.01 && z > r[1] - 0.01 && z < r[1] + r[3] + 0.01; // wall posters sit right on the edge
   return {
     ...base,
+    props: emptied.length ? base.props.filter((p) => p.t === 'label' || !emptied.some((r) => inside(p.x, p.z, r))) : base.props,
     rooms: base.rooms.map((r) => {
       const hit = styled.find((x) => x.at!.room === r.id);
       if (!hit) return r;

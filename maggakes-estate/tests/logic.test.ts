@@ -341,7 +341,8 @@ test('CUSTOM: bedroom walls and floor (only if you have a bedroom)', () => {
   const s = newSave('Phoebe');
   assert.ok(setRoomStyle(s, { wall: '#AA0000', floor: 'marble', tint: '#00AA00' }).ok);
   assert.deepEqual(s.roomStyle, { wall: '#aa0000', floor: 'marble', tint: '#00aa00' });
-  setRoomStyle(s, { wall: 'nope', floor: 'lava' });
+  assert.ok(setRoomStyle(s, { empty: true }).ok && s.roomStyle!.empty === true, 'empty my room');
+  setRoomStyle(s, { wall: 'nope', floor: 'lava', empty: 'yes' as never });
   assert.deepEqual(s.roomStyle, { wall: undefined, floor: undefined, tint: undefined });
   const guest = newSave('Somebody');
   guest.home = undefined;

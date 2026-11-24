@@ -155,6 +155,8 @@ export class Game {
     };
     net.on((m) => this.onMsg(m));
     this.input.onKey = (k) => this.onKey(k);
+    $('#b-jump').onclick = () => this.jump();
+    $('#b-sprint').onclick = (e) => { this.sprintOn = !this.sprintOn; (e.currentTarget as HTMLElement).classList.toggle('on', this.sprintOn); };
     this.bindHud();
     this.renderHud();
     const start = canEnter(save, save.lastZone) && this.zoneExists(save.lastZone) ? save.lastZone : save.home?.zone ?? 'f1';
@@ -439,8 +441,9 @@ export class Game {
         return;
       }
       case 'emote': {
+        if (m.from === this.save.name && m.e === 'jump') return; // already jumped locally
         const av = m.from === this.save.name ? this.me : this.peers.get(m.from)?.avatar;
-        av?.doEmote(m.e as Emote);
+        if (m.e === 'jump') av?.jump(); else av?.doEmote(m.e as Emote);
         return;
       }
       case 'room': this.buildDecor(m.owner, m.items); return;
@@ -576,7 +579,9 @@ export class Game {
 
   private updatePlayer(dt: number, t: number): void {
     const zone = this.zone!;
-    const mv = this.blocked() || this.lockMove ? { x: 0, y: 0 } : this.input.move();
+    const busy = this.busy && performance.now() < this.busy.until ? this.busy : null;
+    if (this.busy && !busy) { const done = this.busy.done; this.busy = null; this.me.emoteClear(); done?.(); }
+    const mv = this.blocked() || this.lockMove || busy ? { x: 0, y: 0 } : this.input.move();
     if (this.car) { this.updateCar(dt, mv); return; }
     if (this.lockMove) return;
     const fx = -Math.sin(this.camYaw), fz = -Math.cos(this.camYaw);
@@ -584,7 +589,8 @@ export class Game {
     const dx = rx * mv.x + fx * mv.y, dz = rz * mv.x + fz * mv.y;
     const inPool = zone.pools.some((p) => this.pos.x > p.x0 && this.pos.x < p.x1 && this.pos.y > p.z0 && this.pos.y < p.z1);
     const inTub = zone.tubs.some((tb) => Math.hypot(this.pos.x - tb.x, this.pos.y - tb.z) < tb.r - 0.1);
-    const speed = inPool ? SWIM_SPEED : SPEED;
+    const sprint = !inPool && (this.input.keys.has('shift') || this.sprintOn);
+    const speed = inPool ? SWIM_SPEED : sprint ? SPEED * 1.75 : SPEED;
     const k = Math.min(1, dt * 12);
     this.vel.x += (dx * speed - this.vel.x) * k;
     this.vel.y += (dz * speed - this.vel.y) * k;
@@ -599,7 +605,8 @@ export class Game {
       while (diff < -Math.PI) diff += Math.PI * 2;
       this.ry += diff * Math.min(1, dt * 12);
     }
-    this.mode = inPool ? 'swim' : inTub ? 'soak' : 'walk';
+    this.mode = busy?.mode ?? (inPool ? 'swim' : inTub ? 'soak' : 'walk');
+    if (busy) { this.pos.set(busy.x, busy.z); this.ry = busy.ry; this.vel.set(0, 0); }
     if (inPool || inTub) {
       this.swimAcc += dt;
       if (this.swimAcc >= 10) { this.net.send({ t: 'stat', stat: 'swim', by: 10 }); this.swimAcc = 0; }
@@ -608,9 +615,46 @@ export class Game {
       // Face the camera while trying on clothes.
       this.ry = this.camYaw;
     }
-    this.me.root.position.set(this.pos.x, inTub ? 0.15 : 0, this.pos.y);
+    this.me.root.position.set(this.pos.x, busy?.y ?? (inTub ? 0.15 : 0), this.pos.y);
     this.me.root.rotation.y = this.ry;
-    this.me.update(dt, t, Math.min(1, sp / SPEED), this.mode);
+    this.me.update(dt, t, Math.min(1.5, sp / SPEED), this.mode);
+  }
+
+  /** A short bathroom moment: player is held in place doing something. */
+  private busy: { until: number; x: number; z: number; ry: number; y?: number; mode?: Mode; done?: () => void } | null = null;
+
+  /** Toilets, sinks, showers and baths you can actually use. */
+  private bathroomAction(): { d: number; a: Action } | null {
+    const z = this.zone!;
+    let best: { d: number; a: Action } | null = null;
+    for (const p of z.layout.props) {
+      if (!['toilet', 'sink', 'shower', 'bathtub'].includes(p.t)) continue;
+      const wx = p.x - z.half.w, wz = p.z - z.half.d;
+      const d = Math.hypot(this.pos.x - wx, this.pos.y - wz);
+      if (d > 1.5 || (best && best.d < d)) continue;
+      const rot = p.r ?? 0;
+      const fx = Math.sin(rot), fz = Math.cos(rot);
+      const use = (secs: number, opts: { at: number; y?: number; mode?: Mode; sit?: boolean; msg: string; fx: string; facing?: number }) => {
+        this.busy = { until: performance.now() + secs * 1000, x: wx + fx * opts.at, z: wz + fz * opts.at, ry: opts.facing ?? rot, y: opts.y, mode: opts.mode, done: () => toast(opts.msg) };
+        if (opts.sit) this.me.doEmote('sit');
+        this.fun.bubbles(opts.fx, secs);
+      };
+      const a: Action | null =
+        p.t === 'toilet' ? { key: 'loo', label: '🚽 Use the toilet', run: () => { use(3.5, { at: 0.1, sit: true, msg: '🧻 *Flush!* Now wash your hands! 🧼', fx: 'none' }); this.fun.flush(); } }
+        : p.t === 'sink' ? { key: 'sink', label: '🧼 Wash your hands', run: () => use(3, { at: 0.55, msg: '✨ Squeaky clean hands!', fx: 'bubbles' }) }
+        : p.t === 'shower' ? { key: 'shower', label: '🚿 Have a shower', run: () => use(5, { at: 0, msg: '🚿 So fresh and so clean! ✨', fx: 'shower' }) }
+        : { key: 'bath', label: '🛁 Have a bubble bath', run: () => use(6, { at: 0, y: 0.15, mode: 'soak', msg: '🛁 Ahh, so relaxing! 🫧', fx: 'bubbles', facing: rot + Math.PI / 2 }) };
+      if (a) best = { d, a };
+    }
+    return best;
+  }
+
+  /** Mobile sprint toggle. */
+  sprintOn = false;
+
+  jump(): void {
+    if (this.car || this.lockMove || this.mode === 'swim' || this.mode === 'soak') return;
+    if (this.me.jump()) this.net.send({ t: 'emote', e: 'jump' });
   }
 
   private collide(r: number): boolean {
@@ -787,6 +831,7 @@ export class Game {
           if (d < 2 && this.save.villa.partner !== p.info.name) consider(d, { key: `couple:${p.info.name}`, label: `💘 Couple up with ${p.info.name}?`, run: () => this.net.send({ t: 'couple', to: p.info.name }) });
         }
       }
+      if (!this.busy) { const bath = this.bathroomAction(); if (bath) consider(bath.d + 0.3, bath.a); }
       if (best) acts.push((best as { a: Action }).a);
       {
         let np: { d: number; info: PeerInfo } | null = null;
@@ -843,6 +888,7 @@ export class Game {
   private onKey(k: string): void {
     if (k === 'escape') { closeAllSheets(); if (this.decor) this.endDecor(); return; }
     if (document.querySelector('#modals .modal')) return;
+    if (k === ' ' && !this.car) { this.jump(); return; }
     if (k === 'e' || k === ' ') { this.actions[0]?.run(); return; }
     if (k === 'enter') { ($('#chatin') as HTMLInputElement).focus(); return; }
     if (k === 'm') openMap(this.ctx);
@@ -1322,7 +1368,12 @@ export class Game {
       h('div.row', {}, ...ROOM_FLOORS.map((f) => h('button.chip' + (style.floor === f ? '.on' : ''), { onclick: () => { style.floor = f; send(); draw(); } }, FLOOR_LABELS[f] ?? f))),
       h('h4', {}, '🎨 Floor tint'),
       colorRow(style.tint, FLOOR_TINTS, (c, live) => { if (!live) { style.tint = c; send(); } }),
-      h('div.actions', {}, h('button.btn.ghost', { onclick: () => { style.wall = style.floor = style.tint = undefined; send(); draw(); } }, '↺ Back to original'),
+      h('h4', {}, '📦 Built-in furniture'),
+      h('div.row', {},
+        h('button.chip' + (!style.empty ? '.on' : ''), { onclick: () => { delete style.empty; send(); draw(); } }, '🛏️ Keep it'),
+        h('button.chip' + (style.empty ? '.on' : ''), { onclick: () => { style.empty = true; send(); draw(); } }, '✨ Empty my room')),
+      h('p.muted', {}, 'Empty your room to decorate it from scratch with your own furniture.'),
+      h('div.actions', {}, h('button.btn.ghost', { onclick: () => { style.wall = style.floor = style.tint = undefined; delete style.empty; send(); draw(); } }, '↺ Back to original'),
         h('button.btn', { onclick: () => closeAllSheets() }, '✓ Done')),
       h('p.muted', {}, 'Everyone who visits your room sees your style.'));
     draw();
