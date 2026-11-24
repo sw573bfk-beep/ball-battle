@@ -45,7 +45,7 @@ await until(() => window.__game().save.inventory.d_teddy === 1);
 await p.click('text=Decorate my room');
 for (const n of ['Potted Plant', 'Fairy Lights', 'Giant Teddy']) {
   await p.click(`#decor .chip:has-text("${n}")`);
-  await p.click('#decor button:has-text("Place")');
+  await p.click('#decor .decor-btns button:has-text("✓ Place")');
   await p.waitForTimeout(300);
 }
 ok(await until(() => window.__game().save.room.length === 3), 'three decorations placed and saved');

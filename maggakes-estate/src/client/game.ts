@@ -1131,11 +1131,15 @@ export class Game {
     this.decorGroups.set(owner, g);
     if (owner === this.save.name && this.decor) {
       const d = this.decor;
-      d.items = items.map((i) => ({ ...i }));
-      if (d.sel && !d.items.some((i) => i.uid === d.sel)) { d.sel = null; d.moving = false; }
+      // Only take the server's copy (and redraw the dock) when something actually changed,
+      // so a click isn't lost mid-redraw and the dock's buttons keep pointing at the same items.
       if (d.moving) this.myDecorObj(d.sel)?.removeFromParent();
-      this.updateSelRing();
-      this.renderDecorDock();
+      if (JSON.stringify(d.items) !== JSON.stringify(items)) {
+        d.items = items.map((i) => ({ ...i }));
+        if (d.sel && !d.items.some((i) => i.uid === d.sel)) { d.sel = null; d.moving = false; }
+        this.updateSelRing();
+        this.renderDecorDock();
+      } else this.updateSelRing();
     }
   }
 

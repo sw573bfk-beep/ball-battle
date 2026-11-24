@@ -91,7 +91,7 @@ const before = await G(k, () => window.__game().save.room.length);
 await k.click('#decor .chip:has-text("Giant Teddy")');
 await G(k, () => { const el = document.querySelector('#decor input.anycolor'); el.value = '#00ff88'; el.dispatchEvent(new Event('change')); });
 await G(k, () => { const el = document.querySelector('#decor input[type=range]'); el.value = '1.4'; el.dispatchEvent(new Event('input')); });
-await k.click('#decor button:has-text("Place")');
+await k.click('#decor .decor-btns button:has-text("✓ Place")');
 ok(await until(k, (n) => { const r = window.__game().save.room; return r.length === n + 1 && r[r.length - 1].color === '#00ff88' && r[r.length - 1].scale === 1.4; }, before), 'teddy placed in green at 140% size');
 await k.click('#decor button:has-text("Edit nearest")');
 ok(await until(k, () => !!document.querySelector('#decor .decor-edit b')), 'edit panel opens for the nearest item');
