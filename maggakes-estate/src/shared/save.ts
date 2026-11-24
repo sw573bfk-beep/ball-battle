@@ -7,6 +7,7 @@ import { BADGES, BEARDS, BOTTOMS, BUILDS, HAIR_COLORS, HAIR_STYLES, HEIGHTS, SHO
 export type { Look } from './look';
 export { HAIR_COLORS, HAIR_STYLES, SKINS } from './look';
 import type { Season } from './season';
+import { currentEvent, levelBadgesFor, levelOf, rollWeek } from './progress';
 
 export type PetKind = 'dog' | 'cat' | 'bunny';
 
@@ -15,6 +16,8 @@ export interface AuraEntry { at: number; d: number; t: number; why: string }
 
 /** The one place Aura changes — also writes the player's Aura history. */
 export function earn(save: Save, d: number, t: number, why: string): void {
+  // XP (for levels) counts every Aura you earn — but not rewards from levels/achievements themselves.
+  if ((d > 0 || t > 0) && !/^(Level rewards|Achievement|Adjusted)/.test(why)) save.xp = (save.xp ?? save.totalAura) + Math.max(d, t);
   save.aura = Math.max(0, save.aura + d);
   save.totalAura = Math.max(0, save.totalAura + t);
   save.auraLog ??= [];
@@ -79,6 +82,16 @@ export interface Save {
   shells?: string[];
   bestLap?: number;
   auraLog?: AuraEntry[];
+  /** Level XP (every Aura earned) and the highest level whose reward was claimed. */
+  xp?: number;
+  levelClaimed?: number;
+  /** Claimed achievements (id → when), and ones already announced as ready. */
+  ach?: Record<string, number>;
+  achSeen?: string[];
+  /** Lifetime counters (tasks, chat, swim seconds, …). */
+  life?: Record<string, number>;
+  /** This week's event progress. */
+  week?: { id: string; stats: Record<string, number>; claimed: number[] };
   /** When each task's replay bonus was last paid (stops spam-clicking for Aura). */
   replayAt?: Record<string, number>;
 }
@@ -195,6 +208,7 @@ export function buy(save: Save, itemId: string): Result {
   if (!item) return { ok: false, msg: 'Unknown item.' };
   if (item.vip && !save.vip) return { ok: false, msg: 'That item is VIP only.' };
   if (item.floor && !zoneUnlocked(save, item.floor)) return { ok: false, msg: `Unlock ${label(item.floor)} to buy this.` };
+  if (item.event && currentEvent().id !== item.event) return { ok: false, msg: 'That was a limited event item — look out for it next time!' };
   const owned = save.inventory[itemId] ?? 0;
   if (!stackable(item) && owned > 0) return { ok: false, msg: 'You already own this.' };
   if (save.aura < item.price) return { ok: false, msg: `You need ${item.price - save.aura} more Aura.` };
@@ -253,6 +267,7 @@ export function saveOutfit(save: Save, slot: number, name: string, look: Look): 
   const clean = cleanText(name, 16) || `Look ${slot + 1}`;
   while (save.outfits.length < slot) save.outfits.push({ name: `Look ${save.outfits.length + 1}`, look: save.look });
   save.outfits[slot] = { name: clean, look: cleanLook(save, look) };
+  bumpStat(save, 'outfit', 1);
   return { ok: true, msg: `💾 Saved "${clean}"!` };
 }
 
@@ -267,7 +282,7 @@ export function cleanText(raw: unknown, max: number): string {
 export function setProfile(save: Save, p: Profile): Result {
   save.profile = {
     color: isHex(p.color) ? p.color.toLowerCase() : undefined,
-    badge: BADGES.includes(String(p.badge ?? '')) ? String(p.badge ?? '') : '',
+    badge: [...BADGES, ...levelBadgesFor(levelOf(save.xp ?? 0))].includes(String(p.badge ?? '')) ? String(p.badge ?? '') : '',
     bio: cleanText(p.bio, 80),
   };
   return { ok: true, msg: '✨ Profile saved!' };
@@ -348,6 +363,10 @@ export function rollDaily(save: Save, now = Date.now()): void {
 export function bumpStat(save: Save, stat: string, by: number): void {
   rollDaily(save);
   save.daily.stats[stat] = Math.min(9999, (save.daily.stats[stat] ?? 0) + by);
+  save.life ??= {};
+  save.life[stat] = Math.min(1e7, (save.life[stat] ?? 0) + by);
+  rollWeek(save);
+  save.week!.stats[stat] = Math.min(99999, (save.week!.stats[stat] ?? 0) + by);
 }
 
 export function claimDaily(save: Save, id: string): Result {
@@ -359,6 +378,8 @@ export function claimDaily(save: Save, id: string): Result {
   if ((save.daily.stats[def.stat] ?? 0) < def.goal) return { ok: false, msg: 'Not finished yet.' };
   save.daily.claimed.push(id);
   earn(save, def.reward, def.reward, `Daily: ${def.label}`);
+  save.life ??= {};
+  save.life.daily = (save.life.daily ?? 0) + 1;
   return { ok: true, msg: `+${def.reward} Aura: daily challenge done!` };
 }
 
@@ -373,6 +394,8 @@ export function migrate(raw: Partial<Save> & { name: string }): Save {
   s.look = normalizeLook(s.look);
   if (s.villa.look) s.villa.look = normalizeLook(s.villa.look);
   for (const id of FREE_ITEMS) if (!s.inventory[id]) s.inventory[id] = 1;
+  s.xp ??= s.totalAura;
+  s.levelClaimed ??= 1;
   return s;
 }
 
@@ -395,6 +418,7 @@ export const SPIN_PRIZES: { label: string; emoji: string; w: number; aura?: numb
 export function spin(save: Save, roll: number, pickRoll = Math.random()): Result & { index?: number } {
   const d = today();
   if (save.spinDate === d) return { ok: false, msg: 'You already spun today — come back tomorrow! 🎡' };
+  bumpStat(save, 'spin', 1);
   const total = SPIN_PRIZES.reduce((a, p) => a + p.w, 0);
   let r = roll * total, index = 0;
   while (index < SPIN_PRIZES.length - 1 && r >= SPIN_PRIZES[index].w) { r -= SPIN_PRIZES[index].w; index++; }
@@ -437,6 +461,7 @@ export function recordLap(save: Save, ms: number): Result {
   const t = Math.round(ms);
   const best = !save.bestLap || t < save.bestLap;
   if (best) save.bestLap = t;
+  bumpStat(save, 'laps', 1);
   earn(save, 20, 0, 'Kart lap');
   return { ok: true, msg: `🏁 Lap ${(t / 1000).toFixed(2)}s${best ? ' — new personal best! 🏆' : ''} (+20 Aura)` };
 }

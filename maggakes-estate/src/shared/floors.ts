@@ -260,6 +260,65 @@ export const FLOORS: FloorDef[] = [
       },
     ],
   },
+  // ------------------------------------------------------------ sky floors (above the roof)
+  {
+    id: 'f9', short: '9', name: '9th Floor – Sky Arcade', need: 8000,
+    blurb: 'Neon arcade with claw machines, air hockey, a dance machine and a prize counter.',
+    tasks: [
+      { id: 'clawgame', label: 'Win a prize from the claw machine', kind: 'timing', hint: 'Drop the claw when it\'s right over a prize!' },
+      { id: 'dancebattle', label: 'Win the dance battle', kind: 'simon', hint: 'Copy the dance moves on the arrow pads.' },
+      { id: 'airhockey', label: 'Beat the air hockey bot', kind: 'timing', hint: 'Smash the puck when it\'s in the sweet spot.' },
+      { id: 'tickets', label: 'Collect prize tickets', kind: 'collect', hint: 'Grab the 6 prize tickets spat out by the machines.', count: 6, item: '🎟️' },
+      { id: 'slushie', label: 'Make a rainbow slushie', kind: 'sequence', hint: 'Make the arcade\'s famous slushie.', steps: ['🥤 Cup', '🧊 Crushed ice', '🍓 Strawberry', '🫐 Blueberry', '🌈 Rainbow swirl'] },
+    ],
+  },
+  {
+    id: 'f10', short: '10', name: '10th Floor – Cinema & Bowling', need: 9000,
+    blurb: 'A private cinema with recliners and a glow-in-the-dark bowling alley.',
+    tasks: [
+      { id: 'strike', label: 'Bowl a strike', kind: 'timing', hint: 'Release the ball in the sweet spot for a STRIKE!' },
+      { id: 'popcorn', label: 'Make the popcorn', kind: 'sequence', hint: 'Pop a fresh batch for movie night.', steps: ['🌽 Kernels', '🧈 Butter', '🔥 Heat', '🍿 Pop!', '🧂 Salt'] },
+      { id: 'tidycinema', label: 'Tidy the cinema', kind: 'collect', hint: 'Pick up the 6 popcorn buckets left on the floor.', count: 6, item: '🍿' },
+      {
+        id: 'movietrivia', label: 'Win movie trivia night', kind: 'choice', hint: 'Answer the movie questions.',
+        question: [
+          { q: 'What do you call the snack bar at a cinema?', options: ['Candy bar', 'Toll booth', 'Pit stop'], answer: 0 },
+          { q: 'How many pins are in ten-pin bowling?', options: ['8', '10', '12'], answer: 1 },
+          { q: 'Three strikes in a row in bowling is called a…', options: ['Hat trick', 'Turkey', 'Triple'], answer: 1 },
+        ],
+      },
+      { id: 'shoes', label: 'Polish the bowling shoes', kind: 'hold', hint: 'Hold to spray and shine all the bowling shoes.' },
+    ],
+  },
+  {
+    id: 'f11', short: '11', name: '11th Floor – Ice Rink & Snow Lounge', need: 10000,
+    blurb: 'Indoor ice rink with real snow, an igloo, and a cosy fireplace lounge.',
+    tasks: [
+      { id: 'skate', label: 'Skate a perfect figure-eight', kind: 'timing', hint: 'Lean into each turn in the sweet spot.' },
+      { id: 'buildsnowman', label: 'Build a snowman', kind: 'sequence', hint: 'Build the snowman from the bottom up.', steps: ['⚪ Big snowball', '⚪ Middle snowball', '⚪ Head', '🥕 Carrot nose', '🧣 Scarf'] },
+      { id: 'hotchoc', label: 'Make hot chocolate', kind: 'hold', hint: 'Hold to stir the hot chocolate until it\'s perfect.' },
+      { id: 'snowflakes', label: 'Catch snowflakes', kind: 'collect', hint: 'Catch the 6 sparkly snowflakes around the rink.', count: 6, item: '❄️' },
+      { id: 'icedance', label: 'Do an ice dance routine', kind: 'simon', hint: 'Copy the ice-dance routine.' },
+    ],
+  },
+  {
+    id: 'f12', short: '12', name: '12th Floor – Penthouse Sky Club', need: 11000,
+    blurb: 'The very top: a VIP sky club with a grand piano, champagne-glass tower, telescope and helipad.',
+    tasks: [
+      { id: 'grandpiano', label: 'Play the grand piano', kind: 'simon', hint: 'Play the melody back on the piano.' },
+      {
+        id: 'stargaze', label: 'Stargaze through the telescope', kind: 'choice', hint: 'Spot the right things in the night sky.',
+        question: [
+          { q: 'Which planet is famous for its rings?', options: ['Mars', 'Saturn', 'Venus'], answer: 1 },
+          { q: 'What is a group of stars that makes a picture called?', options: ['A constellation', 'A galaxy', 'A comet'], answer: 0 },
+          { q: 'Which is closest to Earth?', options: ['The Sun', 'The Moon', 'Mars'], answer: 1 },
+        ],
+      },
+      { id: 'vipparty', label: 'Set up the VIP party', kind: 'collect', hint: 'Collect the 6 sparkly glasses for the VIP party.', count: 6, item: '🥂' },
+      { id: 'landheli', label: 'Land the helicopter', kind: 'timing', hint: 'Touch down when the helicopter is right over the H!' },
+      { id: 'skyphoto', label: 'Take a penthouse photo', kind: 'photo', hint: 'Strike a pose at the top of the Maggakes Estate!' },
+    ],
+  },
 ];
 
 export const PARK = { id: 'park' as ZoneId, short: 'P', name: 'Underground Car Park', need: 0 };
@@ -284,4 +343,4 @@ export function zoneNeed(id: ZoneId): number {
 }
 
 /** The fixed zones. Residence floors (r1, r2, …) are added as people join. */
-export const ALL_ZONES: ZoneId[] = ['park', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'villa'];
+export const ALL_ZONES: ZoneId[] = ['park', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'villa'];

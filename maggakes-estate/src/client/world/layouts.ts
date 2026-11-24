@@ -34,6 +34,10 @@ export interface Layout {
   backdrop: 'city' | 'ocean' | 'none' | 'tower';
   /** Height of the floor above street level, for the view out the windows. */
   storey: number;
+  /** Slippery ice areas (x, z, w, d in floor-plan metres). */
+  ice?: Rect[];
+  /** Gentle snowfall over the whole floor. */
+  snow?: boolean;
 }
 
 const T = (id: string, x: number, z: number): { kind: 'task'; id: string; x: number; z: number } => ({ kind: 'task', id, x, z });
@@ -468,6 +472,141 @@ const floor8: Layout = {
   tubs: [[19, 17, 1.5]],
 };
 
+// ===================================================================== 9th floor – Sky Arcade
+const F9 = {
+  hall: [0, 0, 24, 22] as Rect,
+  prizes: [24, 0, 10, 7] as Rect,
+  snack: [24, 7, 10, 9] as Rect,
+  baths: [24, 16, 10, 6] as Rect,
+};
+const ARCADE_NAMES = ['STAR BLAST', 'KART RUSH', 'PAC DASH', 'ZOMBIE PARTY', 'PINBALL', 'SPACE GIRL', 'DRIFT KING', 'NEON RUN', 'BEAT BOX', 'GALAXY', 'SKY RACER', 'PONG', 'CANDY POP', 'ROBO BRAWL'];
+const floor9: Layout = {
+  id: 'f9', w: 34, d: 22, mood: 'moody', exterior: 'glass', wall: '#2a2340', backdrop: 'city', storey: 9,
+  rooms: [
+    { id: 'hall', name: 'Sky Arcade', r: F9.hall, floor: 'carpet', tint: '#3a2c6e', wall: '#2a2340' },
+    { id: 'prizes', name: 'Prize Corner', r: F9.prizes, floor: 'pinkcarpet', wall: '#ffd9ef' },
+    { id: 'snack', name: 'Slushie Bar', r: F9.snack, floor: 'tile', tint: '#fff0f7', wall: '#ffe6f3' },
+    { id: 'baths', name: 'Bathrooms', r: F9.baths, floor: 'tile' },
+  ],
+  doors: [[24, 3.5], [24, 11.5], [29, 7], [31.5, 16]],
+  props: [
+    ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => P('arcade', 1.2 + i * 1.05, 0.55, 0, { seed: i, text: ARCADE_NAMES[i] })),
+    ...[0, 1, 2, 3, 4, 5, 6].map((i) => P('arcade', 0.55, 3.6 + i * 1.05, Math.PI / 2, { seed: i + 9, text: ARCADE_NAMES[(i + 9) % ARCADE_NAMES.length] })),
+    P('claw', 12.8, 0.8, 0, { color: '#ff6fb5' }), P('claw', 14.4, 0.8, 0, { color: '#33e1ff' }), P('claw', 16, 0.8, 0, { color: '#ffd23f' }),
+    P('airhockey', 7, 14, 0), P('airhockey', 11, 14, 0, { color: '#5a1f5c' }),
+    P('dancepad', 19, 20.9, Math.PI), P('dancepad', 21.6, 20.9, Math.PI),
+    P('rug', 4, 18.5, 0, { w: 4.5, d: 3, color: '#ff3df0' }), P('beanbag', 2.6, 18.2, 0.4, { color: '#33e1ff' }), P('beanbag', 4.2, 19.6, -0.2, { color: '#ffd23f' }), P('beanbag', 5.6, 18, 0.3, { color: '#ff6fb5' }),
+    P('discoball', 12, 9), P('discoball', 18, 6),
+    on(F9.hall, 's', 0.32, 0.05, 'neon', { text: 'SKY ARCADE', color: '#33e1ff', w: 4.5 }), on(F9.hall, 'n', 0.83, 0.05, 'neon', { text: 'WIN!', color: '#ff3df0', w: 2 }),
+    label(F9.hall, 'Sky Arcade', 0.05),
+    P('prizes', 29, 1.6, 0, { w: 3.6 }), label(F9.prizes, 'Prize Corner', 0.2),
+    P('bar', 28.5, 13.8, Math.PI, { w: 3, color: '#ff6fb5' }), P('minifridge', 25, 15.4, Math.PI), P('plant', 33.3, 15.4, 0, { seed: 4 }), label(F9.snack, 'Slushie Bar', -0.35),
+    on(F9.baths, 's', 0.2, 0.7, 'toilet'), on(F9.baths, 's', 0.4, 0.7, 'toilet'), on(F9.baths, 's', 0.72, 0.52, 'sink', { w: 2 }), label(F9.baths, 'Bathrooms', -0.25),
+  ],
+  stations: [T('clawgame', 14.4, 2.6), T('dancebattle', 20.3, 19.3), T('airhockey', 9, 14), T('tickets', 12, 6.5), T('slushie', 28.5, 12.1)],
+  lift: [33.75, 11.5, -Math.PI / 2],
+  spawn: [31, 11.5],
+};
+
+// ===================================================================== 10th floor – Cinema & Bowling
+const F10 = {
+  cinema: [0, 0, 16, 22] as Rect,
+  bowl: [16, 0, 18, 13] as Rect,
+  baths: [16, 13, 5, 9] as Rect,
+  lobby: [21, 13, 13, 9] as Rect,
+};
+const floor10: Layout = {
+  id: 'f10', w: 34, d: 22, mood: 'moody', exterior: 'glass', wall: '#30202a', backdrop: 'city', storey: 10,
+  rooms: [
+    { id: 'cinema', name: 'Private Cinema', r: F10.cinema, floor: 'carpet', tint: '#6a1a2c', wall: '#2a1a22' },
+    { id: 'bowl', name: 'Glow Bowling', r: F10.bowl, floor: 'darkwood', wall: '#1f1b2e' },
+    { id: 'baths', name: 'Bathrooms', r: F10.baths, floor: 'tile' },
+    { id: 'lobby', name: 'Lobby', r: F10.lobby, floor: 'terrazzo', tint: '#f3e6da' },
+  ],
+  doors: [[16, 10.5], [26, 13], [31, 13], [21, 17.5]],
+  props: [
+    P('cinemascreen', 0.35, 10.5, Math.PI / 2, { w: 9, text: '✨ MAGGAKES MOVIES ✨' }),
+    ...[5, 7, 9, 11].map((x, i) => P('cinemaseats', x, 10.5, -Math.PI / 2, { n: 7, color: i === 3 ? '#d4af37' : '#b5122b' })),
+    P('popcorn', 14.9, 2, -Math.PI / 2), P('plant', 15.2, 21.2, 0, { kind: 'tall', seed: 6 }), P('plant', 15.2, 0.8, 0, { seed: 2 }),
+    on(F10.cinema, 's', 0.5, 0.05, 'neon', { text: 'NOW SHOWING', color: '#ffd23f', w: 4 }), label(F10.cinema, 'Private Cinema', 0.4),
+    ...[17.6, 19.6, 21.6, 23.6, 25.6].map((x, i) => P('bowlinglane', x, 4.6, 0, { l: 8.5, seed: i, color: ['#33e1ff', '#ff3df0', '#7cff6b', '#ffd23f', '#b388ff'][i], ball: ['#ff3df0', '#33e1ff', '#ffd23f', '#7cff6b', '#ff7a1a'][i] })),
+    P('ballreturn', 18.6, 10.3, 0, { seed: 1 }), P('ballreturn', 24.6, 10.3, 0, { seed: 3 }),
+    P('counter', 32.9, 5, -Math.PI / 2, { w: 3, color: '#2a2b33' }), P('stand', 30, 1, 0),
+    P('sofa', 30, 11.9, Math.PI, { w: 2.6, color: '#33e1ff', accent: '#ff3df0' }),
+    on(F10.bowl, 'n', 0.88, 0.05, 'neon', { text: 'STRIKE!', color: '#ff3df0', w: 3 }), label(F10.bowl, 'Glow Bowling', 0.35),
+    P('popcorn', 24, 21.3, Math.PI), P('sofa', 29.5, 21.3, Math.PI, { w: 2.4, color: '#b5122b' }), P('plant', 33.3, 21.3, 0, { kind: 'tall', seed: 1 }), label(F10.lobby, 'Lobby', -0.1),
+    on(F10.baths, 's', 0.3, 0.7, 'toilet'), on(F10.baths, 'n', 0.45, 0.52, 'sink', { w: 1.4 }), label(F10.baths, 'Bathrooms', 0.1),
+  ],
+  stations: [T('strike', 21.6, 11), T('popcorn', 24, 19.8), T('tidycinema', 8, 18.5), T('movietrivia', 13.5, 4.5), T('shoes', 31, 5)],
+  lift: [33.75, 17.5, -Math.PI / 2],
+  spawn: [31, 17.5],
+};
+
+// ===================================================================== 11th floor – Ice Rink & Snow Lounge
+const F11 = {
+  rink: [0, 0, 22, 22] as Rect,
+  lounge: [22, 0, 12, 15] as Rect,
+  baths: [22, 15, 12, 7] as Rect,
+};
+const floor11: Layout = {
+  id: 'f11', w: 34, d: 22, mood: 'day', exterior: 'glass', wall: '#eef6fb', backdrop: 'city', storey: 11, snow: true,
+  rooms: [
+    { id: 'rink', name: 'Ice Rink', r: F11.rink, floor: 'marble', tint: '#c4e6fb', wall: '#e8f6ff' },
+    { id: 'lounge', name: 'Snow Lounge', r: F11.lounge, floor: 'carpet', tint: '#f1e2d3', wall: '#f7efe6' },
+    { id: 'baths', name: 'Bathrooms', r: F11.baths, floor: 'tile' },
+  ],
+  doors: [[22, 8.5], [22, 18.5], [32, 15]],
+  props: [
+    P('rinkboard', 11, 2, 0, { w: 18 }), P('rinkboard', 11, 20, 0, { w: 18 }), P('rinkboard', 2, 11, Math.PI / 2, { w: 18 }),
+    P('rinkboard', 20, 4.25, Math.PI / 2, { w: 4.5 }), P('rinkboard', 20, 15.75, Math.PI / 2, { w: 8.5 }),
+    P('igloo', 16, 16, -Math.PI / 4, { r: 1.5 }), P('snowman', 4.2, 4.2, 0.6), P('snowman', 1, 1, 0.7, { s: 0.8, scarf: '#33a8ff' }),
+    P('pine', 1, 21, 0, { h: 3, lights: true }), P('pine', 21, 21, 0, { h: 3.2, lights: true, star: true }), P('pine', 21, 1, 0, { h: 2.8 }),
+    on(F11.rink, 'n', 0.5, 0.05, 'neon', { text: 'ICE RINK', color: '#33a8ff', w: 3 }), label(F11.rink, 'Ice Rink', 0.1),
+    on(F11.lounge, 'n', 0.45, 0.7, 'fireplace', { w: 2.2 }), P('rug', 27.4, 4.2, 0, { w: 4, d: 3, color: '#ffffff' }),
+    P('sofa', 27.4, 5.6, Math.PI, { w: 2.6, color: '#f2e6da', accent: '#ff3d5a', accent2: '#ffffff' }), P('armchair', 24.4, 3.8, Math.PI / 2, { color: '#ff3d5a' }),
+    P('pine', 23.2, 1.2, 0, { h: 2.6, lights: true, star: true }), P('hotchoc', 28, 14.2, Math.PI, { w: 2.4 }), P('plant', 33.3, 13.8, 0, { seed: 3 }),
+    label(F11.lounge, 'Snow Lounge', 0.25),
+    on(F11.baths, 's', 0.15, 0.7, 'toilet'), on(F11.baths, 's', 0.3, 0.7, 'toilet'), on(F11.baths, 's', 0.6, 0.52, 'sink', { w: 2 }), label(F11.baths, 'Bathrooms', -0.2),
+  ],
+  stations: [T('skate', 11, 11), T('buildsnowman', 5.6, 6), T('hotchoc', 28, 12.6), T('snowflakes', 14, 6), T('icedance', 7.5, 14.5)],
+  lift: [33.75, 8, -Math.PI / 2],
+  spawn: [31, 8],
+  ice: [[2.2, 2.2, 17.6, 17.6]],
+};
+
+// ===================================================================== 12th floor – Penthouse Sky Club
+const F12 = {
+  club: [0, 0, 20, 15] as Rect,
+  lounge: [0, 15, 20, 7] as Rect,
+  deck: [20, 0, 14, 22] as Rect,
+};
+const floor12: Layout = {
+  id: 'f12', w: 34, d: 22, mood: 'golden', exterior: 'rail', wall: '#f5efe6', backdrop: 'city', storey: 13,
+  rooms: [
+    { id: 'club', name: 'Sky Club', r: F12.club, floor: 'marble', wall: '#f8f1e8' },
+    { id: 'lounge', name: 'Star Lounge', r: F12.lounge, floor: 'carpet', tint: '#3a3160', wall: '#2a2340' },
+    { id: 'deck', name: 'Helipad Deck', r: F12.deck, floor: 'concrete', tint: '#9aa0a8' },
+  ],
+  doors: [[20, 7.5], [10, 15], [20, 18.5]],
+  props: [
+    P('grandpiano', 4, 4, Math.PI / 4), P('chandelier', 10, 7.5, 0, { r: 1.2, y: 2.4 }), P('chandelier', 4.5, 10, 0), P('chandelier', 15.5, 4, 0),
+    P('champagne', 14.5, 7.5, 0), P('djbooth', 10, 0.75, 0, { color: '#d4af37' }),
+    P('sectional', 15, 12.6, Math.PI, { w: 3.2, color: '#ffffff', accent: '#d4af37' }), P('coffeetable', 14.6, 11, 0, { w: 1.4 }),
+    P('bar', 1.1, 10, Math.PI / 2, { w: 4, color: '#1b1c1f' }),
+    P('viprope', 18.6, 5.5, Math.PI / 2, { w: 1.6 }), P('viprope', 18.6, 9.5, Math.PI / 2, { w: 1.6 }),
+    P('statue', 19.2, 0.8, 0), P('plant', 0.8, 0.8, 0, { kind: 'tall', seed: 7 }),
+    on(F12.club, 'n', 0.25, 0.05, 'neon', { text: 'SKY CLUB', color: '#ffd23f', w: 3.2 }), label(F12.club, 'Penthouse Sky Club', 0.05),
+    P('telescope', 10, 21.2, Math.PI), P('beanbag', 5, 18.5, 0, { color: '#b388ff' }), P('beanbag', 15, 18.5, 0, { color: '#33e1ff' }),
+    P('sofa', 2, 18.5, Math.PI / 2, { w: 2.4, color: '#2a2340', accent: '#ffd23f' }), label(F12.lounge, 'Star Lounge', 0.05),
+    P('helipad', 27, 8, 0, { r: 3.4 }), P('helicopter', 27, 8, 0.6, { color: '#ffffff', accent: '#ff3df0' }),
+    ...[23.5, 25.5].map((x) => P('sunbed', x, 20.6, Math.PI, { color: '#ffffff', towel: '#ffd23f' })), P('umbrella', 24.5, 18.6, 0, { color: '#d4af37' }),
+    P('planter', 21.3, 0.7, 0, { w: 2 }), label(F12.deck, 'Helipad', 0.25),
+  ],
+  stations: [T('grandpiano', 6, 6.4), T('stargaze', 10, 19.4), T('vipparty', 9, 11), T('landheli', 27, 13.4), T('skyphoto', 30, 2)],
+  lift: [33.75, 18, -Math.PI / 2],
+  spawn: [31, 18],
+};
+
 // ===================================================================== Car park
 const park: Layout = {
   id: 'park', w: 46, d: 40, mood: 'garage', exterior: 'none', wall: '#c9cbcf', backdrop: 'tower', storey: 0,
@@ -594,7 +733,8 @@ const villa: Layout = {
 };
 
 export const LAYOUTS: Record<FixedZone, Layout> = {
-  b: basement, f1: floor1, f2: floor2, f3: floor3, f4: floor4, f5: floor5, f6: floor6, f7: floor7, f8: floor8, park, villa,
+  b: basement, f1: floor1, f2: floor2, f3: floor3, f4: floor4, f5: floor5, f6: floor6, f7: floor7, f8: floor8,
+  f9: floor9, f10: floor10, f11: floor11, f12: floor12, park, villa,
 };
 
 // ===================================================================== Residence floors
@@ -658,7 +798,7 @@ function baseLayout(id: ZoneId): Layout {
   };
   const name = (room: string) => (who(room) ? `${who(room)}'s Bedroom` : 'Empty Bedroom');
   return {
-    id, w: 30, d: 18, mood: n % 2 ? 'golden' : 'day', exterior: 'glass', wall: '#f7f1ec', backdrop: 'city', storey: 8 + n,
+    id, w: 30, d: 18, mood: n % 2 ? 'golden' : 'day', exterior: 'glass', wall: '#f7f1ec', backdrop: 'city', storey: 13 + n,
     rooms: [
       { id: 'a', name: name('a'), r: R.a, floor: 'carpet', tint: ta.rug, wall: ta.wall },
       { id: 'ward', name: 'Walk-in Wardrobe', r: R.ward, floor: 'wood' },

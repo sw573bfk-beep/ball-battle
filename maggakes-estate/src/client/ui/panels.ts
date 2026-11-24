@@ -11,6 +11,7 @@ import type { Quality } from '../engine/gfx';
 import { BADGES, BEARDS, BOTTOMS, BUILDS, EYE_COLORS, HAIR, HEIGHTS, LIP_COLORS, SHOES, TOPS, normalizeLook } from '../../shared/look';
 import { colorRow, CLOTH_COLORS } from './color';
 import { portrait } from '../engine/portrait';
+import { LEVEL_BADGES, currentEvent, levelOf } from '../../shared/progress';
 
 export interface Ctx {
   save: () => Save;
@@ -45,7 +46,9 @@ export function openShop(ctx: Ctx, startTab: ShopCat = 'outfit'): void {
   const tabs: [ShopCat, string][] = [['outfit', '👗 Outfits'], ['accessory', '🕶️ Accessories'], ['furniture', '🛋️ Furniture'], ['car', '🚗 Cars']];
   const render = () => {
     const s = ctx.save();
-    const items = SHOP.filter((i) => i.cat === tab && i.id !== 'fit_villa');
+    const ev = currentEvent().id;
+    // Event exclusives show only during their week (and stay visible if you own them).
+    const items = SHOP.filter((i) => i.cat === tab && i.id !== 'fit_villa' && (!i.event || i.event === ev || (s.inventory[i.id] ?? 0) > 0));
     fill(body, 
       h('div.wallet', {}, h('span', {}, '💎 Available Aura: ', h('b', {}, fmt(s.aura))), h('span.muted', {}, `⭐ Total ${fmt(s.totalAura)}`)),
       h('div.tabs', {}, ...tabs.map(([k, l]) => h('button.tab' + (k === tab ? '.on' : ''), { onclick: () => { tab = k; render(); } }, l))),
@@ -62,7 +65,8 @@ export function openShop(ctx: Ctx, startTab: ShopCat = 'outfit'): void {
     else if (vipLocked) btn = h('button.btn.ghost', { disabled: true }, '⭐ VIP only');
     else if (floorLocked) btn = h('button.btn.ghost', { disabled: true }, `🔒 ${floorLabel(it.floor!)}`);
     else btn = h('button.btn' + (s.aura < it.price ? '.ghost' : ''), { onclick: () => ctx.net.send({ t: 'buy', item: it.id }) }, it.price === 0 ? 'Free' : `💎 ${fmt(it.price)}`);
-    return h('div.card' + (it.vip ? '.vip' : ''), {},
+    return h('div.card' + (it.vip ? '.vip' : '') + (it.event ? '.event' : ''), {},
+      it.event ? h('div.evtag', {}, '⏳ This week only') : null,
       h('div.emoji', {}, it.emoji),
       h('div.name', {}, it.name),
       stackable && owned ? h('div.muted', {}, `You have ${owned}`) : null,
@@ -173,6 +177,7 @@ export function openWardrobe(ctx: Ctx, opts: { villa?: boolean; onSaved?: () => 
         sec('Name tag colour', colorRow(prof.color, ['#ff6f91', '#9b7ede', '#4fd1c5', '#ffd23f', '#2b6cff', '#111111', '#ff9f1c'], (c, live) => { prof.color = c; if (!live) render(); }),
           prof.color ? h('button.mini', { onclick: () => { delete prof.color; render(); } }, '↩ Default') : null),
         sec('Badge', h('div.badges', {}, ...BADGES.map((b) => h('button' + ((prof.badge ?? '') === b ? '.on' : ''), { onclick: () => { prof.badge = b; render(); } }, b || '✕')))),
+        sec('⭐ Level badges', h('div.badges', {}, ...Object.entries(LEVEL_BADGES).map(([l, b]) => { const lv = levelOf(ctx.save().xp ?? ctx.save().totalAura); return h('button' + ((prof.badge ?? '') === b ? '.on' : '') + (lv < Number(l) ? '.locked' : ''), { title: `Level ${l}`, disabled: lv < Number(l), onclick: () => { prof.badge = b; render(); } }, lv < Number(l) ? `🔒${l}` : b); }))),
         sec('Bio', bio),
         h('div.actions', {}, h('button.btn.big', { onclick: () => ctx.net.send({ t: 'profile', profile: prof }) }, '✨ Save profile')),
       ];
@@ -192,7 +197,7 @@ export function openMap(ctx: Ctx): void {
   const render = () => {
     const s = ctx.save();
     const res = getResidences();
-    const order: ZoneId[] = ['villa', ...res.map((r) => r.zone).reverse(), 'f8', 'f7', 'f6', 'f5', 'f4', 'f3', 'f2', 'f1', 'b', 'park'];
+    const order: ZoneId[] = ['villa', ...res.map((r) => r.zone).reverse(), 'f12', 'f11', 'f10', 'f9', 'f8', 'f7', 'f6', 'f5', 'f4', 'f3', 'f2', 'f1', 'b', 'park'];
     fill(body, ...order.map((z) => {
       const here = ctx.zone() === z;
       const open = canEnter(s, z);
@@ -250,10 +255,11 @@ export function openBoard(ctx: Ctx): void {
     const medal = ['🥇', '🥈', '🥉'];
     fill(body, 
       h('table', {},
-        h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Name'), h('th', {}, '⭐ Aura'), h('th', {}, 'Floor'), h('th', {}, '🏆'), ctx.admin ? h('th', {}, 'Admin') : null)),
+        h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Name'), h('th', {}, 'Lv'), h('th', {}, '⭐ Aura'), h('th', {}, 'Floor'), h('th', {}, '🏆'), ctx.admin ? h('th', {}, 'Admin') : null)),
         h('tbody', {}, ...rows.map((r, i) => h('tr' + (r.name === ctx.save().name ? '.me' : ''), {},
           h('td', {}, medal[i] ?? String(i + 1)),
           h('td', {}, h('span.dot' + (r.online ? '.on' : ''), { title: r.online ? 'Online' : 'Offline' }), r.vip ? '⭐ ' : '', r.name, r.partner ? h('small.muted', {}, ` 💘 ${r.partner}`) : null),
+          h('td', {}, r.level ? String(r.level) : '–'),
           h('td', {}, fmt(r.totalAura)),
           h('td', {}, floorLabel(r.top)),
           h('td', {}, r.villaWins ? String(r.villaWins) : '–'),

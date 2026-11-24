@@ -226,7 +226,7 @@ export class Avatar {
   private eyes: THREE.Object3D[] = [];
   private tagY = 2.1;
   private shoeColor?: string;
-  private profile?: { color?: string; badge?: string };
+  private profile?: { color?: string; badge?: string; level?: number };
   look: Look;
   emote: Emote | null = null;
   emoteUntil = 0;
@@ -242,10 +242,10 @@ export class Avatar {
     if (name) this.setName(name, vip, sub);
   }
 
-  setName(name: string, vip: boolean, sub?: string, profile?: { color?: string; badge?: string }): void {
+  setName(name: string, vip: boolean, sub?: string, profile?: { color?: string; badge?: string; level?: number }): void {
     if (profile !== undefined) this.profile = profile;
     if (this.tag) { this.root.remove(this.tag); this.tag.material.map?.dispose(); this.tag.material.dispose(); }
-    this.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(name, vip, sub, this.profile?.color, this.profile?.badge), transparent: true, depthWrite: false, depthTest: false }));
+    this.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(this.profile?.level ? `${name} · Lv ${this.profile.level}` : name, vip, sub, this.profile?.color, this.profile?.badge), transparent: true, depthWrite: false, depthTest: false }));
     this.tag.scale.set(1.6, 0.5, 1);
     this.tag.position.y = this.tagY;
     this.tag.renderOrder = 10;

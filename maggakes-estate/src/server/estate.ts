@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { claimAchievement, claimEventGoal, claimLevels, levelOf, newlyReady } from '../shared/progress';
 import { RESIDENTS, checkUsername, isResidence, residenceHome, residenceNumber, type Home, type ZoneId } from '../shared/people';
 import { ALL_ZONES } from '../shared/floors';
 import { SHOP, shopItem } from '../shared/shop';
@@ -27,10 +28,11 @@ interface Conn {
   lastChat: number;
   lastReport?: number;
   autoReports?: number;
+  lastLevel?: number;
 }
 
 const TOKEN_DAYS = 60;
-const STAT_KEYS = new Set(['drive', 'swim', 'pats', 'cabana']);
+const STAT_KEYS = new Set(['drive', 'swim', 'pats', 'cabana', 'slide']);
 
 export class Estate extends DurableObject {
   private conns = new Map<string, Conn>();
@@ -363,13 +365,21 @@ export class Estate extends DurableObject {
 
   private info(c: Conn): PeerInfo {
     const look = c.zone === 'villa' && c.save.villa.look ? c.save.villa.look : c.save.look;
-    return { name: c.name, zone: c.zone ?? 'b', look, vip: c.save.vip, car: c.car, partner: c.save.villa.partner, pet: c.save.pet, profile: c.save.profile };
+    return { name: c.name, zone: c.zone ?? 'b', look, vip: c.save.vip, car: c.car, partner: c.save.villa.partner, pet: c.save.pet, profile: c.save.profile, level: levelOf(c.save.xp ?? 0), trophies: Object.keys(c.save.ach ?? {}).length };
   }
 
   private async saved(conn: Conn, toast?: { ok: boolean; msg: string }): Promise<void> {
+    const ready = newlyReady(conn.save);
     await this.store(conn.save);
     this.send(conn, { t: 'save', save: conn.save });
     if (toast) this.send(conn, { t: 'toast', text: toast.msg, good: toast.ok });
+    for (const a of ready.slice(0, 3)) this.send(conn, { t: 'toast', text: `🏆 Achievement unlocked: ${a.emoji} ${a.label}! Claim it in ⭐ Progress.`, good: true });
+    const lv = levelOf(conn.save.xp ?? 0);
+    if (lv > (conn.lastLevel ?? lv)) {
+      this.send(conn, { t: 'toast', text: `⭐ LEVEL UP! You're now level ${lv}! Claim your reward in ⭐ Progress.`, good: true });
+      if (conn.zone) this.toZone(conn.zone, { t: 'peer', info: this.info(conn) });
+    }
+    conn.lastLevel = lv;
   }
 
   private async handle(c: Conn, m: ClientMsg): Promise<void> {
@@ -424,6 +434,7 @@ export class Estate extends DurableObject {
         if (m.e === 'dance' && party && party.until > Date.now() && (party.earned.get(c.name) ?? 0) < 50) {
           party.earned.set(c.name, (party.earned.get(c.name) ?? 0) + 10);
           earn(c.save, 10, 0, 'Danced at a party');
+          bumpStat(c.save, 'dance', 1);
           this.send(c, { t: 'toast', text: '💃 +10 Aura for dancing at the party!', good: true });
         }
         await this.saved(c);
@@ -501,6 +512,9 @@ export class Estate extends DurableObject {
         return;
       }
       case 'outfit': await this.saved(c, saveOutfit(c.save, Number(m.slot), String(m.name ?? ''), m.look)); return;
+      case 'claimLevel': await this.saved(c, claimLevels(c.save, earn)); return;
+      case 'claimAch': await this.saved(c, claimAchievement(c.save, String(m.id), earn)); return;
+      case 'claimEvent': await this.saved(c, claimEventGoal(c.save, Number(m.i), earn)); return;
       case 'profile': {
         await this.saved(c, setProfile(c.save, m.profile ?? {}));
         if (c.zone) this.toZone(c.zone, { t: 'peer', info: this.info(c) }, c.name);
@@ -688,6 +702,7 @@ export class Estate extends DurableObject {
     c.save.villa.season = res.season;
     if (res.reward) {
       earn(c.save, res.reward.aura, res.reward.total, res.reward.win ? 'Won Love Island!' : res.reward.total ? 'Love Island' : 'Love Island day');
+      bumpStat(c.save, 'villaday', 1);
       if (res.reward.win) c.save.villa.wins += 1;
     }
     await this.saved(c, res.ok ? undefined : { ok: false, msg: res.msg ?? 'Not right now.' });
@@ -762,6 +777,7 @@ export class Estate extends DurableObject {
     for (const n of winners) {
       const o = this.conns.get(n)!;
       earn(o.save, 30, 0, 'Won a game of tag');
+      bumpStat(o.save, 'tagwin', 1);
       this.store(o.save).catch(() => {});
       this.send(o, { t: 'save', save: o.save });
     }
@@ -787,7 +803,7 @@ export class Estate extends DurableObject {
     for (const p of people) {
       const s = await this.load(p.name);
       rows.push({
-        name: p.name, totalAura: s.totalAura, top: zoneUnlocked(s, 'f8') ? 'f8' : topFloor(s), vip: s.vip,
+        name: p.name, totalAura: s.totalAura, top: topFloor(s), vip: s.vip, level: levelOf(s.xp ?? s.totalAura),
         online: this.conns.has(p.name), villaWins: s.villa.wins, villaPoints: s.villa.points,
         partner: s.villa.partner?.replace(/^npc:/, ''), hasPassword: accts.has(`acct:${p.name}`),
       });

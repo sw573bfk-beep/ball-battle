@@ -24,6 +24,8 @@ import type { AccountRow, Residence } from '../shared/protocol';
 import type { RoomStyle } from '../shared/save';
 import { COLOR_MODELS, tint } from './engine/props';
 import { colorRow } from './ui/color';
+import { levelOf } from '../shared/progress';
+import { openProgress } from './ui/progress';
 import { portrait } from './engine/portrait';
 import { ROOM_FLOORS } from '../shared/save';
 
@@ -285,6 +287,7 @@ export class Game {
     const zone = buildZone(z);
     this.zone = zone;
     this.zoneLoadedAt = performance.now();
+    if (zone.layout.snow) this.addSnow(zone);
     this.zoneId = z;
     this.ticks = [...zone.ticks];
     this.gfx.scene.add(zone.root);
@@ -388,7 +391,7 @@ export class Game {
           if (this.zoneId === 'villa' && prevVilla !== JSON.stringify(m.save.villa.look) && m.save.villa.look) this.me.setLook(m.save.villa.look);
           else if (this.zoneId !== 'villa' && prevLook !== JSON.stringify(m.save.look)) this.me.setLook(m.save.look);
         }
-        if (prevVip !== m.save.vip || JSON.stringify(m.save.profile) !== this.lastProfile) { this.lastProfile = JSON.stringify(m.save.profile); this.me.setName(m.save.name, m.save.vip, this.partnerSub(), m.save.profile ?? {}); }
+        if (prevVip !== m.save.vip || JSON.stringify(this.myTag()) !== this.lastProfile) { this.lastProfile = JSON.stringify(this.myTag()); this.me.setName(m.save.name, m.save.vip, this.partnerSub(), this.myTag()); }
         if (this.zoneId === 'park' && prevCars !== Object.keys(m.save.inventory).filter((k) => k.startsWith('car_')).join() + JSON.stringify(m.save.carPaint)) {
           this.zone?.root.getObjectByName('parked')?.removeFromParent();
           this.buildParkedCars();
@@ -418,7 +421,7 @@ export class Game {
         const p = this.peers.get(m.info.name);
         if (!p) { this.addPeer(m.info); return; }
         if (JSON.stringify(p.info.look) !== JSON.stringify(m.info.look)) p.avatar.setLook(m.info.look);
-        if (p.info.vip !== m.info.vip || p.info.partner !== m.info.partner || JSON.stringify(p.info.profile) !== JSON.stringify(m.info.profile)) p.avatar.setName(m.info.name, m.info.vip, m.info.partner && this.zoneId === 'villa' ? `💘 ${m.info.partner.replace(/^npc:/, '')}` : undefined, m.info.profile ?? {});
+        if (p.info.vip !== m.info.vip || p.info.partner !== m.info.partner || p.info.level !== m.info.level || JSON.stringify(p.info.profile) !== JSON.stringify(m.info.profile)) p.avatar.setName(m.info.name, m.info.vip, m.info.partner && this.zoneId === 'villa' ? `💘 ${m.info.partner.replace(/^npc:/, '')}` : undefined, { ...(m.info.profile ?? {}), level: m.info.level });
         p.info = m.info;
         this.setPeerCar(p);
         return;
@@ -495,7 +498,7 @@ export class Game {
   private addPeer(info: PeerInfo): void {
     if (!this.zone || info.name === this.save.name) return;
     const av = new Avatar(info.look, info.name, info.vip, info.partner && this.zoneId === 'villa' ? `💘 ${info.partner.replace(/^npc:/, '')}` : undefined);
-    if (info.profile) av.setName(info.name, info.vip, info.partner && this.zoneId === 'villa' ? `💘 ${info.partner.replace(/^npc:/, '')}` : undefined, info.profile);
+    if (info.profile || info.level) av.setName(info.name, info.vip, info.partner && this.zoneId === 'villa' ? `💘 ${info.partner.replace(/^npc:/, '')}` : undefined, { ...(info.profile ?? {}), level: info.level });
     this.zone.root.add(av.root);
     const p: Peer = { info, avatar: av, x: 0, z: 0, ry: 0, tx: 0, tz: 0, try: 0, a: 0, car: null, carKey: '' };
     p.x = p.tx = this.zone.spawn.x; p.z = p.tz = this.zone.spawn.z;
@@ -591,7 +594,9 @@ export class Game {
     const inTub = zone.tubs.some((tb) => Math.hypot(this.pos.x - tb.x, this.pos.y - tb.z) < tb.r - 0.1);
     const sprint = !inPool && (this.input.keys.has('shift') || this.sprintOn);
     const speed = inPool ? SWIM_SPEED : sprint ? SPEED * 1.75 : SPEED;
-    const k = Math.min(1, dt * 12);
+    // Ice: you glide and slide instead of stopping straight away.
+    const onIce = !inPool && !!zone.layout.ice?.some((r) => this.pos.x + zone.half.w > r[0] && this.pos.x + zone.half.w < r[0] + r[2] && this.pos.y + zone.half.d > r[1] && this.pos.y + zone.half.d < r[1] + r[3]);
+    const k = Math.min(1, dt * (onIce ? 1.8 : 12));
     this.vel.x += (dx * speed - this.vel.x) * k;
     this.vel.y += (dz * speed - this.vel.y) * k;
     this.pos.x += this.vel.x * dt;
@@ -647,6 +652,32 @@ export class Game {
       if (a) best = { d, a };
     }
     return best;
+  }
+
+  /** Gentle snowfall over the whole floor. */
+  private addSnow(zone: Zone): void {
+    const n = 700, w = zone.half.w * 2, d = zone.half.d * 2;
+    const pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) pos.set([(Math.random() - 0.5) * w, Math.random() * 3.4, (Math.random() - 0.5) * d], i * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.07, transparent: true, opacity: 0.9, depthWrite: false }));
+    zone.root.add(pts);
+    this.ticks.push((t, dt) => {
+      const a = geo.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < n; i++) {
+        let y = a.getY(i) - dt * (0.35 + (i % 7) * 0.05);
+        if (y < 0) y = 3.4;
+        a.setY(i, y);
+        a.setX(i, a.getX(i) + Math.sin(t + i) * dt * 0.08);
+      }
+      a.needsUpdate = true;
+    });
+  }
+
+  /** What goes on my own name tag. */
+  private myTag(): { color?: string; badge?: string; level: number } {
+    return { ...(this.save.profile ?? {}), level: levelOf(this.save.xp ?? this.save.totalAura) };
   }
 
   /** Mobile sprint toggle. */
@@ -1351,6 +1382,7 @@ export class Game {
       h('div.tagprev', { style: pr.color ? { background: pr.color, color: '#fff' } : {} }, `${pr.badge ? pr.badge + ' ' : ''}${info.name}${info.vip ? ' 👑' : ''}`),
       pr.badge ? h('div.big-badge', {}, pr.badge) : null,
       h('div.bio', {}, pr.bio || `${info.name} hasn't written a bio yet.`),
+      h('p', {}, `⭐ Level ${info.level ?? 1} · 🏆 ${info.trophies ?? 0} trophies`),
       info.pet ? h('p.muted', {}, `🐾 Pet: ${info.pet.name}`) : null,
       info.partner ? h('p.muted', {}, `💘 Coupled up with ${info.partner}`) : null,
       h('div.actions', {}, h('button.btn', { onclick: () => { closeAllSheets(); this.emote('wave'); } }, '👋 Wave'))));
@@ -1547,6 +1579,7 @@ export class Game {
     btn('#b-shop', () => openShop(this.ctx));
     btn('#b-wardrobe', () => openWardrobe(this.ctx, { villa: this.zoneId === 'villa' }));
     btn('#b-daily', () => openDaily(this.ctx));
+    btn('#b-progress', () => openProgress(this.ctx));
     btn('#b-board', () => openBoard(this.ctx));
     btn('#b-settings', () => openSettings(this.ctx));
     btn('#b-fun', () => this.openFunMenu());
@@ -1580,7 +1613,7 @@ export class Game {
     this.renderBadge();
     const s = this.save;
     const goal = nextGoal(s);
-    fill($('#who'), h('b', {}, s.vip ? `⭐ ${s.name}` : s.name), s.vip ? h('span.vip', {}, 'VIP') : null);
+    fill($('#who'), h('b', {}, s.vip ? `⭐ ${s.name}` : s.name), s.vip ? h('span.vip', {}, 'VIP') : null, h('button.lvchip', { title: 'Your level — tap for rewards', onclick: () => openProgress(this.ctx) }, `Lv ${levelOf(s.xp ?? s.totalAura)}${levelOf(s.xp ?? s.totalAura) > (s.levelClaimed ?? 1) ? ' 🎁' : ''}`));
     fill($('#aura'), 
       h('div.stat', { title: 'Total Aura Earned — unlocks floors and never goes down' }, h('span', {}, '⭐'), h('b', {}, s.totalAura.toLocaleString('en-AU')), h('small', {}, 'Total')),
       h('div.stat', { title: 'Available Aura — spend it in the shop' }, h('span', {}, '💎'), h('b', {}, s.aura.toLocaleString('en-AU')), h('small', {}, 'Available')),
@@ -1616,7 +1649,7 @@ export class Game {
     }
     const room = this.zone && roomAt(this.zone, this.pos.x, this.pos.y);
     void room;
-    this.me.setName(s.name, s.vip, this.partnerSub(), s.profile ?? {});
+    this.me.setName(s.name, s.vip, this.partnerSub(), this.myTag());
   }
 }
 

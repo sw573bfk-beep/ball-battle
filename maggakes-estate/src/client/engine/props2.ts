@@ -194,6 +194,7 @@ function rinkBoard(o: Opts): Prop {
   const g = G();
   const w = o.w ?? 4;
   box(g, w, 0.9, 0.12, WHITE(), 0, 0, 0);
+  box(g, w, 0.22, 0.13, mat(c(o, 'color', '#33a8ff'), 0.4), 0, 0.05, 0);
   box(g, w, 0.08, 0.16, mat(c(o, 'color', '#33a8ff'), 0.4), 0, 0.9, 0);
   box(g, w, 0.9, 0.04, glass('#e8f8ff', 0.2), 0, 0.98, 0);
   return { obj: g, solid: { w, d: 0.2 } };

@@ -454,6 +454,7 @@ export class Fun {
       this.burst(pos.x, 0, pos.z, 0xbff6ff, 60, 5, 6);
       this.burst(pos.x, 0, pos.z, 0xffffff, 30, 4, 6);
       toast('🌊 SPLASH!');
+      this.g.net.send({ t: 'stat', stat: 'slide', by: 1 });
     }
   }
 

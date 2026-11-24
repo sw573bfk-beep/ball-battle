@@ -4,6 +4,8 @@ import { FLOORS, TASK_AURA } from '../src/shared/floors';
 import { findResident, RESIDENTS } from '../src/shared/people';
 import { villaChallenge, winFinal, FINAL_POINTS } from '../src/shared/villa';
 import { SHOP } from '../src/shared/shop';
+import { ACHIEVEMENTS, EVENTS, claimAchievement, claimEventGoal, claimLevels, currentEvent, levelOf, levelStart, newlyReady, weekIndex } from '../src/shared/progress';
+import { earn } from '../src/shared/save';
 
 let n = 0;
 const test = (name: string, fn: () => void) => { fn(); n++; console.log('✓', name); };
@@ -378,5 +380,58 @@ test('EXPLOIT FIX: replays can\'t be spam-clicked for Aura', () => {
   for (let i = 0; i < 50; i++) assert.equal(completeTask(s, 'f1', id, 1_000_000 + i * 100).ok, false);
   assert.equal(s.aura, a0 + 50, 'only one replay paid');
   assert.ok(completeTask(s, 'f1', id, 1_000_000 + 2 * 60_000).ok, 'fine again after 2 minutes');
+});
+test('SKY FLOORS: four new floors chain on from the rooftop (1,000 apart)', () => {
+  const sky = FLOORS.filter((f) => ['f9', 'f10', 'f11', 'f12'].includes(f.id));
+  assert.deepEqual(sky.map((f) => f.need), [8000, 9000, 10000, 11000]);
+  const s = newSave('Phoebe');
+  s.room = [1, 2, 3].map((i) => ({ uid: String(i), item: 'd_teddy', x: i, z: 1, rot: 0 }));
+  for (const f of FLOORS) for (const t of f.tasks) { assert.ok(zoneUnlocked(s, f.id), `${f.id} open in time`); assert.ok(completeTask(s, f.id, t.id, 0).ok); }
+  assert.equal(s.totalAura, 12000, 'all 12 floors = 12,000 Total Aura');
+});
+
+test('LEVELS: XP from every Aura earned, rewards only when claimed', () => {
+  assert.equal(levelOf(0), 1); assert.equal(levelOf(levelStart(2)), 2); assert.equal(levelOf(levelStart(10) - 1), 9); assert.equal(levelOf(1e9), 100);
+  const s = newSave('Phoebe');
+  earn(s, 300, 300, 'Task: x');
+  earn(s, 50, 0, 'Replayed: x');
+  assert.equal(s.xp, 350);
+  const aura = s.aura;
+  assert.equal(s.aura, aura, 'levelling up never changes Aura by itself');
+  const r = claimLevels(s, earn);
+  assert.ok(r.ok && s.aura > aura && s.levelClaimed === levelOf(350));
+  assert.equal(claimLevels(s, earn).ok, false, 'nothing twice');
+  assert.equal(s.xp, 350, 'level rewards don\'t count as XP');
+});
+
+test('ACHIEVEMENTS: 40+, claim once, only when done', () => {
+  assert.ok(ACHIEVEMENTS.length >= 40);
+  assert.equal(new Set(ACHIEVEMENTS.map((a) => a.id)).size, ACHIEVEMENTS.length);
+  const s = newSave('Phoebe');
+  assert.equal(claimAchievement(s, 'first_task', earn).ok, false);
+  completeTask(s, 'f1', FLOORS.find((f) => f.id === 'f1')!.tasks[0].id, 0);
+  assert.ok(newlyReady(s).some((a) => a.id === 'first_task'));
+  assert.equal(newlyReady(s).length, 0, 'announced only once');
+  const a = s.aura;
+  assert.ok(claimAchievement(s, 'first_task', earn).ok && s.aura === a + 100);
+  assert.equal(claimAchievement(s, 'first_task', earn).ok, false);
+});
+
+test('WEEKLY EVENTS: rotate each week, goals from stats, exclusives only that week', () => {
+  assert.ok(EVENTS.length >= 8);
+  const now = Date.UTC(2026, 10, 24);
+  assert.notEqual(currentEvent(now).id, currentEvent(now + 7 * 86400_000).id);
+  const s = newSave('Phoebe');
+  const ev = currentEvent();
+  const g = ev.goals[0];
+  assert.equal(claimEventGoal(s, 0, earn).ok, false);
+  bumpStat(s, g.stat, g.goal);
+  assert.ok(claimEventGoal(s, 0, earn).ok);
+  assert.equal(claimEventGoal(s, 0, earn).ok, false);
+  s.aura = 99999;
+  const mine = SHOP.find((i) => i.event === ev.id)!, other = SHOP.find((i) => i.event && i.event !== ev.id)!;
+  assert.ok(buy(s, mine.id).ok, 'this week\'s exclusive can be bought');
+  assert.equal(buy(s, other.id).ok, false, 'other weeks\' exclusives can\'t');
+  assert.equal(typeof weekIndex(), 'number');
 });
 console.log(`\n${n} tests passed`);

@@ -13,6 +13,8 @@ export interface PeerInfo {
   partner?: string;
   pet?: { kind: PetKind; name: string; fur?: string; collar?: string };
   profile?: Profile;
+  level?: number;
+  trophies?: number;
 }
 
 export interface PeerPos {
@@ -32,6 +34,7 @@ export interface BoardRow {
   online: boolean;
   villaWins: number;
   villaPoints: number;
+  level?: number;
   partner?: string;
   hasPassword: boolean;
 }
@@ -84,6 +87,9 @@ export type ClientMsg =
   | { t: 'admin'; action: AdminAction; target: string }
   | { t: 'accounts' }
   | { t: 'pet'; kind: string; name: string; fur?: string; collar?: string }
+  | { t: 'claimLevel' }
+  | { t: 'claimAch'; id: string }
+  | { t: 'claimEvent'; i: number }
   | { t: 'outfit'; slot: number; name: string; look: Look }
   | { t: 'profile'; profile: Profile }
   | { t: 'roomStyle'; style: RoomStyle }

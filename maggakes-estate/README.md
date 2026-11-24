@@ -1,8 +1,10 @@
 # The Maggakes Estate
 
-A 3D luxury-mansion roleplay game for the browser. You work your way up a nine-level mansion by
+A 3D luxury-mansion roleplay game for the browser. You work your way up a thirteen-level mansion by
 doing tasks, earning Aura Points, unlocking floors, shopping for clothes, furniture and cars, and
-decorating your own bedroom. When you reach the rooftop, **Love Island Mode** unlocks.
+decorating your own bedroom. When you reach the rooftop, **Love Island Mode** unlocks, and above it
+four sky floors keep going: the **Sky Arcade**, **Cinema & Bowling**, **Ice Rink & Snow Lounge** and
+the **Penthouse Sky Club** (each one opens 1,000 Total Aura after the last).
 
 **Play:** https://maggakes-estate.sw573bfk.workers.dev
 
@@ -29,7 +31,8 @@ Charis & Gabby (6th), Milla (7th).
   so you can't lose progress.
 - **Basement, 1st floor and car park** are open from the start. Your own home floor is always open so
   you can decorate your room, but its tasks only count once you've unlocked it.
-- **Replaying** a task gives +50 Available Aura (it doesn't count towards unlocking floors).
+- **Replaying** a task gives +50 Available Aura, at most once every 2 minutes per task (it doesn't
+  count towards unlocking floors).
 - **Daily challenges** (3 a day, plus 1 more for VIPs) give extra Aura.
 - **Shop:** outfits, sunglasses, handbags, jewellery, hats, perfume (sparkle trail), furniture and cars.
   Some items need a certain floor, some are VIP-only.
@@ -44,6 +47,12 @@ Charis & Gabby (6th), Milla (7th).
   **golden shell** tracker (30 hidden around the mansion, +1,000 Aura for finding them all) and **music**.
 - **🏁 Kart race** at the car park (lap timer + best-lap board) and a **🌊 water slide** on the rooftop.
 - **Day & night:** a shared 20-minute day — sunrise, sunset and starry nights for everyone at once.
+- **⭐ Progress (levels, achievements, weekly events).** Every Aura you earn is XP. Levels go up to
+  100, and each gives an Aura reward, with badges and free items at milestones. There are 46
+  achievements to claim, and a different themed event every week (Spooky, Fashion, Summer, Winter,
+  Grand Prix, Villa Love, Arcade, Pets) with three goals and two shop items you can only buy that
+  week. Rewards are only given when you press *Claim*. Your level shows on your name tag and the
+  leaderboard.
 - **🎨 Make it yours.** Almost everything can be changed:
   - **Wardrobe** has five tabs. *Look*: any colour skin, hair, eyes and lips, plus build, height,
     hairstyle and facial hair. *Clothes*: a shop outfit or 🧩 mix & match (9 tops, 8 bottoms,
@@ -51,7 +60,8 @@ Charis & Gabby (6th), Milla (7th).
     colour, a badge and a short bio. Walk up to another player and press *👤 profile* to read theirs.
   - **Bedroom:** in *Decorate*, give a piece of furniture any colour and size before placing it.
     *✏️ Edit nearest* lets you recolour, resize, spin, move or put away something already placed.
-    *🎨 Walls & floor* sets any wall colour, 11 floor styles and a floor tint.
+    *🎨 Walls & floor* sets any wall colour, 11 floor styles and a floor tint, or empties the room's
+    built-in furniture so you can decorate it from scratch.
   - **Garage:** any paint colour and any wheel colour for every car, including the Mini Kart.
   - **Pets:** any fur and collar colour.
 

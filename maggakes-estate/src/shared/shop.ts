@@ -12,6 +12,8 @@ export interface ShopItem {
   /** Floor that must be unlocked before this shows as buyable. */
   floor?: ZoneId;
   vip?: boolean;
+  /** Weekly event id: only buyable while that event is on. */
+  event?: string;
   /** Everyone owns this from the start. */
   free?: boolean;
   /** Wearables: which slot it equips into. */
@@ -48,6 +50,11 @@ export const SHOP: ShopItem[] = [
   o('fit_coastal', 'Coastal Chic', '🐚', 650, 'dress', '#bfe3f2', '#bfe3f2', { floor: 'f4' }),
   o('fit_gown', 'Sparkle Gown', '✨', 900, 'gown', '#c9a4ff', '#c9a4ff', { floor: 'f5' }),
   o('fit_red', 'Red Carpet Gown', '🌹', 1100, 'gown', '#d7263d', '#d7263d', { floor: 'f7' }),
+  o('fit_neon', 'Neon Arcade Fit', '🕹️', 800, 'hoodie', '#ff3df0', '#1b1c24', { floor: 'f9' }),
+  o('fit_movie', 'Movie Premiere Gown', '🎬', 1300, 'sequin', '#d4af37', '#d4af37', { floor: 'f10' }),
+  o('fit_snow', 'Snow Bunny Fit', '❄️', 1000, 'track', '#ffffff', '#bfe3f2', { floor: 'f11' }),
+  o('fit_penthouse', 'Penthouse Tux', '🤵', 1600, 'suit', '#111216', '#111216', { floor: 'f12' }),
+  o('fit_starlight', 'Starlight Gown', '🌌', 1800, 'gown', '#2a2340', '#b388ff', { floor: 'f12' }),
   o('fit_vip', 'Gold VIP Fit', '👑', 1200, 'suit', '#d4af37', '#2a2416', { vip: true }),
 
   // ---------- Accessories ----------
@@ -92,6 +99,16 @@ export const SHOP: ShopItem[] = [
   { id: 'd_bed', name: 'Luxury Bed', emoji: '🛏️', cat: 'furniture', price: 1000, floor: 'f3', r: { model: 'bed', color: '#f6e9ef' } },
   { id: 'd_canopy', name: 'Canopy Bed', emoji: '👸', cat: 'furniture', price: 1400, floor: 'f6', r: { model: 'canopybed', color: '#ffd6e7' } },
   { id: 'd_statue', name: 'Gold Statue', emoji: '🗿', cat: 'furniture', price: 1500, vip: true, r: { model: 'statue' } },
+  // Sky floors (9th–12th)
+  { id: 'd_arcade', name: 'Arcade Machine', emoji: '🕹️', cat: 'furniture', price: 900, floor: 'f9', r: { model: 'arcade', text: 'MY ARCADE' } },
+  { id: 'd_claw', name: 'Claw Machine', emoji: '🧸', cat: 'furniture', price: 1200, floor: 'f9', r: { model: 'claw', color: '#ff6fb5' } },
+  { id: 'd_popcorn', name: 'Popcorn Cart', emoji: '🍿', cat: 'furniture', price: 700, floor: 'f10', r: { model: 'popcorn' } },
+  { id: 'd_cinemaseat', name: 'Cinema Recliners', emoji: '🎬', cat: 'furniture', price: 900, floor: 'f10', r: { model: 'cinemaseats', n: 2 } },
+  { id: 'd_snowman', name: 'Snowman', emoji: '⛄', cat: 'furniture', price: 600, floor: 'f11', r: { model: 'snowman' } },
+  { id: 'd_pine', name: 'Sparkly Pine Tree', emoji: '🎄', cat: 'furniture', price: 900, floor: 'f11', r: { model: 'pine', h: 2.4, lights: 1, star: 1 } },
+  { id: 'd_fireplace', name: 'Cosy Fireplace', emoji: '🔥', cat: 'furniture', price: 1500, floor: 'f11', r: { model: 'fireplace', w: 1.8 } },
+  { id: 'd_piano', name: 'Grand Piano', emoji: '🎹', cat: 'furniture', price: 2500, floor: 'f12', r: { model: 'grandpiano' } },
+  { id: 'd_champagne', name: 'Sparkle Glass Tower', emoji: '🥂', cat: 'furniture', price: 1800, floor: 'f12', r: { model: 'champagne' } },
 
   // ---------- Cars ----------
   { id: 'car_kart', name: 'Mini Kart', emoji: '🏎️', cat: 'car', price: 0, free: true, r: { model: 'kart', color: '#ff3d7f' } },
@@ -105,6 +122,26 @@ export const SHOP: ShopItem[] = [
 ];
 
 // ---------- Fun ----------
+// ---------- Weekly event exclusives (only buyable during their week) ----------
+SHOP.push(
+  o('ev_witch', 'Spooky Witch Dress', '🧙', 900, 'gown', '#1b1c24', '#ff7a1a', { event: 'spooky' }),
+  { id: 'ev_boo', name: 'BOO! Neon Sign', emoji: '👻', cat: 'furniture', price: 700, event: 'spooky', r: { model: 'neon', text: 'BOO!', color: '#ff7a1a' } },
+  o('ev_runway', 'Runway Sequins', '👠', 1100, 'sequin', '#ff3df0', '#ff3df0', { event: 'fashion' }),
+  { id: 'ev_vogue', name: 'Catwalk Neon Sign', emoji: '💅', cat: 'furniture', price: 700, event: 'fashion', r: { model: 'neon', text: 'SLAY', color: '#ff3df0' } },
+  o('ev_tropic', 'Tropical Splash Fit', '🌺', 800, 'beach', '#ff7a1a', '#33a8ff', { event: 'summer' }),
+  { id: 'ev_flamingo', name: 'Pool Flamingo', emoji: '🦩', cat: 'furniture', price: 600, event: 'summer', r: { model: 'flamingo' } },
+  o('ev_puffer', 'Puffer Jacket Fit', '🧥', 900, 'hoodie', '#9fdcff', '#ffffff', { event: 'winter' }),
+  { id: 'ev_snowglobe', name: 'Snow Neon Sign', emoji: '❄️', cat: 'furniture', price: 700, event: 'winter', r: { model: 'neon', text: '❄ LET IT SNOW', color: '#9fdcff' } },
+  o('ev_racer', 'Racing Suit', '🏁', 900, 'track', '#ffd23f', '#1b1c24', { event: 'racing' }),
+  { id: 'ev_flag', name: 'Checkered Neon Sign', emoji: '🏎️', cat: 'furniture', price: 700, event: 'racing', r: { model: 'neon', text: 'VROOM', color: '#ffd23f' } },
+  o('ev_heartdress', 'Heart Slip Dress', '💗', 1000, 'slip', '#ff6fb5', '#ff6fb5', { event: 'love' }),
+  { id: 'ev_lovesign', name: 'Love Island Sign', emoji: '💘', cat: 'furniture', price: 700, event: 'love', r: { model: 'neon', text: 'LOVE', color: '#ff6fb5' } },
+  o('ev_gamer', 'Gamer Hoodie', '🎮', 800, 'hoodie', '#7cff6b', '#1b1c24', { event: 'arcade' }),
+  { id: 'ev_gameover', name: 'GAME OVER Sign', emoji: '🕹️', cat: 'furniture', price: 700, event: 'arcade', r: { model: 'neon', text: 'GAME OVER', color: '#7cff6b' } },
+  o('ev_pawprint', 'Paw Print Co-ord', '🐾', 800, 'coord', '#c8925a', '#f2e3c6', { event: 'pets' }),
+  { id: 'ev_petbed', name: 'Luxury Pet Bed', emoji: '🛏️', cat: 'furniture', price: 500, event: 'pets', r: { model: 'petbed', color: '#ffd6e7' } },
+);
+
 SHOP.push({ id: 'fx_fireworks', name: 'Fireworks', emoji: '🎆', cat: 'fun', price: 150, r: {} });
 
 /** Items you can own more than one of. */
