@@ -63,7 +63,7 @@ ok(await until(() => !!document.querySelector('.bondchip')), 'answer changes you
 await p.click('.scene-choices .btn');
 // Play through the season via the season engine messages until it ends
 let guard = 0;
-while (guard++ < 120) {
+while (guard++ < 250) { // 10 days × (5 chats + answers + evening + firepit)
   const st = await G(() => { const s = window.__game().save.villa.season; return s ? { phase: s.phase, pending: s.pending, actions: s.actions, cast: s.cast } : null; });
   if (!st || st.phase === 'over') break;
   if (st.pending) {
