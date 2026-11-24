@@ -62,6 +62,9 @@ export interface AccountRow {
 /** A problem report sent from inside the game. */
 export interface Report { id: string; from: string; text: string; info: string; auto: boolean; at: number; done: boolean }
 
+/** A message in the Staff Chat (admins + VIPs). `sys` messages are joins/kicks. */
+export interface StaffMsg { at: number; from: string; text: string; sys?: boolean; admin?: boolean }
+
 export type AdminAction = 'vip' | 'unvip' | 'reset' | 'ban' | 'unban' | 'approve' | 'reject' | 'admin' | 'unadmin';
 
 export type ClientMsg =
@@ -88,6 +91,8 @@ export type ClientMsg =
   | { t: 'accounts' }
   | { t: 'pet'; kind: string; name: string; fur?: string; collar?: string }
   | { t: 'claimLevel' }
+  | { t: 'staff'; text: string }
+  | { t: 'staff?' }
   | { t: 'quest'; a: 'accept' | 'claim'; id: string }
   | { t: 'claimAch'; id: string }
   | { t: 'claimEvent'; i: number }
@@ -124,6 +129,9 @@ export type ServerMsg =
   | { t: 'pos'; p: PeerPos }
   | { t: 'chat'; from: string; text: string }
   | { t: 'emote'; from: string; e: string }
+  | { t: 'staff'; msg: StaffMsg }
+  | { t: 'staffHistory'; rows: StaffMsg[] }
+  | { t: 'staffAccess'; on: boolean; why?: string }
   | { t: 'room'; owner: string; items: PlacedItem[] }
   | { t: 'board'; rows: BoardRow[] }
   | { t: 'coupleAsk'; from: string }

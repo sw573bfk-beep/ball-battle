@@ -8,6 +8,7 @@ import { buildZone, roomAt, roomBox, type Zone } from './world/build';
 import { spawnHost, spawnIslander, spawnNpc, spawnPets, updateWanderers, type Wanderer } from './world/npc';
 import { NPCS, npcQuest, questStatus } from '../shared/quests';
 import { openNpc } from './ui/quests';
+import { StaffChat } from './ui/staff';
 import { openCast, showScene } from './ui/season';
 import { FINAL_DAY, nextStep, type SeasonAction } from '../shared/season';
 import { Input } from './input';
@@ -159,6 +160,12 @@ export class Game {
       report: () => this.openReport(),
     };
     net.on((m) => this.onMsg(m));
+    this.staffChat = new StaffChat(net, () => this.save.name, () => {
+      const badge = $('#b-staff').querySelector('.badge') as HTMLElement;
+      const n = this.staffChat?.unread ?? 0;
+      badge.textContent = n > 9 ? '9+' : String(n);
+      badge.style.display = n > 0 ? '' : 'none';
+    });
     this.input.onKey = (k) => this.onKey(k);
     $('#b-jump').onclick = () => this.jump();
     $('#b-sprint').onclick = (e) => { this.sprintOn = !this.sprintOn; (e.currentTarget as HTMLElement).classList.toggle('on', this.sprintOn); };
@@ -471,6 +478,16 @@ export class Game {
         return;
       }
       case 'reports': this.reportListeners.forEach((f) => f(m.rows)); return;
+      case 'staffAccess': {
+        const was = this.staffOn;
+        this.staffOn = m.on;
+        $('#b-staff').style.display = m.on ? '' : 'none';
+        if (!m.on) { this.staffChat.shut(); if (was || m.why) toast(m.why ?? 'You were removed from the Staff Chat.'); }
+        else if (m.why) toast(m.why, true);
+        return;
+      }
+      case 'staff': this.staffChat.add(m.msg); return;
+      case 'staffHistory': this.staffChat.history(m.rows); return;
       case 'role': {
         this.admin = m.admin;
         this.ctx.admin = m.admin;
@@ -706,6 +723,9 @@ export class Game {
   }
 
   private jazzQuestSeen = false;
+  /** Admins + VIPs only. */
+  private staffOn = false;
+  private staffChat!: StaffChat;
 
   /** ❗ over characters with a quest to give, ✅ when one is ready to hand in. */
   private npcMarkers(): void {
@@ -1649,6 +1669,7 @@ export class Game {
     btn('#b-wardrobe', () => openWardrobe(this.ctx, { villa: this.zoneId === 'villa' }));
     btn('#b-daily', () => openDaily(this.ctx));
     btn('#b-progress', () => openProgress(this.ctx));
+    btn('#b-staff', () => this.staffChat.open());
     btn('#b-board', () => openBoard(this.ctx));
     btn('#b-settings', () => openSettings(this.ctx));
     btn('#b-fun', () => this.openFunMenu());

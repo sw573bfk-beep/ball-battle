@@ -15,6 +15,7 @@ Run against a local server (`npm run build && npm run dev:server`), with a fresh
 | `e2e7.mjs` | customisation: colours, mix & match, saved outfits, profiles, room style, furniture editing, car/kart/pet colours |
 | `e2e8.mjs` | the six newer mini-games (catch, memory, rhythm, spot, maze, unscramble) can be won |
 | `e2e9.mjs` | outside world (beach, mall, town) and quests: travel, talk to the Mayor, accept, complete, claim (`--render` for screenshots) |
+| `e2e10.mjs` | Staff Chat: admins + VIPs only, added when given VIP/admin, kicked when it is taken away |
 | `aura-audit*.mjs` | every way to earn/spend Aura; run `aura-after-restart*.mjs` after restarting the server |
 
 They use the machine's Playwright install (`/opt/node-tools/node_modules/playwright`); change that import path if yours is elsewhere.

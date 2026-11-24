@@ -64,6 +64,9 @@ Charis & Gabby (6th), Milla (7th).
   beach, Chef Marco, Madame Glitz, Ranger Rosie, Professor Nova and Jazz) give 15 quests across 8
   chapters. Look for ❗ over their heads. Steps only count what you do after accepting, ✅ means
   you can hand in. Finishing every quest makes you a *Maggakes Legend*. See *⭐ Progress → 📜 Quests*.
+- **💬 Staff Chat:** a private chat for all admins and VIPs (button next to Admin). You're added
+  automatically when you're given VIP or admin, and kicked out the moment it's taken away or you're
+  banned. The last 100 messages are kept.
 - **⭐ Progress (levels, achievements, weekly events).** Every Aura you earn is XP. Levels go up to
   100, and each gives an Aura reward, with badges and free items at milestones. There are 46
   achievements to claim, and a different themed event every week (Spooky, Fashion, Summer, Winter,

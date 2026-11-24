@@ -7,12 +7,12 @@ import { ALL_ZONES } from '../shared/floors';
 import { SHOP, shopItem } from '../shared/shop';
 import { isHex } from '../shared/look';
 import {
-  adoptPet, buy, bumpStat, earn, saveOutfit, setProfile, setRoomStyle, type RoomStyle, canEnter, claimDaily, collectShell, completeTask, migrate, newSave, placeItems, recordLap, rollDaily, setLook, spin,
+  adoptPet, buy, bumpStat, cleanText, earn, saveOutfit, setProfile, setRoomStyle, type RoomStyle, canEnter, claimDaily, collectShell, completeTask, migrate, newSave, placeItems, recordLap, rollDaily, setLook, spin,
   topFloor, zoneUnlocked, type Save,
 } from '../shared/save';
 import { ISLANDERS, npcAccepts, villaChallenge, winFinal } from '../shared/villa';
 import { seasonAct, type SeasonAction } from '../shared/season';
-import type { AccountRow, AccountStatus, AdminAction, BoardRow, ClientMsg, PeerInfo, PeerPos, Report, Residence, ServerMsg } from '../shared/protocol';
+import type { AccountRow, AccountStatus, AdminAction, BoardRow, ClientMsg, PeerInfo, PeerPos, Report, Residence, ServerMsg, StaffMsg } from '../shared/protocol';
 
 interface Account { salt: string; hash: string; ver: number }
 interface Token { name: string; ver: number; exp: number }
@@ -44,6 +44,8 @@ export class Estate extends DurableObject {
   private parties = new Map<ZoneId, { until: number; next: number; earned: Map<string, number> }>();
   private tags = new Map<ZoneId, { it: string; until: number; last: number; timer: ReturnType<typeof setTimeout> }>();
   private reports: Report[] = [];
+  /** Staff Chat history (last 100). */
+  private staffLog: StaffMsg[] = [];
   /** Bedroom looks by owner, sent to everyone so rooms build with the right colours. */
   private roomStyles: Record<string, RoomStyle> = {};
   /** All accounts, by lowercase name. */
@@ -55,6 +57,7 @@ export class Estate extends DurableObject {
     ctx.blockConcurrencyWhile(async () => {
       for (const [, p] of await ctx.storage.list<Profile>({ prefix: 'prof:' })) this.profiles.set(p.name.toLowerCase(), p);
       this.reports = [...(await ctx.storage.list<Report>({ prefix: 'report:' })).values()].sort((a, b) => b.at - a.at);
+      this.staffLog = (await ctx.storage.get<StaffMsg[]>('staffchat')) ?? [];
       for (const [, sv] of await ctx.storage.list<Save>({ prefix: 'save:' })) if (sv.roomStyle) this.roomStyles[sv.name] = sv.roomStyle;
       for (const r of RESIDENTS) {
         if (this.profiles.has(r.name.toLowerCase())) continue;
@@ -356,6 +359,7 @@ export class Estate extends DurableObject {
     const prof = this.profile(name);
     this.send(conn, { t: 'welcome', save, admin: !!prof?.admin, residences: this.residences(), pending: prof?.admin ? this.pendingCount() : 0, roomStyles: this.roomStyles });
     if (prof?.admin || save.vip) this.send(conn, { t: 'role', admin: !!prof?.admin, pending: prof?.admin ? this.pendingCount() : 0, reports: this.openReports() });
+    this.send(conn, { t: 'staffAccess', on: this.isStaffConn(conn) });
 
     server.addEventListener('message', (ev) => {
       let msg: ClientMsg;
@@ -543,6 +547,19 @@ export class Estate extends DurableObject {
       }
       case 'outfit': await this.saved(c, saveOutfit(c.save, Number(m.slot), String(m.name ?? ''), m.look)); return;
       case 'claimLevel': await this.saved(c, claimLevels(c.save, earn)); return;
+      case 'staff?': {
+        if (!this.isStaffConn(c)) { this.send(c, { t: 'staffAccess', on: false, why: 'Only admins and VIPs can use the Staff Chat.' }); return; }
+        this.send(c, { t: 'staffHistory', rows: this.staffLog });
+        return;
+      }
+      case 'staff': {
+        if (!this.isStaffConn(c)) { this.send(c, { t: 'staffAccess', on: false, why: 'Only admins and VIPs can use the Staff Chat.' }); return; }
+        const text = cleanText(m.text, 300);
+        if (!text || Date.now() - c.lastChat < 800) return;
+        c.lastChat = Date.now();
+        await this.staffPost({ at: Date.now(), from: c.name, text, admin: !!this.profile(c.name)?.admin });
+        return;
+      }
       case 'quest': await this.saved(c, m.a === 'accept' ? acceptQuest(c.save, String(m.id), zoneNeed) : claimQuest(c.save, String(m.id), earn)); return;
       case 'claimAch': await this.saved(c, claimAchievement(c.save, String(m.id), earn)); return;
       case 'claimEvent': await this.saved(c, claimEventGoal(c.save, Number(m.i), earn)); return;
@@ -876,6 +893,7 @@ export class Estate extends DurableObject {
     if (!p) return;
     const say = (text: string) => this.send(c, { t: 'toast', text, good: true });
     const self = p.name === me.name;
+    const wasStaff = await this.isStaffName(p.name);
     // Keep a record of who did what (last 300), so things like "my VIP keeps disappearing" can be traced.
     const log = (await this.ctx.storage.get<{ at: number; by: string; action: string; target: string }[]>('adminlog')) ?? [];
     log.unshift({ at: Date.now(), by: me.name, action, target: p.name });
@@ -942,9 +960,40 @@ export class Estate extends DurableObject {
         if (!self) this.kick(p.name, 'Your password was reset. Sign in to pick a new one.');
         break;
     }
+    // Staff Chat: added when you become admin/VIP, kicked when you lose it (or get banned).
+    if (this.profile(p.name)) {
+      const nowStaff = await this.isStaffName(p.name);
+      if (nowStaff !== wasStaff) {
+        await this.staffPost({ at: Date.now(), from: '', sys: true, text: nowStaff ? `👋 ${p.name} joined the Staff Chat` : `🚪 ${p.name} was removed from the Staff Chat` });
+        const t = this.conns.get(p.name);
+        if (t) this.send(t, { t: 'staffAccess', on: nowStaff, why: nowStaff ? `💬 You've been added to the Staff Chat!` : `You're no longer an admin or VIP, so you were removed from the Staff Chat.` });
+      }
+    }
     this.notifyAdmins();
     await this.sendAccounts(c);
     this.send(c, { t: 'board', rows: await this.board() });
+  }
+
+  // ------------------------------------------------------------- staff chat
+
+  /** Admins and VIPs (approved accounts only) are in the Staff Chat. */
+  private isStaffConn(c: Conn): boolean {
+    const p = this.profile(c.name);
+    return !!p && p.status === 'approved' && (!!p.admin || !!c.save.vip);
+  }
+
+  private async isStaffName(name: string): Promise<boolean> {
+    const p = this.profile(name);
+    if (!p || p.status !== 'approved') return false;
+    if (p.admin) return true;
+    return !!(await this.load(p.name)).vip;
+  }
+
+  private async staffPost(msg: StaffMsg): Promise<void> {
+    this.staffLog.push(msg);
+    if (this.staffLog.length > 100) this.staffLog.splice(0, this.staffLog.length - 100);
+    await this.ctx.storage.put('staffchat', this.staffLog);
+    for (const o of this.conns.values()) if (this.isStaffConn(o)) this.send(o, { t: 'staff', msg });
   }
 }
 
