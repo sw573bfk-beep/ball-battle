@@ -534,6 +534,24 @@ export const FLOORS: FloorDef[] = [
       },
     ],
   },
+  {
+    id: 'stadium', short: '⚽', name: 'Maggakes Stadium', need: 2000, outside: true,
+    blurb: 'A full soccer stadium: live Pink vs Blue matches with friends (bots fill the gaps), plus skills tasks.',
+    tasks: [
+      { id: 'penalty', label: 'Score a penalty', kind: 'timing', hint: 'Shoot when the marker is in the corner of the net!' },
+      { id: 'keepyuppy', label: 'Keepy-uppy', kind: 'rhythm', hint: 'Keep the ball up — tap in time!' },
+      { id: 'dribble', label: 'Dribble through the defence', kind: 'maze', hint: 'Dribble the ball past the defenders to the goal!', item: '⚽', goal: '🥅' },
+      { id: 'cones', label: 'Set up the training cones', kind: 'collect', hint: 'Grab the 6 training cones around the stadium.', count: 6, item: '🔶' },
+      {
+        id: 'soccerquiz', label: 'Soccer quiz', kind: 'choice', hint: 'Answer the soccer questions.',
+        question: [
+          { q: 'How many players does a full soccer team have on the field?', options: ['9', '11', '13'], answer: 1 },
+          { q: 'Who is the only player allowed to use their hands?', options: ['The goalkeeper', 'The captain', 'The striker'], answer: 0 },
+          { q: 'Three goals by one player in a game is called a…', options: ['Hat-trick', 'Triple', 'Treble shot'], answer: 0 },
+        ],
+      },
+    ],
+  },
 ];
 
 export const PARK = { id: 'park' as ZoneId, short: 'P', name: 'Underground Car Park', need: 0 };
@@ -558,4 +576,4 @@ export function zoneNeed(id: ZoneId): number {
 }
 
 /** The fixed zones. Residence floors (r1, r2, …) are added as people join. */
-export const ALL_ZONES: ZoneId[] = ['park', 'beach', 'mall', 'town', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24', 'villa'];
+export const ALL_ZONES: ZoneId[] = ['park', 'beach', 'mall', 'town', 'stadium', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24', 'villa'];

@@ -1,3 +1,4 @@
+import type { SoccerWire } from './soccer';
 import type { Home, ZoneId } from './people';
 import type { Look, PetKind, PlacedItem, RoomStyle, Save } from './save';
 import type { Profile } from './look';
@@ -11,7 +12,7 @@ export interface PeerInfo {
   vip: boolean;
   car?: { id: string; paint: string; wheels?: string } | null;
   partner?: string;
-  pet?: { kind: PetKind; name: string; fur?: string; collar?: string };
+  pet?: { kind: PetKind; name: string; fur?: string; collar?: string; xp?: number };
   profile?: Profile;
   level?: number;
   trophies?: number;
@@ -93,6 +94,11 @@ export type ClientMsg =
   | { t: 'claimLevel' }
   | { t: 'staff'; text: string }
   | { t: 'staff?' }
+  | { t: 'kick'; ang: number; power?: number }
+  | { t: 'claimCollection'; pct: number }
+  | { t: 'claimStreak' }
+  | { t: 'buyUpgrade'; id: string }
+  | { t: 'petTrick'; trick: string }
   | { t: 'quest'; a: 'accept' | 'claim'; id: string }
   | { t: 'claimAch'; id: string }
   | { t: 'claimEvent'; i: number }
@@ -132,6 +138,8 @@ export type ServerMsg =
   | { t: 'staff'; msg: StaffMsg }
   | { t: 'staffHistory'; rows: StaffMsg[] }
   | { t: 'staffAccess'; on: boolean; why?: string }
+  | { t: 'soccer'; s: SoccerWire }
+  | { t: 'soccerEnd'; result: 'win' | 'draw' | 'loss'; score: [number, number]; team: 0 | 1; goals: number; aura: number }
   | { t: 'room'; owner: string; items: PlacedItem[] }
   | { t: 'board'; rows: BoardRow[] }
   | { t: 'coupleAsk'; from: string }

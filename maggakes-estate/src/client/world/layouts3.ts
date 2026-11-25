@@ -81,4 +81,28 @@ export const town: Layout = {
   spawn: [42, 4],
 };
 
-export const OUTSIDE_LAYOUTS = { beach, mall, town };
+// ------------------------------------------------------------------- Soccer stadium
+const ST = { ground: [0, 0, 64, 44] as Rect, pitch: [7, 7, 50, 30] as Rect };
+export const stadium: Layout = {
+  id: 'stadium', w: 64, d: 44, mood: 'day', exterior: 'none', wall: '#f5efe6', backdrop: 'city', storey: 0, outside: true,
+  rooms: [
+    { id: 'ground', name: 'Stadium', r: ST.ground, floor: 'concrete', tint: '#c8c2b8' },
+    { id: 'pitch', name: 'Pitch', r: ST.pitch, floor: 'grass', tint: '#3f9a45' },
+  ],
+  open: [['ground', 'pitch']],
+  doors: [],
+  props: [
+    P('pitchlines', 32, 22, 0, { w: 50, d: 30 }),
+    P('goal', 7, 22, Math.PI / 2), P('goal', 57, 22, -Math.PI / 2),
+    P('bleachers', 32, 3, 0, { w: 42 }), P('scoreboard', 32, 0.4, 0, { w: 9 }),
+    P('floodlight', 2, 2, Math.PI * 0.75), P('floodlight', 62, 2, -Math.PI * 0.75), P('floodlight', 2, 42, Math.PI * 0.25), P('floodlight', 62, 42, -Math.PI * 0.25),
+    P('dugout', 24, 40.6, Math.PI, { color: '#ff3d7f' }), P('dugout', 40, 40.6, Math.PI, { color: '#2b6cff' }),
+    P('kiosk', 56, 41, Math.PI, { text: 'SNACKS', color: '#ffd23f', emoji: '🌭' }),
+    P('label', 32, 39, 0, { text: 'Maggakes Stadium', color: '#2f5a2a' }),
+  ],
+  stations: [T('penalty', 12, 40.5), T('keepyuppy', 32, 40.5), T('dribble', 48, 40.5), T('soccerquiz', 3.5, 30), T('cones', 60.5, 32)],
+  lift: [63.5, 22, -Math.PI / 2],
+  spawn: [60, 22],
+};
+
+export const OUTSIDE_LAYOUTS = { beach, mall, town, stadium };

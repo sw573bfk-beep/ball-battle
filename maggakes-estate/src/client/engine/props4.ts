@@ -169,8 +169,113 @@ function parkedCar(o: Opts): Prop {
   return { obj: g, solid: { w: 1.9, d: 4.1 } };
 }
 
+/** White pitch markings drawn on a transparent canvas laid over the grass. */
+function pitchLines(o: Opts): Prop {
+  const g = G();
+  const w = o.w ?? 50, d = o.d ?? 30, px = 20;
+  const cv = document.createElement('canvas');
+  cv.width = w * px; cv.height = d * px;
+  const x = cv.getContext('2d')!;
+  x.strokeStyle = 'rgba(255,255,255,0.92)'; x.lineWidth = 0.14 * px;
+  const m = (v: number) => v * px;
+  x.strokeRect(m(0.1), m(0.1), m(w - 0.2), m(d - 0.2));
+  x.beginPath(); x.moveTo(m(w / 2), m(0.1)); x.lineTo(m(w / 2), m(d - 0.1)); x.stroke();
+  x.beginPath(); x.arc(m(w / 2), m(d / 2), m(4.5), 0, Math.PI * 2); x.stroke();
+  x.fillStyle = 'rgba(255,255,255,0.92)'; x.beginPath(); x.arc(m(w / 2), m(d / 2), m(0.2), 0, Math.PI * 2); x.fill();
+  for (const side of [0, 1]) {
+    const bx = side ? w - 0.1 - 7 : 0.1, sx = side ? w - 0.1 - 2.8 : 0.1;
+    x.strokeRect(m(bx), m(d / 2 - 8), m(7), m(16));
+    x.strokeRect(m(sx), m(d / 2 - 4.2), m(2.8), m(8.4));
+    x.beginPath(); x.arc(m(side ? w - 5.5 : 5.5), m(d / 2), m(0.2), 0, Math.PI * 2); x.fill();
+  }
+  // mown stripes
+  for (let i = 0; i < 10; i++) if (i % 2) { x.fillStyle = 'rgba(255,255,255,0.05)'; x.fillRect(m((w / 10) * i), 0, m(w / 10), m(d)); }
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -40 }));
+  mesh.rotation.x = -Math.PI / 2; mesh.position.y = 0.015; mesh.receiveShadow = true;
+  g.add(mesh);
+  return { obj: g };
+}
+
+/** Goal with a net. Origin on the goal line, mouth facing +Z, net behind (−Z). */
+function goal(o: Opts): Prop {
+  const g = G();
+  const w = (o.w ?? 6.4), h = 2.2, dep = 1.6;
+  const post = WHITE();
+  for (const x of [-w / 2, w / 2]) cyl(g, 0.07, 0.07, h, post, x, 0, 0, 10);
+  const bar = cyl(g, 0.07, 0.07, w, post, 0, 0, 0, 10); bar.rotation.z = Math.PI / 2; bar.position.set(0, h, 0);
+  const net = new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, side: THREE.DoubleSide, wireframe: true });
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(w, h, 16, 6), net); back.position.set(0, h / 2, -dep); g.add(back);
+  const roof = new THREE.Mesh(new THREE.PlaneGeometry(w, dep, 16, 4), net); roof.rotation.x = Math.PI / 2; roof.position.set(0, h, -dep / 2); g.add(roof);
+  for (const sx of [-1, 1]) { const side = new THREE.Mesh(new THREE.PlaneGeometry(dep, h, 4, 6), net); side.rotation.y = Math.PI / 2; side.position.set(sx * w / 2, h / 2, -dep / 2); g.add(side); }
+  return { obj: g };
+}
+
+/** Grandstand with a cheering crowd. Faces +Z. */
+function bleachers(o: Opts): Prop {
+  const g = G();
+  const w = o.w ?? 30;
+  const rows = 5;
+  for (let r = 0; r < rows; r++) box(g, w, 0.45, 0.9, mat(r % 2 ? '#d8dde3' : '#c6ccd3', 0.6), 0, r * 0.45, 2 - r * 0.9);
+  box(g, w, 3.2, 0.3, mat('#2a2d34', 0.5), 0, 0, -2.75);
+  const crowd = ['🙋‍♀️', '🙋', '🙌', '🧑‍🦰', '👱‍♀️', '🧕', '👦', '👧', '👩‍🦱', '🧔'];
+  const fans: THREE.Sprite[] = [];
+  for (let r = 0; r < rows; r++) for (let i = 0; i < Math.floor(w / 1.4); i++) {
+    if ((i * 7 + r * 3) % 5 === 0) continue;
+    const s = emojiSprite(crowd[(i * 3 + r) % crowd.length], 0.6);
+    s.position.set(-w / 2 + 0.7 + i * 1.4, r * 0.45 + 0.75, 2 - r * 0.9);
+    g.add(s); fans.push(s);
+  }
+  return { obj: g, solid: { w, d: 5 }, tick: (t) => fans.forEach((f, i) => { f.position.y = Math.floor(i / Math.floor(w / 1.4)) * 0.45 + 0.75 + Math.max(0, Math.sin(t * 6 + i)) * 0.08; }) };
+}
+
+function floodlight(o: Opts): Prop {
+  const g = G();
+  cyl(g, 0.15, 0.22, 11, mat('#8a8f96', 0.4, 0.6), 0, 0, 0, 10);
+  box(g, 2.4, 1.2, 0.3, mat('#2a2d34', 0.4, 0.6), 0, 11, 0);
+  for (let i = 0; i < 6; i++) { const l = box(g, 0.32, 0.32, 0.05, glow('#fffbe8', 4), -0.85 + (i % 3) * 0.85, 11.25 + Math.floor(i / 3) * 0.5, 0.17); l.castShadow = false; }
+  return { obj: g, solid: { w: 0.6, d: 0.6 } };
+}
+
+/** Big scoreboard; the soccer code finds it (userData.scoreboard) and draws the live score. */
+function scoreboard(o: Opts): Prop {
+  const g = G();
+  const w = o.w ?? 8, h = w * 0.4;
+  for (const x of [-w / 2 + 0.5, w / 2 - 0.5]) cyl(g, 0.15, 0.15, 6, mat('#2a2d34', 0.4, 0.6), x, 0, 0, 8);
+  box(g, w + 0.3, h + 0.3, 0.3, mat('#111', 0.5), 0, 6, -0.1);
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 205;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 1.1 }));
+  screen.position.set(0, 6 + (h + 0.3) / 2, 0.06); g.add(screen);
+  const draw = (pink: number, blue: number, clock: string, line: string) => {
+    const x = cv.getContext('2d')!;
+    x.fillStyle = '#0d0f14'; x.fillRect(0, 0, 512, 205);
+    x.textAlign = 'center'; x.font = 'bold 34px sans-serif';
+    x.fillStyle = '#ff3d7f'; x.fillText('PINK', 110, 50); x.fillStyle = '#5b8cff'; x.fillText('BLUE', 402, 50);
+    x.font = 'bold 96px sans-serif'; x.fillStyle = '#ffffff'; x.fillText(`${pink}`, 110, 145); x.fillText(`${blue}`, 402, 145);
+    x.font = 'bold 44px monospace'; x.fillStyle = '#ffd23f'; x.fillText(clock, 256, 110);
+    x.font = 'bold 22px sans-serif'; x.fillStyle = '#ffffff'; x.fillText(line, 256, 185);
+    tex.needsUpdate = true;
+  };
+  draw(0, 0, '3:00', 'MAGGAKES STADIUM');
+  g.userData.scoreboard = draw;
+  return { obj: g, solid: { w: w, d: 0.5 } };
+}
+
+function dugout(o: Opts): Prop {
+  const g = G();
+  const col = c(o, 'color', '#ff3d7f');
+  box(g, 4, 0.08, 1.4, mat('#ffffff', 0.4), 0, 2.2, 0);
+  box(g, 4, 2.2, 0.08, glass('#d8f1ff', 0.3), 0, 0, -0.7);
+  for (const x of [-2, 2]) box(g, 0.08, 2.2, 1.4, glass('#d8f1ff', 0.3), x, 0, 0);
+  rbox(g, 3.6, 0.45, 0.5, mat(col, 0.5), 0, 0, -0.35, 0.05);
+  rbox(g, 3.6, 0.5, 0.1, mat(col, 0.5), 0, 0.45, -0.6, 0.04);
+  return { obj: g, solid: { w: 4, d: 1.4 } };
+}
+
 export const PROPS4: Record<string, (o: Opts) => Prop> = {
   shopfront, fountain, lifeguard: lifeguardTower, sandcastle, streetlamp: streetLamp, busstop: busStop,
   swings: swingSet, kidslide: slide, escalator, planttree: planterTree, kiosk, crosswalk, road, parkedcar: parkedCar,
+  pitchlines: pitchLines, goal, bleachers, floodlight, scoreboard, dugout,
 };
 void WHITE;

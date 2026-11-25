@@ -9,6 +9,7 @@ import { spawnHost, spawnIslander, spawnNpc, spawnPets, updateWanderers, type Wa
 import { NPCS, npcQuest, questStatus } from '../shared/quests';
 import { openNpc } from './ui/quests';
 import { StaffChat } from './ui/staff';
+import { SoccerView } from './soccer';
 import { openCast, showScene } from './ui/season';
 import { FINAL_DAY, nextStep, type SeasonAction } from '../shared/season';
 import { Input } from './input';
@@ -160,6 +161,7 @@ export class Game {
       report: () => this.openReport(),
     };
     net.on((m) => this.onMsg(m));
+    this.soccer = new SoccerView(() => ({ name: this.save.name, root: this.me.root, x: this.pos.x, z: this.pos.y }), (n) => this.peers.get(n)?.avatar.root);
     this.staffChat = new StaffChat(net, () => this.save.name, () => {
       const badge = $('#b-staff').querySelector('.badge') as HTMLElement;
       const n = this.staffChat?.unread ?? 0;
@@ -297,6 +299,7 @@ export class Game {
     const zone = buildZone(z);
     this.zone = zone;
     this.zoneLoadedAt = performance.now();
+    this.soccer.enter(zone);
     if (zone.layout.snow) this.addSnow(zone);
     this.zoneId = z;
     this.ticks = [...zone.ticks];
@@ -459,6 +462,7 @@ export class Game {
       case 'emote': {
         if (m.from === this.save.name && m.e === 'jump') return; // already jumped locally
         const av = m.from === this.save.name ? this.me : this.peers.get(m.from)?.avatar;
+        if (m.e.startsWith('pet_')) { this.fun.petTrick(m.from, m.e.slice(4)); return; }
         if (m.e === 'jump') av?.jump(); else av?.doEmote(m.e as Emote);
         return;
       }
@@ -487,6 +491,8 @@ export class Game {
         return;
       }
       case 'staff': this.staffChat.add(m.msg); return;
+      case 'soccer': this.soccer.onState(m.s); return;
+      case 'soccerEnd': this.soccer.onEnd(m); return;
       case 'staffHistory': this.staffChat.history(m.rows); return;
       case 'role': {
         this.admin = m.admin;
@@ -577,6 +583,7 @@ export class Game {
     this.updatePlayer(dt, t);
     this.updatePeers(dt, t);
     this.lod(dt);
+    this.soccer.update(dt, t);
     updateWanderers(this.wanderers, this.zone, dt, t);
     for (const f of this.ticks) f(t, dt);
     for (const m of this.markers) m.prop.tick?.(t, dt);
@@ -726,6 +733,7 @@ export class Game {
   /** Admins + VIPs only. */
   private staffOn = false;
   private staffChat!: StaffChat;
+  soccer!: SoccerView;
 
   /** ❗ over characters with a quest to give, ✅ when one is ready to hand in. */
   private npcMarkers(): void {
@@ -744,6 +752,17 @@ export class Game {
       w.obj.add(m);
       w.marker = m;
     }
+  }
+
+  private lastKick = 0;
+  /** Shoot the way you're facing (harder when sprinting). */
+  kickBall(): void {
+    const now = performance.now();
+    if (now - this.lastKick < 300) return;
+    this.lastKick = now;
+    const power = this.input.keys.has('shift') || this.sprintOn ? 16 : 12.5;
+    this.net.send({ t: 'kick', ang: this.ry, power });
+    this.me.doEmote('pose');
   }
 
   /** What goes on my own name tag. */
@@ -936,6 +955,7 @@ export class Game {
         }
       }
       if (!this.busy) { const bath = this.bathroomAction(); if (bath) consider(bath.d + 0.3, bath.a); }
+      if (this.soccer.nearBall(this.pos.x, this.pos.y)) consider(-1, { key: 'kick', label: '⚽ Kick! (shoot)', run: () => this.kickBall() });
       if (best) acts.push((best as { a: Action }).a);
       {
         let np: { d: number; info: PeerInfo } | null = null;
@@ -982,7 +1002,7 @@ export class Game {
       case 'adopt': return { key: 'adopt', label: s.pet ? `🐾 Swap or rename ${s.pet.name}` : '🐾 Adopt a pet', run: () => openAdopt(s.pet, (kind, name, fur, collar) => this.net.send({ t: 'pet', kind, name, fur, collar })) };
       case 'race': return { key: 'race', label: '🏁 Kart race', run: () => { this.wantLaps = true; this.net.send({ t: 'laps' }); } };
       case 'slide': return { key: 'slide', label: '🌊 Go down the water slide!', run: () => this.fun.startSlide() };
-      case 'roadtrip': return { key: 'roadtrip', label: '🚗 Road trip: Beach · Mall · Town', run: () => openMap(this.ctx) };
+      case 'roadtrip': return { key: 'roadtrip', label: '🚗 Road trip: Beach · Mall · Town · Stadium', run: () => openMap(this.ctx) };
       case 'dress': return { key: 'dress', label: '🌺 Villa dressing room', run: () => openWardrobe(this.ctx, { villa: true }) };
       case 'portal':
         if (this.zoneId === 'villa') return { key: 'portal', label: '🏰 Back to the mansion', run: () => this.travel('f8') };

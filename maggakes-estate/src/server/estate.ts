@@ -1,6 +1,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { claimAchievement, claimEventGoal, claimLevels, levelOf, newlyReady } from '../shared/progress';
 import { acceptQuest, advanceQuests, claimQuest } from '../shared/quests';
+import { PET_TRICKS, buyUpgrade, claimCollection, claimStreak, petLevel, petTricks, rollStreak } from '../shared/progress2';
+import { PAID_MATCHES_PER_DAY, kick, matchReward, newMatch, step, syncPlayers, toWire, type SoccerState } from '../shared/soccer';
 import { zoneNeed } from '../shared/floors';
 import { RESIDENTS, checkUsername, isResidence, residenceHome, residenceNumber, type Home, type ZoneId } from '../shared/people';
 import { ALL_ZONES } from '../shared/floors';
@@ -31,6 +33,7 @@ interface Conn {
   lastReport?: number;
   autoReports?: number;
   lastLevel?: number;
+  lastPetLevel?: number;
 }
 
 const TOKEN_DAYS = 60;
@@ -44,6 +47,8 @@ export class Estate extends DurableObject {
   private parties = new Map<ZoneId, { until: number; next: number; earned: Map<string, number> }>();
   private tags = new Map<ZoneId, { it: string; until: number; last: number; timer: ReturnType<typeof setTimeout> }>();
   private reports: Report[] = [];
+  /** The live soccer match at the stadium (runs only while someone is there). */
+  private soccer: { s: SoccerState; timer: ReturnType<typeof setInterval> | null; sent: number } = { s: newMatch(), timer: null, sent: 0 };
   /** Staff Chat history (last 100). */
   private staffLog: StaffMsg[] = [];
   /** Bedroom looks by owner, sent to everyone so rooms build with the right colours. */
@@ -354,6 +359,7 @@ export class Estate extends DurableObject {
     }
     const save = await this.load(name);
     rollDaily(save);
+    rollStreak(save);
     const conn: Conn = { ws: server, name, save, zone: null, pos: { name, x: 0, z: 0, ry: 0, a: 0 }, car: null, lastChat: 0 };
     this.conns.set(name, conn);
     const prof = this.profile(name);
@@ -411,6 +417,13 @@ export class Estate extends DurableObject {
       if (conn.zone) this.toZone(conn.zone, { t: 'peer', info: this.info(conn) });
     }
     conn.lastLevel = lv;
+    const plv = petLevel(conn.save.pet?.xp ?? 0);
+    if (conn.save.pet && conn.lastPetLevel !== undefined && plv > conn.lastPetLevel) {
+      const trick = PET_TRICKS.find((t) => t.level === plv);
+      this.send(conn, { t: 'toast', text: `🐾 ${conn.save.pet.name} reached level ${plv}!${trick ? ` New trick: ${trick.emoji} ${trick.label}!` : ''}`, good: true });
+      if (conn.zone) this.toZone(conn.zone, { t: 'peer', info: this.info(conn) });
+    }
+    conn.lastPetLevel = plv;
   }
 
   private async handle(c: Conn, m: ClientMsg): Promise<void> {
@@ -421,6 +434,7 @@ export class Estate extends DurableObject {
         if (c.zone) { this.toZone(c.zone, { t: 'gone', name: c.name }, c.name); this.leftZone(c.name, c.zone); }
         c.zone = m.zone;
         c.car = null;
+        if (m.zone === 'stadium') this.soccerStart();
         c.save.lastZone = m.zone;
         if (!c.save.daily.stats[`v_${m.zone}`]) { bumpStat(c.save, `v_${m.zone}`, 1); bumpStat(c.save, 'floors', 1); }
         // Every visit (not just the first each day) — used by quests.
@@ -547,6 +561,28 @@ export class Estate extends DurableObject {
       }
       case 'outfit': await this.saved(c, saveOutfit(c.save, Number(m.slot), String(m.name ?? ''), m.look)); return;
       case 'claimLevel': await this.saved(c, claimLevels(c.save, earn)); return;
+      case 'claimCollection': await this.saved(c, claimCollection(c.save, Number(m.pct), earn)); return;
+      case 'claimStreak': await this.saved(c, claimStreak(c.save, earn)); return;
+      case 'buyUpgrade': {
+        await this.saved(c, buyUpgrade(c.save, String(m.id), earn));
+        if (c.zone) this.toZone(c.zone, { t: 'peer', info: this.info(c) });
+        return;
+      }
+      case 'petTrick': {
+        const trick = petTricks(c.save).find((x) => x.id === m.trick);
+        if (!trick || !c.zone) { this.send(c, { t: 'toast', text: 'Your pet hasn\'t learned that trick yet!' }); return; }
+        this.toZone(c.zone, { t: 'emote', from: c.name, e: `pet_${trick.id}` });
+        bumpStat(c.save, 'pats', 1);
+        await this.saved(c);
+        return;
+      }
+      case 'kick': {
+        if (c.zone !== 'stadium' || !Number.isFinite(m.ang)) return;
+        // Use the server's latest position for this player, then kick.
+        syncPlayers(this.soccer.s, this.zonePlayers('stadium').map((o) => ({ id: o.name, x: o.pos.x, z: o.pos.z, ry: o.pos.ry })));
+        kick(this.soccer.s, c.name, Number(m.ang), Number(m.power ?? 14));
+        return;
+      }
       case 'staff?': {
         if (!this.isStaffConn(c)) { this.send(c, { t: 'staffAccess', on: false, why: 'Only admins and VIPs can use the Staff Chat.' }); return; }
         this.send(c, { t: 'staffHistory', rows: this.staffLog });
@@ -972,6 +1008,44 @@ export class Estate extends DurableObject {
     this.notifyAdmins();
     await this.sendAccounts(c);
     this.send(c, { t: 'board', rows: await this.board() });
+  }
+
+  // ------------------------------------------------------------- soccer
+
+  private soccerStart(): void {
+    if (this.soccer.timer) return;
+    let last = Date.now();
+    this.soccer.timer = setInterval(() => {
+      const now = Date.now();
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      const here = this.zonePlayers('stadium');
+      const s = this.soccer.s;
+      if (!here.length) { clearInterval(this.soccer.timer!); this.soccer.timer = null; this.soccer.s = newMatch(); return; }
+      syncPlayers(s, here.map((o) => ({ id: o.name, x: o.pos.x, z: o.pos.z, ry: o.pos.ry })));
+      for (const e of step(s, dt, Math.random)) if (e.e === 'over') this.soccerOver().catch(() => {});
+      if (now - this.soccer.sent >= 100) { this.soccer.sent = now; this.toZone('stadium', { t: 'soccer', s: toWire(s) }); }
+    }, 50);
+  }
+
+  /** End of a match: Aura and stats for everyone who played. */
+  private async soccerOver(): Promise<void> {
+    const s = this.soccer.s;
+    for (const p of s.players) {
+      if (p.bot) continue;
+      const c = this.conns.get(p.id);
+      if (!c || c.zone !== 'stadium') continue;
+      const goals = s.goals[p.id] ?? 0;
+      const r = matchReward(s, p.team, goals);
+      rollDaily(c.save);
+      const paid = (c.save.daily.stats.matches ?? 0) < PAID_MATCHES_PER_DAY;
+      bumpStat(c.save, 'matches', 1);
+      if (r.result === 'win') bumpStat(c.save, 'wins', 1);
+      if (goals) bumpStat(c.save, 'goals', goals);
+      if (paid) earn(c.save, r.aura, 0, `Soccer ${r.result} ${s.score[p.team]}-${s.score[1 - p.team]}`);
+      this.send(c, { t: 'soccerEnd', result: r.result, score: s.score, team: p.team, goals, aura: paid ? r.aura : 0 });
+      await this.saved(c);
+    }
   }
 
   // ------------------------------------------------------------- staff chat

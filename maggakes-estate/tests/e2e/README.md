@@ -16,6 +16,8 @@ Run against a local server (`npm run build && npm run dev:server`), with a fresh
 | `e2e8.mjs` | the six newer mini-games (catch, memory, rhythm, spot, maze, unscramble) can be won |
 | `e2e9.mjs` | outside world (beach, mall, town) and quests: travel, talk to the Mayor, accept, complete, claim (`--render` for screenshots) |
 | `e2e10.mjs` | Staff Chat: admins + VIPs only, added when given VIP/admin, kicked when it is taken away |
+| `e2e11.mjs` | soccer stadium: live match, bots fill teams, friends balance, kicking (`--render` for a screenshot) |
+| `e2e12.mjs` | progression: streak claim (once a day), collection book, pet level & tricks, estate upgrades in order |
 | `aura-audit*.mjs` | every way to earn/spend Aura; run `aura-after-restart*.mjs` after restarting the server |
 
 They use the machine's Playwright install (`/opt/node-tools/node_modules/playwright`); change that import path if yours is elsewhere.

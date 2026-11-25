@@ -64,11 +64,26 @@ Charis & Gabby (6th), Milla (7th).
   beach, Chef Marco, Madame Glitz, Ranger Rosie, Professor Nova and Jazz) give 15 quests across 8
   chapters. Look for ❗ over their heads. Steps only count what you do after accepting, ✅ means
   you can hand in. Finishing every quest makes you a *Maggakes Legend*. See *⭐ Progress → 📜 Quests*.
+- **⚽ Soccer stadium:** drive there on a road trip. Real 3v3 matches: everyone in the stadium plays
+  in the same 3-minute match, split into 🩷 Pink and 💙 Blue, with bots filling empty spots (each side
+  has a bot keeper). Walk into the ball to dribble, press **E** to shoot (harder while sprinting).
+  Win 150, draw 75, lose 40, plus 25 per goal, for the first 10 matches a day. 5 soccer tasks too.
+- **Never finished (⭐ Progress tabs):**
+  - **🔥 Streak:** claim a reward every day you play. It grows each day in a row (up to +1,050 a day)
+    and resets if you miss a day, with big bonuses and badges on days 7, 30, 100 and 365.
+  - **📖 Collection:** a book of every outfit, accessory, furniture and car. Rewards and badges at
+    10%, 25%, 50%, 75% and 100% (+50,000 Aura).
+  - **🐾 Pet levels:** your pet earns XP when you do almost anything and levels up to 50, learning
+    tricks (sit, spin, jump, roll over, dance, backflip, sparkle aura) that everyone nearby sees.
+  - **🏰 Estate upgrades:** 10 huge buys from 10,000 to 750,000 Aura (about 2.4 million total). Each
+    gives a title and +3% Aura from playing, forever.
+  - **Tiered achievements:** 25 tracks with tiers I–V (125 more achievements), the last tiers take
+    months.
 - **💬 Staff Chat:** a private chat for all admins and VIPs (button next to Admin). You're added
   automatically when you're given VIP or admin, and kicked out the moment it's taken away or you're
   banned. The last 100 messages are kept.
 - **⭐ Progress (levels, achievements, weekly events).** Every Aura you earn is XP. Levels go up to
-  100, and each gives an Aura reward, with badges and free items at milestones. There are 46
+  100, and each gives an Aura reward, with badges and free items at milestones. There are 170+
   achievements to claim, and a different themed event every week (Spooky, Fashion, Summer, Winter,
   Grand Prix, Villa Love, Arcade, Pets) with three goals and two shop items you can only buy that
   week. Rewards are only given when you press *Claim*. Your level shows on your name tag and the

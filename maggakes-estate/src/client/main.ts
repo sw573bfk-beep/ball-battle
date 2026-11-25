@@ -35,6 +35,8 @@ function start(token: string): void {
         $('#login').classList.add('gone');
         document.body.classList.add('playing');
         game = new Game($('#app'), m.save, m.admin, net, signOut, m.residences, m.pending, m.roomStyles ?? {});
+        const st = m.save.streak;
+        if (st && st.claimed !== st.last) setTimeout(() => toast(`🔥 Day ${st.days} streak! Open ⭐ Progress → 🔥 Streak to claim your daily reward.`, true), 3000);
       } else {
         game.resume(m.save);
       }

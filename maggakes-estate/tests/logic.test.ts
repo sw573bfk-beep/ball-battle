@@ -6,8 +6,10 @@ import { villaChallenge, winFinal, FINAL_POINTS } from '../src/shared/villa';
 import { SHOP } from '../src/shared/shop';
 import { QUESTS, NPCS, acceptQuest, advanceQuests, claimQuest, questStatus } from '../src/shared/quests';
 import { zoneNeed } from '../src/shared/floors';
+import { MATCH_SECONDS, PITCH, kick, matchReward, newMatch, step, syncPlayers } from '../src/shared/soccer';
 import { ACHIEVEMENTS, EVENTS, claimAchievement, claimEventGoal, claimLevels, currentEvent, levelOf, levelStart, newlyReady, weekIndex } from '../src/shared/progress';
 import { earn } from '../src/shared/save';
+import { COLLECTION, TIERED, UPGRADES, buyUpgrade, claimCollection, claimStreak, collectionPct, petLevel, petLevelStart, petTricks, rollStreak, upgradeBonus, PET_MAX } from '../src/shared/progress2';
 
 let n = 0;
 const test = (name: string, fn: () => void) => { fn(); n++; console.log('✓', name); };
@@ -495,5 +497,85 @@ test('QUESTS: 15 quests with real characters; steps count only after you accept;
   assert.equal(questStatus(s, QUESTS.find((q) => q.id === 'q_turtles')!, zoneNeed), 'locked', 'needs the one before');
   const fin = QUESTS[QUESTS.length - 1];
   assert.equal(fin.steps[0].n, QUESTS.length - 1, 'finale needs every other quest');
+});
+test('SOCCER: teams fill with bots, a full match plays out with goals, kicks need the ball', () => {
+  const s = newMatch();
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  syncPlayers(s, [{ id: 'Phoebe', x: -5, z: 0, ry: 0 }]);
+  assert.equal(s.players.length, 6, '3v3 with bots');
+  assert.equal(s.players.filter((p) => p.team === 0 && !p.bot).length, 1);
+  syncPlayers(s, [{ id: 'Phoebe', x: -5, z: 0, ry: 0 }, { id: 'Jess', x: 5, z: 0, ry: 0 }]);
+  assert.equal(s.players.find((p) => p.id === 'Jess')!.team, 1, 'second player joins the other team');
+  assert.equal(s.players.length, 6, 'a bot made room');
+  let goals = 0, over = false;
+  for (let i = 0; i < (MATCH_SECONDS + 60) * 20 && !over; i++) {
+    for (const e of step(s, 0.05, rnd)) { if (e.e === 'goal') goals++; if (e.e === 'over') over = true; }
+    assert.ok(Number.isFinite(s.ball.x) && Math.abs(s.ball.x) <= PITCH.hw + 0.5 && Math.abs(s.ball.z) <= PITCH.hd + 0.5, 'ball stays on the pitch');
+  }
+  assert.ok(over, 'the match ends');
+  assert.ok(goals >= 1, `bots score goals (${goals})`);
+  assert.equal(s.score[0] + s.score[1], goals);
+  const r = matchReward(s, 0, 2);
+  assert.ok(r.aura >= 40 + 50);
+  // kicks only work next to the ball, in play
+  const k = newMatch(); syncPlayers(k, [{ id: 'A', x: 0, z: -0.5, ry: 0 }]); k.phase = 'play';
+  assert.ok(kick(k, 'A', 0, 14) && k.ball.vz > 10);
+  k.players[0].cd = 0; k.players[0].x = 10;
+  assert.equal(kick(k, 'A', 0, 14), false, 'too far away');
+});
+
+test('PROGRESS: collection milestones need the items, and pay once', () => {
+  const s = newSave('Ava');
+  assert.equal(claimCollection(s, 10, earn).ok, false, 'need 10% first');
+  for (const i of COLLECTION.slice(0, Math.ceil(COLLECTION.length * 0.1))) s.inventory[i.id] = 1;
+  assert.ok(collectionPct(s) >= 10);
+  const a = s.aura;
+  assert.ok(claimCollection(s, 10, earn).ok);
+  assert.equal(s.aura, a + 1000);
+  assert.equal(claimCollection(s, 10, earn).ok, false, 'only once');
+  assert.equal(claimCollection(s, 25, earn).ok, false);
+});
+test('PROGRESS: pets level up from playing, learn tricks, and keep XP', () => {
+  const s = newSave('Ava');
+  bumpStat(s, 'tasks', 1); // no pet yet: nothing breaks
+  s.aura = 100000;
+  assert.ok(adoptPet(s, 'dog', 'Biscuit').ok);
+  assert.equal(petLevel(s.pet!.xp ?? 0), 1);
+  for (let i = 0; i < 20; i++) bumpStat(s, 'tasks', 1);
+  assert.ok(petLevel(s.pet!.xp!) >= 3, `levelled (${s.pet!.xp})`);
+  assert.ok(petTricks(s).some((t) => t.id === 'sit') && !petTricks(s).some((t) => t.id === 'sparkle'));
+  assert.equal(petLevel(petLevelStart(PET_MAX) + 999), PET_MAX, 'caps at max');
+  assert.ok(petLevelStart(PET_MAX) / 20 > 4000, 'max pet level takes thousands of tasks');
+});
+test('PROGRESS: daily streak grows on consecutive days, resets after a gap', () => {
+  const s = newSave('Ava');
+  const D = 86400_000, t0 = Date.UTC(2026, 10, 1, 2);
+  rollStreak(s, t0); assert.equal(s.streak!.days, 1);
+  const a = s.aura;
+  assert.ok(claimStreak(s, earn, t0).ok); assert.ok(s.aura > a);
+  assert.equal(claimStreak(s, earn, t0).ok, false, 'once a day');
+  rollStreak(s, t0 + D); assert.equal(s.streak!.days, 2);
+  for (let i = 2; i <= 7; i++) rollStreak(s, t0 + i * D);
+  assert.equal(s.streak!.days, 8);
+  rollStreak(s, t0 + 10 * D); assert.equal(s.streak!.days, 1, 'missed days restart');
+  assert.equal(s.streak!.best, 8);
+});
+test('PROGRESS: estate upgrades go in order, cost Aura, and boost play earnings', () => {
+  const s = newSave('Ava');
+  s.aura = 2_000_000;
+  assert.equal(buyUpgrade(s, UPGRADES[1].id, earn).ok, false, 'must buy in order');
+  assert.ok(buyUpgrade(s, UPGRADES[0].id, earn).ok);
+  assert.equal(s.aura, 2_000_000 - UPGRADES[0].price);
+  assert.equal(buyUpgrade(s, UPGRADES[0].id, earn).ok, false, 'once');
+  assert.ok(Math.abs(upgradeBonus(s) - 0.03) < 1e-9);
+  const b = s.aura; earn(s, 100, 0, 'Task: test'); assert.equal(s.aura, b + 103, 'play earnings boosted');
+  const c = s.aura; earn(s, 100, 0, 'Admin gift'); assert.equal(s.aura, c + 100, 'gifts are not boosted');
+  assert.ok(UPGRADES.reduce((n, u) => n + u.price, 0) > 2_000_000, 'big long-term goal');
+});
+test('PROGRESS: tiered achievements give a long road', () => {
+  assert.ok(TIERED.length >= 125, `${TIERED.length} tiered`);
+  const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
+  assert.equal(ids.size, ACHIEVEMENTS.length, 'unique ids');
+  assert.ok(TIERED.every((a) => ids.has(a.id)), 'all in the list');
 });
 console.log(`\n${n} tests passed`);

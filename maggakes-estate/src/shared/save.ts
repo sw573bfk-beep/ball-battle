@@ -9,6 +9,7 @@ export { HAIR_COLORS, HAIR_STYLES, SKINS } from './look';
 import type { Season } from './season';
 import { currentEvent, levelBadgesFor, levelOf, rollWeek } from './progress';
 import type { QuestState } from './quests';
+import { addPetXp, earnedBadges, upgradeBonus } from './progress2';
 
 export type PetKind = 'dog' | 'cat' | 'bunny';
 
@@ -17,6 +18,8 @@ export interface AuraEntry { at: number; d: number; t: number; why: string }
 
 /** The one place Aura changes — also writes the player's Aura history. */
 export function earn(save: Save, d: number, t: number, why: string): void {
+  // Mansion upgrades: +3% each on Aura earned by playing (not on rewards you claim).
+  if (d > 0 && save.upgrades?.length && /^(Task:|Replayed:|Soccer|Kart lap|Love Island|Golden shell|Danced|Won a game of tag|Villa:)/.test(why)) d = Math.round(d * (1 + upgradeBonus(save)));
   // XP (for levels) counts every Aura you earn — but not rewards from levels/achievements themselves.
   if ((d > 0 || t > 0) && !/^(Level rewards|Achievement|Adjusted)/.test(why)) save.xp = (save.xp ?? save.totalAura) + Math.max(d, t);
   save.aura = Math.max(0, save.aura + d);
@@ -73,7 +76,13 @@ export interface Save {
   lastZone: ZoneId;
   /** Your own bedroom (founders have fixed ones; newcomers get one when approved). */
   home?: Home;
-  pet?: { kind: PetKind; name: string; fur?: string; collar?: string };
+  pet?: { kind: PetKind; name: string; fur?: string; collar?: string; xp?: number };
+  /** Collection-book milestones claimed (percent). */
+  collect?: number[];
+  /** Daily login streak. */
+  streak?: { last: string; days: number; best: number; claimed: string };
+  /** Mansion upgrades bought, in order. */
+  upgrades?: string[];
   /** Saved looks (up to 6). */
   outfits?: { name: string; look: Look }[];
   profile?: Profile;
@@ -287,7 +296,7 @@ export function cleanText(raw: unknown, max: number): string {
 export function setProfile(save: Save, p: Profile): Result {
   save.profile = {
     color: isHex(p.color) ? p.color.toLowerCase() : undefined,
-    badge: [...BADGES, ...levelBadgesFor(levelOf(save.xp ?? 0))].includes(String(p.badge ?? '')) ? String(p.badge ?? '') : '',
+    badge: [...BADGES, ...levelBadgesFor(levelOf(save.xp ?? 0)), ...earnedBadges(save)].includes(String(p.badge ?? '')) ? String(p.badge ?? '') : '',
     bio: cleanText(p.bio, 80),
   };
   return { ok: true, msg: '✨ Profile saved!' };
@@ -370,6 +379,7 @@ export function bumpStat(save: Save, stat: string, by: number): void {
   save.daily.stats[stat] = Math.min(9999, (save.daily.stats[stat] ?? 0) + by);
   save.life ??= {};
   save.life[stat] = Math.min(1e7, (save.life[stat] ?? 0) + by);
+  addPetXp(save, stat, by);
   rollWeek(save);
   save.week!.stats[stat] = Math.min(99999, (save.week!.stats[stat] ?? 0) + by);
 }
@@ -483,6 +493,7 @@ export function recordLap(save: Save, ms: number): Result {
 export function adoptPet(save: Save, kind: string, name: string, fur?: string, collar?: string): Result {
   if (!['dog', 'cat', 'bunny'].includes(kind)) return { ok: false, msg: 'Pick a puppy, kitten or bunny.' };
   const clean = cleanText(String(name).replace(/[^A-Za-z0-9 ]/g, ''), 12) || (kind === 'dog' ? 'Buddy' : kind === 'cat' ? 'Whiskers' : 'Bun Bun');
-  save.pet = { kind: kind as PetKind, name: clean, ...(isHex(fur) ? { fur: fur.toLowerCase() } : {}), ...(isHex(collar) ? { collar: collar.toLowerCase() } : {}) };
+  const xp = save.pet?.xp; // renaming / recolouring keeps your pet's level
+  save.pet = { kind: kind as PetKind, name: clean, ...(isHex(fur) ? { fur: fur.toLowerCase() } : {}), ...(isHex(collar) ? { collar: collar.toLowerCase() } : {}), ...(xp ? { xp } : {}) };
   return { ok: true, msg: `🐾 Say hi to ${clean}! They'll follow you everywhere.` };
 }

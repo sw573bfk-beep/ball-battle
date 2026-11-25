@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { petLevel } from '../shared/progress2';
 import type { Game } from './game';
 import { Music } from './engine/music';
 import { goldenShell, slideCurve, sprite } from './engine/props';
@@ -9,7 +10,7 @@ import type { ZoneId } from '../shared/people';
 import { $, confetti, h, fill, toast } from './ui/dom';
 import { openRace, openSpin } from './ui/fun';
 
-interface PetObj { obj: THREE.Object3D; tick: (dt: number, t: number, moving: number) => void; x: number; z: number; ry: number; key: string }
+interface PetObj { obj: THREE.Object3D; tick: (dt: number, t: number, moving: number) => void; x: number; z: number; ry: number; key: string; trick?: { id: string; t0: number } }
 interface Particle { s: THREE.Sprite; v: THREE.Vector3; life: number; max: number; gravity: number }
 
 const DAY_MS = 20 * 60 * 1000;
@@ -62,20 +63,20 @@ export class Fun {
 
   // ------------------------------------------------------------ pets
 
-  private makePet(kind: 'dog' | 'cat' | 'bunny', name: string, x: number, z: number, fur?: string, collar?: string): PetObj {
-    const m = petModel(kind, name, fur, collar);
+  private makePet(kind: 'dog' | 'cat' | 'bunny', name: string, x: number, z: number, fur?: string, collar?: string, xp?: number): PetObj {
+    const m = petModel(kind, xp ? `${name} · Lv ${petLevel(xp)}` : name, fur, collar);
     m.obj.scale.setScalar(0.85);
     this.g.zone!.root.add(m.obj);
-    return { obj: m.obj, tick: m.tick, x, z, ry: 0, key: `${kind}|${name}|${fur}|${collar}` };
+    return { obj: m.obj, tick: m.tick, x, z, ry: 0, key: `${kind}|${name}|${fur}|${collar}|${petLevel(xp ?? 0)}` };
   }
 
   private syncMyPet(): void {
     const pet = this.g.save.pet;
-    const key = pet ? `${pet.kind}|${pet.name}|${pet.fur}|${pet.collar}` : '';
+    const key = pet ? `${pet.kind}|${pet.name}|${pet.fur}|${pet.collar}|${petLevel(pet.xp ?? 0)}` : '';
     if (this.myPet?.key === key) return;
     const at = this.myPet ? { x: this.myPet.x, z: this.myPet.z } : { x: this.g.pos.x + 1, z: this.g.pos.y + 1 };
     this.myPet?.obj.removeFromParent();
-    this.myPet = pet && this.g.zone ? this.makePet(pet.kind, pet.name, at.x, at.z, pet.fur, pet.collar) : null;
+    this.myPet = pet && this.g.zone ? this.makePet(pet.kind, pet.name, at.x, at.z, pet.fur, pet.collar, pet.xp) : null;
   }
 
   callPet(): void {
@@ -99,8 +100,34 @@ export class Fun {
       moving = 1;
     }
     p.obj.position.set(p.x, 0, p.z);
-    p.obj.rotation.y = p.ry;
+    p.obj.rotation.set(0, p.ry, 0);
+    p.obj.scale.setScalar(0.85);
+    if (p.trick) this.trickPose(p, t);
     p.tick(dt, t, moving);
+  }
+
+  /** A pet trick: 2 seconds of sitting, spinning, jumping, rolling, dancing, flipping or sparkling. */
+  petTrick(owner: string, id: string): void {
+    const p = owner === this.g.save.name ? this.myPet : this.peerPets.get(owner);
+    if (!p) return;
+    p.trick = { id, t0: performance.now() / 1000 };
+    if (id === 'sparkle') this.burst(p.x, 0.6, p.z, 0xffd23f, 40, 3, 2);
+    if (id === 'dance' || id === 'flip') this.heart(p.x, p.z);
+  }
+
+  private trickPose(p: PetObj, _t: number): void {
+    const k = performance.now() / 1000 - p.trick!.t0;
+    if (k > 2) { p.trick = undefined; return; }
+    const o = p.obj, e = Math.sin((k / 2) * Math.PI);
+    switch (p.trick!.id) {
+      case 'sit': o.scale.set(0.85, 0.85 * (1 - 0.25 * e), 0.85); break;
+      case 'spin': o.rotation.y = p.ry + k * Math.PI * 2; break;
+      case 'jump': o.position.y = Math.abs(Math.sin(k * Math.PI * 2)) * 0.6; break;
+      case 'roll': o.rotation.z = Math.min(1, k) * Math.PI * 2; o.position.y = 0.1 * e; break;
+      case 'dance': o.rotation.y = p.ry + Math.sin(k * 12) * 0.6; o.position.y = Math.abs(Math.sin(k * 10)) * 0.15; break;
+      case 'flip': o.position.y = Math.sin(Math.min(1, k) * Math.PI) * 0.9; o.rotation.x = -Math.min(1, k) * Math.PI * 2; break;
+      case 'sparkle': o.position.y = 0.25 * e; o.rotation.y = p.ry + k * 4; if (Math.random() < 0.3) this.burst(p.x, 0.5, p.z, 0xffd23f, 3, 2, 1.5); break;
+    }
   }
 
   private updatePets(dt: number, t: number): void {
@@ -111,9 +138,9 @@ export class Fun {
       if (!pet) continue;
       seen.add(name);
       let p = this.peerPets.get(name);
-      const key = `${pet.kind}|${pet.name}|${pet.fur}|${pet.collar}`;
+      const key = `${pet.kind}|${pet.name}|${pet.fur}|${pet.collar}|${petLevel(pet.xp ?? 0)}`;
       if (p && p.key !== key) { p.obj.removeFromParent(); p = undefined; }
-      if (!p) { p = this.makePet(pet.kind, pet.name, peer.x, peer.z, pet.fur, pet.collar); this.peerPets.set(name, p); }
+      if (!p) { p = this.makePet(pet.kind, pet.name, peer.x, peer.z, pet.fur, pet.collar, pet.xp); this.peerPets.set(name, p); }
       this.followPet(p, peer.x, peer.z, peer.ry, dt, t);
     }
     for (const [name, p] of this.peerPets) if (!seen.has(name)) { p.obj.removeFromParent(); this.peerPets.delete(name); }
