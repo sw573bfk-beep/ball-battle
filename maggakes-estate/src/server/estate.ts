@@ -282,7 +282,7 @@ export class Estate extends DurableObject {
       players.push({ name: live.name, vip: live.vip, admin: !!this.profile(live.name)?.admin, aura: live.aura, total: live.totalAura, log: live.auraLog ?? [] });
     }
     const adminlog = (await this.ctx.storage.get('adminlog')) ?? [];
-    const fixes = { grace: await this.ctx.storage.get('fix:grace-move2'), resSeq: await this.ctx.storage.get('resSeq'), homes: [...this.profiles.values()].map((p) => [p.name, p.home?.zone, p.home?.room]) };
+    const fixes = { paused: this.paused, pauseFix: await this.ctx.storage.get('fix:pause-15'), grace: await this.ctx.storage.get('fix:grace-move2'), resSeq: await this.ctx.storage.get('resSeq'), homes: [...this.profiles.values()].map((p) => [p.name, p.home?.zone, p.home?.room]) };
     await kv.put('reports', JSON.stringify({ at: Date.now(), reports: this.reports, villa, players, adminlog, fixes }));
   }
 
