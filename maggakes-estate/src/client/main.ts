@@ -40,6 +40,9 @@ function start(token: string): void {
       } else {
         game.resume(m.save);
       }
+    } else if (m.t === 'paused') {
+      if (game) location.reload(); // drop the running game; the reload lands on the paused screen
+      else showPaused(m.text);
     } else if (m.t === 'kicked') {
       if (m.reason.includes('sign in again') || m.reason.includes('reset') || m.reason.includes('banned')) localStorage.removeItem(KEY);
       showLogin(m.reason);
@@ -110,7 +113,8 @@ function showLogin(message?: string): void {
     go.disabled = true;
     try {
       if (step === 'name') {
-        const r = await api<{ banned?: boolean; invalid?: string; name?: string; hasPassword?: boolean; isNew?: boolean; error?: string }>('/api/check', { name: nameIn.value });
+        const r = await api<{ banned?: boolean; invalid?: string; name?: string; hasPassword?: boolean; isNew?: boolean; error?: string; paused?: boolean; text?: string }>('/api/check', { name: nameIn.value });
+        if (r.paused) { showPaused(r.text ?? ''); return; }
         if (r.banned) { banned(); return; }
         if (r.invalid) { err.textContent = r.invalid; return; }
         if (r.error || !r.name) { err.textContent = r.error ?? 'Could not reach the estate.'; return; }
@@ -119,7 +123,8 @@ function showLogin(message?: string): void {
         render();
       } else {
         if (step === 'password' && !hasPassword && passIn.value !== pass2.value) { err.textContent = "Those passwords don't match."; return; }
-        const r = await api<{ banned?: boolean; pending?: boolean; token?: string; error?: string }>('/api/login', { name, password: passIn.value });
+        const r = await api<{ banned?: boolean; pending?: boolean; token?: string; error?: string; paused?: boolean; text?: string }>('/api/login', { name, password: passIn.value });
+        if (r.paused) { showPaused(r.text ?? ''); return; }
         if (r.banned) { banned(); return; }
         if (r.pending) {
           if (step === 'pending') err.textContent = 'Not approved yet — try again soon!';
@@ -150,6 +155,29 @@ if (location.search.includes('debug')) {
   import('./ui/minigames2').then((m) => { (window as unknown as Record<string, unknown>).__mg = m; });
 }
 
+/** The game is paused until Beau is paid. Checks every 20 seconds and comes back by itself when unpaused. */
+let pollPaused = 0;
+function showPaused(text: string): void {
+  $('#login').classList.remove('gone');
+  fill($('#login .panel'), h('div.paused-box', {},
+    h('div.big', {}, '⏸️'),
+    h('h1', {}, 'Game paused'),
+    h('p.pay', {}, '💵 $15 to Beau'),
+    h('p', {}, text),
+    h('p.muted', {}, 'The game will start again by itself as soon as it\'s paid.'),
+    h('button.link', { onclick: () => { clearInterval(pollPaused); showLogin(); } }, 'Beau? Sign in')));
+  clearInterval(pollPaused);
+  pollPaused = window.setInterval(async () => {
+    try { const r = await (await fetch('/api/status')).json(); if (!r.paused) location.reload(); } catch { /* try again soon */ }
+  }, 20000);
+}
+
 const saved = localStorage.getItem(KEY);
-if (saved) start(saved);
-else showLogin();
+(async () => {
+  let status: { paused?: boolean; text?: string } = {};
+  try { status = await (await fetch('/api/status')).json(); } catch { /* offline: carry on as normal */ }
+  // Signed in already? The server decides (Beau still gets in). Otherwise show the paused screen.
+  if (saved) start(saved);
+  else if (status.paused) showPaused(status.text ?? '');
+  else showLogin();
+})();

@@ -90,6 +90,7 @@ export type ClientMsg =
   | { t: 'board' }
   | { t: 'admin'; action: AdminAction; target: string }
   | { t: 'accounts' }
+  | { t: 'pause'; on: boolean }
   | { t: 'pet'; kind: string; name: string; fur?: string; collar?: string }
   | { t: 'claimLevel' }
   | { t: 'staff'; text: string }
@@ -124,7 +125,7 @@ export type ServerMsg =
   | { t: 'welcome'; save: Save; admin: boolean; residences: Residence[]; pending: number; roomStyles?: Record<string, RoomStyle> }
   | { t: 'roomStyle'; owner: string; style: RoomStyle }
   | { t: 'world'; residences: Residence[] }
-  | { t: 'accounts'; rows: AccountRow[] }
+  | { t: 'accounts'; rows: AccountRow[]; paused?: boolean }
   | { t: 'role'; admin: boolean; pending: number; reports?: number }
   | { t: 'reports'; rows: Report[] }
   | { t: 'save'; save: Save }
@@ -147,6 +148,7 @@ export type ServerMsg =
   | { t: 'ceremonyResult'; lines: string[] }
   | { t: 'final'; winner: string; partner: string }
   | { t: 'kicked'; reason: string }
+  | { t: 'paused'; text: string }
   | { t: 'scene'; scene: Scene }
   | { t: 'spun'; index: number; msg: string }
   | { t: 'laps'; rows: { name: string; ms: number }[] }
@@ -154,3 +156,7 @@ export type ServerMsg =
   | { t: 'party'; until: number; by: string }
   | { t: 'tag'; it: string; until: number }
   | { t: 'tagEnd'; it: string; winners: string[] };
+
+/** Only the owner can pause the game, and only they can play while it's paused. */
+export const OWNER = 'Beau';
+export const PAUSE_TEXT = "The deadline is up. $15 needs to be paid to Beau before the game can continue. Talk to Keola and Milla about getting Beau the money. Anyone can pay! Don't worry, everyone's progress is saved.";

@@ -455,3 +455,9 @@ section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter
 .colgrid .col { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: rgba(0,0,0,.06); font-size: 20px; }
 .colgrid .col.have { background: #fff3c4; }
 .chip.locked { opacity: .5; }
+#login .paused-box { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+#login .paused-box .big { font-size: 64px; }
+#login .paused-box h1 { font-size: 34px; }
+#login .paused-box .pay { margin: 0; font-size: 26px; font-weight: 800; color: #1f8a4c; background: #e3f8eb; padding: 6px 18px; border-radius: 999px; }
+.pausebox { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: #eef8f1; margin-bottom: 10px; }
+.pausebox.on { background: #fff1e0; }

@@ -79,6 +79,10 @@ Charis & Gabby (6th), Milla (7th).
     gives a title and +3% Aura from playing, forever.
   - **Tiered achievements:** 25 tracks with tiers I–V (125 more achievements), the last tiers take
     months.
+- **⏸️ Pause (Beau only):** *👥 Admin → ⏸️ Pause the game* sends everyone except Beau to a paused
+  screen ("$15 needs to be paid to Beau… talk to Keola and Milla, anyone can pay"). Nobody else can
+  sign in or sign up while it's paused, and nothing is lost. *▶️ Unpause* brings everyone back
+  automatically within about 20 seconds.
 - **💬 Staff Chat:** a private chat for all admins and VIPs (button next to Admin). You're added
   automatically when you're given VIP or admin, and kicked out the moment it's taken away or you're
   banned. The last 100 messages are kept.

@@ -25,7 +25,7 @@ export class Net {
     ws.onmessage = (ev) => {
       let m: ServerMsg;
       try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'kicked') this.closedByUs = true;
+      if (m.t === 'kicked' || m.t === 'paused') this.closedByUs = true;
       for (const h of this.handlers) h(m);
     };
     ws.onclose = () => {

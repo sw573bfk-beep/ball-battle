@@ -129,7 +129,7 @@ export class Game {
   /** Set while racing countdowns / the water slide take over movement. */
   lockMove = false;
   private wantLaps = false;
-  private accountListeners = new Set<(r: AccountRow[]) => void>();
+  private accountListeners = new Set<(r: AccountRow[], paused: boolean) => void>();
 
   constructor(host: HTMLElement, save: Save, admin: boolean, public net: Net, private signOut: () => void, residences: Residence[] = [], pending = 0, roomStyles: Record<string, RoomStyle> = {}) {
     setResidences(residences);
@@ -474,7 +474,7 @@ export class Game {
         return;
       }
       case 'board': this.boardListeners.forEach((f) => f(m.rows)); return;
-      case 'accounts': this.accountListeners.forEach((f) => f(m.rows)); return;
+      case 'accounts': this.accountListeners.forEach((f) => f(m.rows, !!m.paused)); return;
       case 'world': {
         setResidences(m.residences);
         if (this.zoneId.startsWith('r')) toast('🏠 Someone new moved into the mansion!');
