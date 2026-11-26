@@ -73,8 +73,21 @@ await beau.waitForTimeout(500);
 const st2 = await (await fetch(BASE + '/api/status')).json();
 ok(!st2.text.includes('<') && st2.text.length <= 400, 'messages are cleaned and kept short');
 
+// Beau unlocks Keola while paused → she can play; locking her again kicks her back out
+await beau.evaluate(() => window.__game().net.send({ t: 'pauseAllow', target: 'Keola', on: true }));
+ok(await until(beau, () => document.querySelector('.acct')?.parentElement?.textContent.includes('Plays while paused')), 'Admin page shows "🔓 Plays while paused" for Keola');
+ok(!(await API('/api/check', { name: 'Keola' })).paused && (await API('/api/check', { name: 'Jess' })).paused, 'Keola can sign in, Jess still cannot');
+await keola.reload();
+ok(await until(keola, () => window.__game && window.__game() && window.__game().zone, null, 40000), 'Keola plays while the game is paused');
+await jess.evaluate(() => window.__game?.()?.net.send({ t: 'pauseAllow', target: 'Jess', on: true }));
+ok((await API('/api/check', { name: 'Jess' })).paused, 'nobody but Beau can unlock people');
+await beau.evaluate(() => window.__game().net.send({ t: 'pauseAllow', target: 'Keola', on: false }));
+ok(await pausedScreen(keola, 'Game paused', 30000), 'locking Keola again sends her to the paused screen');
+await beau.evaluate(() => window.__game().net.send({ t: 'pauseAllow', target: 'Keola', on: true }));
+
 // Beau unpauses → games come back by themselves
 await beau.evaluate(() => window.__game().net.send({ t: 'pause', on: false }));
 ok(await until(jess, () => window.__game && window.__game() && window.__game().zone, null, 40000), 'Jess is back in the game automatically after unpausing');
 ok((await (await fetch(BASE + '/api/status')).json()).paused === false, 'status says running');
+ok(!(await API('/api/check', { name: 'Keola' })).paused, 'unlocked people still fine after unpausing');
 await b.close();

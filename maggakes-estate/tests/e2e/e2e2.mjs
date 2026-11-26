@@ -33,9 +33,9 @@ for (let i = 0; i < 5; i++) {
 ok(await until(() => window.__game().save.tasks['f2:cleankitchen']), 'collecting all 5 completes the task');
 ok(await G(() => window.__game().wanderers.filter((w) => w.kind === 'pet').length === 2), 'Biscuit and Mochi are on the 2nd floor');
 
-// Decorate at home first (home floor is always open)
-await G(() => window.__game().travel('f4'));
-await until(() => window.__game().zoneId === 'f4');
+// Decorate at home first (home floor is always open): Jess lives in her own penthouse
+await G(() => window.__game().travel('jp'));
+ok(await until(() => window.__game().zoneId === 'jp'), "Jess can go up to her penthouse before it's unlocked for others");
 await p.waitForTimeout(1500);
 await G(() => { const g = window.__game(); const b = g.zone.rooms.find((r) => r.id === 'jess').box; g.pos.set((b.x0 + b.x1) / 2, b.z1 - 2); });
 await p.waitForTimeout(600);

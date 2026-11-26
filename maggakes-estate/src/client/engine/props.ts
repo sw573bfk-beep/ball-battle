@@ -677,10 +677,22 @@ function hotTub(o: Opts): Prop {
   const g = G();
   const r = o.r ?? 1.3;
   const sq = !!o.square;
+  // The shell is hollow (walls + rim) so the water inside can be seen. (It used to be a solid
+  // drum with the water hidden under its lid, so every hot tub looked like a white table.)
+  const shell = mat('#e9e2d8', 0.5);
   if (sq) {
-    rbox(g, r * 2 + 0.3, 0.75, r * 2 + 0.3, mat('#e9e2d8', 0.5), 0, 0, 0, 0.08);
+    const t = 0.15, s2 = r * 2 + t * 2;
+    for (const [w, d, x, z] of [[s2, t, 0, -r - t / 2], [s2, t, 0, r + t / 2], [t, r * 2, -r - t / 2, 0], [t, r * 2, r + t / 2, 0]] as const) rbox(g, w, 0.75, d, shell, x, 0, z, 0.03);
+    box(g, r * 2, 0.06, r * 2, mat('#0f6f8f', 0.6), 0, 0.02, 0);
   } else {
-    cyl(g, r + 0.15, r + 0.2, 0.75, mat('#e9e2d8', 0.5), 0, 0, 0, 40);
+    const side = new THREE.MeshStandardMaterial({ color: '#e9e2d8', roughness: 0.5, side: THREE.DoubleSide });
+    const outer = new THREE.Mesh(geo(`tubout${r}`, () => new THREE.CylinderGeometry(r + 0.15, r + 0.2, 0.75, 40, 1, true)), side);
+    outer.position.y = 0.375; g.add(outer);
+    const inner = new THREE.Mesh(geo(`tubin${r}`, () => new THREE.CylinderGeometry(r, r, 0.75, 40, 1, true)), side);
+    inner.position.y = 0.375; g.add(inner);
+    const rim = new THREE.Mesh(geo(`tubrim${r}`, () => new THREE.RingGeometry(r, r + 0.15, 40)), shell);
+    rim.rotation.x = -Math.PI / 2; rim.position.y = 0.75; g.add(rim);
+    cyl(g, r, r, 0.04, mat('#0f6f8f', 0.6), 0, 0, 0, 40);
   }
   const water = new THREE.Mesh(sq ? new THREE.PlaneGeometry(r * 2, r * 2) : new THREE.CircleGeometry(r, 40), waterMaterial('#1290b8', '#7fe7f5'));
   water.rotation.x = -Math.PI / 2;
@@ -1021,6 +1033,26 @@ function poster(o: Opts): Prop {
   const w = o.w ?? 0.75;
   box(g, w + 0.06, w * 1.375 + 0.06, 0.03, mat(c(o, 'frame', '#1a1a1a'), 0.4), 0, (o.y ?? 1.25), 0);
   plane(g, w, w * 1.375, picMat(posterTexture((o.kind ?? 'abstract') as PosterKind), 0.3), 0, (o.y ?? 1.25) + (w * 1.375 + 0.06) / 2, 0.02);
+  return { obj: g };
+}
+
+/** An extra-large canopy bed (Jess's Penthouse). */
+function giantBed(o: Opts): Prop {
+  const p = canopyBed(o);
+  const k = 1.5;
+  p.obj.scale.setScalar(k);
+  return { ...p, solid: p.solid && { w: p.solid.w * k, d: p.solid.d * k } };
+}
+
+/** A gold plaque on a wall, beside a door. Faces +Z. */
+function goldSign(o: Opts): Prop {
+  const g = G();
+  const text = String(o.text ?? '👑');
+  const w = o.w ?? 2.4, hgt = w * 0.3;
+  const y = o.y ?? 2.1;
+  rbox(g, w + 0.16, hgt + 0.16, 0.06, GOLD(), 0, y - hgt / 2 - 0.08, 0.03, 0.03);
+  const tex = textTexture(text, { color: '#5a3b10', bg: '#f6dc8a', w: 1024, h: 300, size: Math.min(130, Math.floor((1024 * 0.82) / Math.max(1, [...text].length * 0.72))) });
+  plane(g, w, hgt, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.3, metalness: 0.4, emissive: '#3a2a00', emissiveIntensity: 0.25 }), 0, y, 0.07);
   return { obj: g };
 }
 
@@ -1620,7 +1652,7 @@ export function stationMarker(emoji: string, color: string): Prop {
 // ------------------------------------------------------------- registry
 
 export const PROPS: Record<string, (o: Opts) => Prop> = {
-  bed, canopybed: canopyBed, nightstand, rack: wardrobeRack, closet, vanity, mirror, desk, shelf, bookshelf: (o) => shelf({ w: 1, h: 1.8, ...o }),
+  bed, canopybed: canopyBed, giantbed: giantBed, goldsign: goldSign, nightstand, rack: wardrobeRack, closet, vanity, mirror, desk, shelf, bookshelf: (o) => shelf({ w: 1, h: 1.8, ...o }),
   sofa, sectional, armchair, coffeetable: coffeeTable, rug, tv, diningtable: diningTable, chair, stool, plant, palm, floorlamp: floorLamp, chandelier,
   island: kitchenIsland, counter, fridge, sushibar: sushiBar, reception: receptionDesk, stairs: grandStairs,
   toilet, sink, bathtub, shower, spabed: spaBed, candles, hottub: hotTub,

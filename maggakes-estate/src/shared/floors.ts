@@ -47,6 +47,8 @@ export interface FloorDef {
   blurb: string;
   /** A place outside the mansion (beach, mall, town) — reached by car, not the lift. */
   outside?: boolean;
+  /** Someone's private penthouse floor (not part of the floor-by-floor climb). */
+  suite?: boolean;
 }
 
 export const TASK_AURA = 200;
@@ -554,6 +556,19 @@ export const FLOORS: FloorDef[] = [
   },
 ];
 
+// ------------------------------------------------------------ Jess's Penthouse (her own floor)
+FLOORS.push({
+  id: 'jp', short: '👑', name: "Jess's Penthouse", need: 2000, suite: true,
+  blurb: "The biggest bedroom in the estate: a giant canopy bed, hot tub, concert stage with a DJ booth, a lounge and a pool terrace.",
+  tasks: [
+    { id: 'jhottub', label: 'Heat up the hot tub', kind: 'hold', hint: 'Hold to fill the hot tub and get the bubbles going.' },
+    { id: 'jdj', label: 'DJ a set on the stage', kind: 'rhythm', hint: 'Drop the beat — tap the lanes as the notes hit the line!' },
+    { id: 'jconcert', label: 'Set up the concert', kind: 'sequence', hint: 'Get the stage ready for the show.', steps: ['🎤 Mic check', '🎛️ DJ decks on', '💡 Stage lights', '🪩 Disco ball', '🎆 Showtime!'] },
+    { id: 'jbed', label: 'Make the giant canopy bed', kind: 'sequence', hint: 'Make the biggest bed in the estate.', steps: ['🛏️ Silk sheets', '🩷 Fluffy duvet', '🛌 Ten pillows', '🧸 Teddies', '✨ Fairy lights on'] },
+    { id: 'jglam', label: 'Penthouse glam memory', kind: 'memory', hint: 'Find all the matching glam pairs.', symbols: ['👑', '💎', '💄', '👠', '🎤', '🪩'] },
+  ],
+});
+
 export const PARK = { id: 'park' as ZoneId, short: 'P', name: 'Underground Car Park', need: 0 };
 export const VILLA = { id: 'villa' as ZoneId, short: '♥', name: 'Love Island Villa', need: 7000 };
 
@@ -576,4 +591,4 @@ export function zoneNeed(id: ZoneId): number {
 }
 
 /** The fixed zones. Residence floors (r1, r2, …) are added as people join. */
-export const ALL_ZONES: ZoneId[] = ['park', 'beach', 'mall', 'town', 'stadium', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24', 'villa'];
+export const ALL_ZONES: ZoneId[] = ['park', 'beach', 'mall', 'town', 'stadium', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24', 'jp', 'villa'];

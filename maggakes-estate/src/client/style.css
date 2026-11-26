@@ -464,3 +464,5 @@ section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter
 .pausebox .pausemsg { width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid #d8c9d6; padding: 8px 10px; font: inherit; resize: vertical; }
 .pausebox .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 #login .paused-box .pausetext { font-size: 17px; white-space: pre-wrap; }
+.tag.unlock { background: #e3f8eb; color: #1f8a4c; }
+.acct-actions .mini.on { background: #e3f8eb; }

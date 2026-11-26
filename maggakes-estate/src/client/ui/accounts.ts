@@ -37,7 +37,7 @@ export function openAccounts(ctx: AccountsCtx): void {
     const send = (on: boolean) => { draft = null; ctx.net.send({ t: 'pause', on, text: msg.value }); };
     return h('div.pausebox' + (paused ? '.on' : ''), {},
       h('b', {}, paused ? '⏸️ The game is PAUSED. Only you can play.' : '▶️ The game is running.'),
-      h('small.muted', {}, paused ? 'Everyone else sees this message. Change it and press Update.' : 'Write a message, then pause. Everyone else is sent to a screen showing it. Their progress is kept.'),
+      h('small.muted', {}, paused ? 'Everyone else sees this message (except people you 🔓 unlock below). Change it and press Update.' : 'Write a message, then pause. Everyone else (except people you 🔓 unlock below) is sent to a screen showing it. Their progress is kept.'),
       msg,
       h('div.row', {},
         paused
@@ -66,9 +66,10 @@ export function openAccounts(ctx: AccountsCtx): void {
           h('div.acct-main', {},
             h('b', {}, h('span.dot' + (r.online ? '.on' : '')), r.name,
               r.admin ? h('span.tag.adm', {}, '🛡️ Admin') : null, r.vip ? h('span.tag.vipt', {}, '⭐ VIP') : null,
-              r.founder ? h('span.tag', {}, '🏠 Original') : null, r.status === 'banned' ? h('span.tag.ban', {}, '⛔ Banned') : null),
+              r.founder ? h('span.tag', {}, '🏠 Original') : null, r.pauseOk ? h('span.tag.unlock', {}, '🔓 Plays while paused') : null, r.status === 'banned' ? h('span.tag.ban', {}, '⛔ Banned') : null),
             h('small.muted', {}, `${r.totalAura.toLocaleString('en-AU')} Aura · ${r.home ? zoneName(r.home.zone) : 'no bedroom'} · joined ${when(r.created)} · seen ${r.online ? 'online now' : ago(r.lastSeen)}${r.hasPassword ? '' : ' · no password yet'}`)),
           admin && r.name !== ctx.me ? h('div.acct-actions', {},
+            ctx.me === OWNER && r.status === 'approved' ? h('button.mini' + (r.pauseOk ? '.on' : ''), { onclick: () => ctx.net.send({ t: 'pauseAllow', target: r.name, on: !r.pauseOk }) }, r.pauseOk ? '🔒 Lock when paused' : '🔓 Let play when paused') : null,
             r.status === 'approved' ? h('button.mini', { onclick: () => act(r.vip ? 'unvip' : 'vip', r.name) }, r.vip ? 'Remove VIP' : 'Give VIP') : null,
             h('button.mini', { onclick: () => act(r.admin ? 'unadmin' : 'admin', r.name, r.admin ? undefined : `Make ${r.name} an admin? They'll be able to approve, ban and reset passwords.`) }, r.admin ? 'Remove admin' : 'Make admin'),
             r.hasPassword ? h('button.mini', { onclick: () => act('reset', r.name, `Reset ${r.name}'s password? They'll make a new one next time they sign in.`) }, 'Reset password') : null,

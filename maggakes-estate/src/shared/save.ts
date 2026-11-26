@@ -166,7 +166,7 @@ export function canEnter(save: Save, zone: ZoneId): boolean {
 /** The highest floor the player has unlocked (for the leaderboard). */
 export function topFloor(save: Save): ZoneId {
   let top: ZoneId = 'f1';
-  for (const f of FLOORS) if (!f.outside && zoneUnlocked(save, f.id)) top = f.id;
+  for (const f of FLOORS) if (!f.outside && !f.suite && zoneUnlocked(save, f.id)) top = f.id;
   return top;
 }
 

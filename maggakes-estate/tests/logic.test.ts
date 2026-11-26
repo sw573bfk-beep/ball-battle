@@ -410,7 +410,7 @@ test('SKY FLOORS: four new floors chain on from the rooftop (1,000 apart)', () =
   assert.deepEqual(sky.map((f) => f.need), [8000, 9000, 10000, 11000]);
   const s = newSave('Phoebe');
   s.room = [1, 2, 3].map((i) => ({ uid: String(i), item: 'd_teddy', x: i, z: 1, rot: 0 }));
-  for (const f of FLOORS.filter((f) => !f.outside)) for (const t of f.tasks) { assert.ok(zoneUnlocked(s, f.id), `${f.id} open in time`); assert.ok(completeTask(s, f.id, t.id, 0).ok); }
+  for (const f of FLOORS.filter((f) => !f.outside && !f.suite)) for (const t of f.tasks) { assert.ok(zoneUnlocked(s, f.id), `${f.id} open in time`); assert.ok(completeTask(s, f.id, t.id, 0).ok); }
   assert.equal(s.totalAura, 24000, 'all 24 floors = 24,000 Total Aura');
 });
 

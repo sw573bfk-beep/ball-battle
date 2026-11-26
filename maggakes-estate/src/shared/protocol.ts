@@ -58,6 +58,8 @@ export interface AccountRow {
   created: number;
   lastSeen: number;
   hasPassword: boolean;
+  /** Beau lets them play while the game is paused. */
+  pauseOk?: boolean;
 }
 
 /** A problem report sent from inside the game. */
@@ -91,6 +93,7 @@ export type ClientMsg =
   | { t: 'admin'; action: AdminAction; target: string }
   | { t: 'accounts' }
   | { t: 'pause'; on: boolean; text?: string }
+  | { t: 'pauseAllow'; target: string; on: boolean }
   | { t: 'pet'; kind: string; name: string; fur?: string; collar?: string }
   | { t: 'claimLevel' }
   | { t: 'staff'; text: string }

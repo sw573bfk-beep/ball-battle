@@ -60,6 +60,9 @@ export class Estate extends DurableObject {
   private paused = false;
   /** What the paused screen says (Beau can write his own). */
   private pauseText = PAUSE_TEXT;
+  /** People Beau lets play while it's paused. */
+  private pauseAllow = new Set<string>();
+  private canPlayPaused(name?: string): boolean { return !!name && (name === OWNER || this.pauseAllow.has(name)); }
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never);
@@ -77,6 +80,7 @@ export class Estate extends DurableObject {
       }
       this.paused = (await ctx.storage.get<boolean>('paused')) ?? false;
       this.pauseText = (await ctx.storage.get<string>('pauseText')) || PAUSE_TEXT;
+      this.pauseAllow = new Set((await ctx.storage.get<string[]>('pauseAllow')) ?? []);
       for (const [, sv] of await ctx.storage.list<Save>({ prefix: 'save:' })) if (sv.roomStyle) this.roomStyles[sv.name] = sv.roomStyle;
       for (const r of RESIDENTS) {
         if (this.profiles.has(r.name.toLowerCase())) continue;
@@ -139,6 +143,23 @@ export class Estate extends DurableObject {
       if (next <= seq) await ctx.storage.put('resSeq', seq + 1);
       await note(`moved Grace to ${home.zone} room ${home.room}`);
     });
+    // 2026-11-26: Beau gave Jess her own penthouse floor ('jp'), the biggest bedroom in the estate.
+    // Her furniture moves with her, shifted from her old 4th-floor room into the open middle of the suite.
+    ctx.blockConcurrencyWhile(async () => {
+      if (await ctx.storage.get('fix:jess-penthouse')) return;
+      const jess = this.profile('Jess');
+      if (!jess) { await ctx.storage.put('fix:jess-penthouse', 'skipped: no Jess'); return; }
+      const from = jess.home;
+      jess.home = { zone: 'jp', room: 'jess' };
+      await this.putProfile(jess);
+      const save = await this.load('Jess');
+      const wasF4 = save.home?.zone === 'f4' || from?.zone === 'f4';
+      save.home = jess.home;
+      save.lastZone = 'jp';
+      if (wasF4) save.room = save.room.map((it) => ({ ...it, x: Math.round((it.x - 21 + 9.5) * 100) / 100, z: Math.round((it.z + 8.3) * 100) / 100 }));
+      await this.store(save);
+      await ctx.storage.put('fix:jess-penthouse', `moved Jess from ${from?.zone ?? '?'} to jp (${save.room.length} items)`);
+    });
     // (first attempt, kept so it never runs again)
     ctx.blockConcurrencyWhile(async () => {
       if (await ctx.storage.get('fix:grace-move')) return;
@@ -193,7 +214,7 @@ export class Estate extends DurableObject {
   private async check(body: { name?: string }) {
     const raw = String(body.name ?? '');
     const p = this.profile(raw);
-    if (this.paused && p?.name !== OWNER) return { paused: true, text: this.pauseText };
+    if (this.paused && !this.canPlayPaused(p?.name)) return { paused: true, text: this.pauseText };
     if (p) {
       if (p.status === 'banned') return { banned: true };
       const acct = await this.ctx.storage.get<Account>(`acct:${p.name}`);
@@ -208,7 +229,7 @@ export class Estate extends DurableObject {
     const raw = String(body.name ?? '');
     const password = String(body.password ?? '');
     let p = this.profile(raw);
-    if (this.paused && p?.name !== OWNER) return { paused: true, text: this.pauseText };
+    if (this.paused && !this.canPlayPaused(p?.name)) return { paused: true, text: this.pauseText };
     if (p?.status === 'banned') return { banned: true };
     const key = p?.name ?? raw.trim();
     const f = this.fails.get(key.toLowerCase());
@@ -285,7 +306,7 @@ export class Estate extends DurableObject {
       players.push({ name: live.name, vip: live.vip, admin: !!this.profile(live.name)?.admin, aura: live.aura, total: live.totalAura, log: live.auraLog ?? [] });
     }
     const adminlog = (await this.ctx.storage.get('adminlog')) ?? [];
-    const fixes = { paused: this.paused, pauseFix: await this.ctx.storage.get('fix:pause-15'), grace: await this.ctx.storage.get('fix:grace-move2'), resSeq: await this.ctx.storage.get('resSeq'), homes: [...this.profiles.values()].map((p) => [p.name, p.home?.zone, p.home?.room]) };
+    const fixes = { jessPenthouse: await this.ctx.storage.get('fix:jess-penthouse'), paused: this.paused, pauseFix: await this.ctx.storage.get('fix:pause-15'), grace: await this.ctx.storage.get('fix:grace-move2'), resSeq: await this.ctx.storage.get('resSeq'), homes: [...this.profiles.values()].map((p) => [p.name, p.home?.zone, p.home?.room]) };
     await kv.put('reports', JSON.stringify({ at: Date.now(), reports: this.reports, villa, players, adminlog, fixes }));
   }
 
@@ -368,7 +389,7 @@ export class Estate extends DurableObject {
       server.close(4001, 'auth');
       return new Response(null, { status: 101, webSocket: client });
     }
-    if (this.paused && name !== OWNER) {
+    if (this.paused && !this.canPlayPaused(name)) {
       server.send(JSON.stringify({ t: 'paused', text: this.pauseText } satisfies ServerMsg));
       server.close(4003, 'paused');
       return new Response(null, { status: 101, webSocket: client });
@@ -577,6 +598,7 @@ export class Estate extends DurableObject {
       case 'admin': await this.admin(c, m.action, String(m.target)); return;
       case 'accounts': await this.sendAccounts(c); return;
       case 'pause': await this.setPaused(c, !!m.on, m.text); return;
+      case 'pauseAllow': await this.setPauseAllow(c, String(m.target), !!m.on); return;
       case 'pet': {
         await this.saved(c, adoptPet(c.save, String(m.kind), String(m.name ?? ''), m.fur, m.collar));
         if (c.zone) this.toZone(c.zone, { t: 'peer', info: this.info(c) }, c.name);
@@ -930,7 +952,7 @@ export class Estate extends DurableObject {
       rows.push({
         name: p.name, status: p.status, admin: p.admin, vip: !!s?.vip, online: this.conns.has(p.name), founder: p.founder,
         totalAura: s?.totalAura ?? 0, home: p.home, created: p.created, lastSeen: this.conns.has(p.name) ? Date.now() : p.lastSeen,
-        hasPassword: accts.has(`acct:${p.name}`),
+        hasPassword: accts.has(`acct:${p.name}`), pauseOk: this.pauseAllow.has(p.name) || undefined,
       });
     }
     const order: Record<AccountStatus, number> = { pending: 0, approved: 1, banned: 2 };
@@ -961,13 +983,33 @@ export class Estate extends DurableObject {
     await this.ctx.storage.put('adminlog', log.slice(0, 300));
     if (on) {
       for (const o of [...this.conns.values()]) {
-        if (o.name === OWNER) continue;
+        if (this.canPlayPaused(o.name)) continue;
         this.send(o, { t: 'paused', text: this.pauseText });
         this.drop(o);
         try { o.ws.close(4003, 'paused'); } catch { /* already closed */ }
       }
     }
     this.send(c, { t: 'toast', text: !on ? '▶️ Game unpaused! Everyone can play again.' : wasPaused ? '✏️ Message updated. Everyone sees it within 20 seconds.' : '⏸️ Game paused. Everyone else now sees your message.', good: true });
+    await this.sendAccounts(c);
+  }
+
+  /** Beau only: let someone keep playing while the game is paused (or take that away). */
+  private async setPauseAllow(c: Conn, target: string, on: boolean): Promise<void> {
+    if (c.name !== OWNER) { this.send(c, { t: 'toast', text: 'Only Beau can do that.' }); return; }
+    const p = this.profile(target);
+    if (!p || p.name === OWNER) return;
+    if (on) this.pauseAllow.add(p.name); else this.pauseAllow.delete(p.name);
+    await this.ctx.storage.put('pauseAllow', [...this.pauseAllow]);
+    const log = (await this.ctx.storage.get<{ at: number; by: string; action: string; target: string }[]>('adminlog')) ?? [];
+    log.unshift({ at: Date.now(), by: c.name, action: on ? 'unlock (pause)' : 'lock (pause)', target: p.name });
+    await this.ctx.storage.put('adminlog', log.slice(0, 300));
+    const o = this.conns.get(p.name);
+    if (!on && this.paused && o) {
+      this.send(o, { t: 'paused', text: this.pauseText });
+      this.drop(o);
+      try { o.ws.close(4003, 'paused'); } catch { /* already closed */ }
+    }
+    this.send(c, { t: 'toast', text: on ? `🔓 ${p.name} can play while the game is paused.` : `🔒 ${p.name} is locked out while the game is paused.`, good: true });
     await this.sendAccounts(c);
   }
 

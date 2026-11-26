@@ -3,7 +3,7 @@
  * Anyone else can sign up; an admin approves them, and every two approved
  * newcomers get a new residence floor with two bedrooms.
  */
-export type FixedZone = 'b' | 'f1' | 'f2' | 'f3' | 'f4' | 'f5' | 'f6' | 'f7' | 'f8' | 'f9' | 'f10' | 'f11' | 'f12' | 'f13' | 'f14' | 'f15' | 'f16' | 'f17' | 'f18' | 'f19' | 'f20' | 'f21' | 'f22' | 'f23' | 'f24' | 'park' | 'villa' | 'beach' | 'mall' | 'town' | 'stadium';
+export type FixedZone = 'b' | 'f1' | 'f2' | 'f3' | 'f4' | 'f5' | 'f6' | 'f7' | 'f8' | 'f9' | 'f10' | 'f11' | 'f12' | 'f13' | 'f14' | 'f15' | 'f16' | 'f17' | 'f18' | 'f19' | 'f20' | 'f21' | 'f22' | 'f23' | 'f24' | 'park' | 'villa' | 'beach' | 'mall' | 'town' | 'stadium' | 'jp';
 export type ResidenceZone = `r${number}`;
 export type ZoneId = FixedZone | ResidenceZone;
 
@@ -21,7 +21,7 @@ export const RESIDENTS: Resident[] = [
   { name: 'Serena', home: 'b', room: 'serena' },
   { name: 'Beau', home: 'f1', room: 'guest1', admin: true },
   { name: 'Keola', home: 'f4', room: 'keola', admin: true },
-  { name: 'Jess', home: 'f4', room: 'jess' },
+  { name: 'Jess', home: 'jp', room: 'jess' }, // her own penthouse floor (moved from the 4th floor)
   { name: 'Ava', home: 'f5', room: 'ava' },
   { name: 'Grace', home: 'f5', room: 'grace' },
   { name: 'Charis', home: 'f6', room: 'charis' },

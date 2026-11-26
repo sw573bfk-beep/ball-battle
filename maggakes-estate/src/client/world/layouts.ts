@@ -5,6 +5,7 @@ import type { FloorMat } from '../engine/tex';
 import { P, bedroomKit, ensuiteKit, label, on, wardrobeKit, type PropDef, type Rect } from './kit';
 import { TOWER_LAYOUTS } from './layouts2';
 import { OUTSIDE_LAYOUTS } from './layouts3';
+import { penthouse } from './layouts4';
 
 export interface RoomDef { id: string; name: string; r: Rect; floor: FloorMat; tint?: string; wall?: string }
 
@@ -260,7 +261,7 @@ const floor4: Layout = {
   rooms: [
     { id: 'keola', name: "Keola's Bedroom", r: F4.keola, floor: 'carpet', tint: '#c9d9ec', wall: '#e3eefa' },
     { id: 'study', name: 'Study Nook', r: F4.study, floor: 'darkwood' },
-    { id: 'jess', name: "Jess's Bedroom", r: F4.jess, floor: 'carpet', tint: '#d9cfe6', wall: '#2a2236' },
+    { id: 'guest4', name: 'Guest Suite', r: F4.jess, floor: 'carpet', tint: '#d9cfe6', wall: '#2a2236' }, // Jess moved up to her penthouse
     { id: 'landing', name: 'Landing', r: F4.landing, floor: 'marble' },
     { id: 'kens', name: 'Ensuite', r: F4.kEns, floor: 'tile' },
     { id: 'kward', name: 'Walk-in Wardrobe', r: F4.kWard, floor: 'wood' },
@@ -278,7 +279,7 @@ const floor4: Layout = {
     label(F4.study, 'Study Nook', 0.32),
     ...bedroomKit(F4.jess, 'n', { bed: '#141414', accent: '#ff3df0', pillow: '#ffb3f0', frame: '#2a2236', rug: '#5c1a5e', posters: ['concert', 'star', 'concert', 'music'] }),
     on(F4.jess, 'e', 0.62, 0.05, 'neon', { text: 'LAROI', color: '#ff3df0', w: 2.2 }), P('speaker', 21.6, 8.3, 0.5), P('speaker', 31.4, 8.3, -0.5),
-    P('guitar', 22, 5.2, 0.5), P('mic', 30.8, 5.4, 0), P('discoball', 26.5, 6.8, 0), P('label', 26.5, 7.4, 0, { text: "Jess's Bedroom", color: '#ffd6f7' }),
+    P('guitar', 22, 5.2, 0.5), P('mic', 30.8, 5.4, 0), P('discoball', 26.5, 6.8, 0), P('label', 26.5, 7.4, 0, { text: 'Guest Suite', color: '#ffd6f7' }),
     ...ensuiteKit(F4.kEns, 's'), ...ensuiteKit(F4.jEns, 's'),
     ...wardrobeKit(F4.kWard, 'w', ['#2b6cff', '#ff9f1c', '#111', '#ffffff', '#33e1ff']), on(F4.kWard, 's', 0.5, 0.35, 'mirror'),
     ...wardrobeKit(F4.jWard, 'e', ['#141414', '#ff3df0', '#ffffff', '#5c1a5e', '#ffb3f0']), on(F4.jWard, 's', 0.5, 0.35, 'mirror'),
@@ -738,7 +739,7 @@ const villa: Layout = {
 
 export const LAYOUTS: Record<FixedZone, Layout> = {
   b: basement, f1: floor1, f2: floor2, f3: floor3, f4: floor4, f5: floor5, f6: floor6, f7: floor7, f8: floor8,
-  f9: floor9, f10: floor10, f11: floor11, f12: floor12, ...TOWER_LAYOUTS, ...OUTSIDE_LAYOUTS, park, villa,
+  f9: floor9, f10: floor10, f11: floor11, f12: floor12, ...TOWER_LAYOUTS, ...OUTSIDE_LAYOUTS, park, villa, jp: penthouse,
 };
 
 // ===================================================================== Residence floors

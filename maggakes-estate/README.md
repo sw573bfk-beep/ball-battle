@@ -84,6 +84,13 @@ Charis & Gabby (6th), Milla (7th).
   else can sign in or sign up while it's paused, and nothing is lost. While paused, *✏️ Update
   message* changes everyone's screen within about 20 seconds, and *▶️ Unpause* brings everyone back
   automatically.
+  Next to each account, Beau can press *🔓 Let play when paused* so that person can keep playing
+  while everyone else is paused (*🔒 Lock when paused* kicks them back out).
+- **👑 Jess's Penthouse:** Jess's own floor (lift button 👑) with the biggest bedroom in the estate
+  (28×18 m): a giant canopy bed with fairy lights, a hot tub you can sit in, a "JESS LIVE" concert
+  stage with a DJ booth, speakers and spotlights, a gold "Jess's Suite" sign, plus a lounge with a
+  cinema screen and bar, a pool terrace, a marble ensuite and a walk-in wardrobe. It has 5 tasks.
+  Jess can always go there; visitors need 2,000 Total Aura. Her old 4th-floor room is now a Guest Suite.
 - **💬 Staff Chat:** a private chat for all admins and VIPs (button next to Admin). You're added
   automatically when you're given VIP or admin, and kicked out the moment it's taken away or you're
   banned. The last 100 messages are kept.

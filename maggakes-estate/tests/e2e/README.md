@@ -18,7 +18,8 @@ Run against a local server (`npm run build && npm run dev:server`), with a fresh
 | `e2e10.mjs` | Staff Chat: admins + VIPs only, added when given VIP/admin, kicked when it is taken away |
 | `e2e11.mjs` | soccer stadium: live match, bots fill teams, friends balance, kicking (`--render` for a screenshot) |
 | `e2e12.mjs` | progression: streak claim (once a day), collection book, pet level & tricks, estate upgrades in order |
-| `e2e13.mjs` | pause: only Beau can pause/unpause with his own message (and change it while paused), everyone else gets the paused screen (even new visitors), games come back by themselves |
+| `e2e13.mjs` | pause: only Beau can pause/unpause with his own message (and change it while paused), unlock people to play while paused, everyone else gets the paused screen |
+| `e2e14.mjs` | Jess's Penthouse: her home, huge suite with bed/hot tub/stage/DJ/gold sign, decorating, 2,000 Aura for visitors, old room is a Guest Suite |
 | `aura-audit*.mjs` | every way to earn/spend Aura; run `aura-after-restart*.mjs` after restarting the server |
 
 They use the machine's Playwright install (`/opt/node-tools/node_modules/playwright`); change that import path if yours is elsewhere.
