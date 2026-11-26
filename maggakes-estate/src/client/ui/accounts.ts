@@ -35,12 +35,13 @@ export function openAccounts(ctx: AccountsCtx): void {
     ctx.net.send({ t: 'admin', action, target });
   };
   let draft: string | null = null; // keep what Beau is typing when the list refreshes
-  const pauseBox = (paused: boolean, pauseText: string) => {
+  const pauseBox = (paused: boolean, pauseText: string, rows: AccountRow[]) => {
     const msg = h('textarea.pausemsg', { maxLength: 400, rows: 4, placeholder: 'Type the message everyone will see…', oninput: () => { draft = msg.value; } }) as HTMLTextAreaElement;
     msg.value = draft ?? (pauseText || PAUSE_TEXT);
     const send = (on: boolean) => { draft = null; ctx.net.send({ t: 'pause', on, text: msg.value }); };
+    const unlocked = rows.filter((r) => r.pauseOk && r.name !== OWNER).length;
     return h('div.pausebox' + (paused ? '.on' : ''), {},
-      h('b', {}, paused ? '⏸️ The game is PAUSED. Only you can play.' : '▶️ The game is running.'),
+      h('b', {}, paused ? `⏸️ The game is PAUSED. Only you${unlocked ? ` and ${unlocked} unlocked ${unlocked === 1 ? 'person' : 'people'}` : ''} can play.` : '▶️ The game is running.'),
       h('small.muted', {}, paused ? 'Everyone else sees this message (except people you 🔓 unlock below). Change it and press Update.' : 'Write a message, then pause. Everyone else (except people you 🔓 unlock below) is sent to a screen showing it. Their progress is kept.'),
       msg,
       h('div.row', {},
@@ -48,7 +49,25 @@ export function openAccounts(ctx: AccountsCtx): void {
           ? h('button.btn.ghost', { onclick: () => send(true) }, '✏️ Update message')
           : h('button.btn.ghost', { onclick: () => { if (confirm('Pause the game for everyone except you?')) send(true); } }, '⏸️ Pause the game'),
         paused ? h('button.btn', { onclick: () => send(false) }, '▶️ Unpause the game') : null,
-        h('button.mini', { onclick: () => { msg.value = PAUSE_TEXT; draft = PAUSE_TEXT; } }, 'Use the $15 message')));
+        h('button.mini', { onclick: () => { msg.value = PAUSE_TEXT; draft = PAUSE_TEXT; } }, 'Use the $15 message')),
+      allowBox(rows));
+  };
+  /** Who can keep playing while the game is paused: a list with ✖, plus a picker to add anyone. */
+  const allowBox = (rows: AccountRow[]) => {
+    const people = rows.filter((r) => r.status === 'approved' && r.name !== OWNER);
+    const allowed = people.filter((r) => r.pauseOk);
+    const set = (name: string, on: boolean) => ctx.net.send({ t: 'pauseAllow', target: name, on });
+    const pick = h('select.allow-pick', {}, h('option', { value: '' }, '+ Choose someone…'),
+      ...people.filter((r) => !r.pauseOk).map((r) => h('option', { value: r.name }, `${r.name}${r.admin ? ' 🛡️' : r.vip ? ' ⭐' : ''}`))) as HTMLSelectElement;
+    pick.onchange = () => { if (pick.value) set(pick.value, true); };
+    return h('div.allowbox', {},
+      h('b', {}, `🔓 Who can play while paused (${allowed.length})`),
+      allowed.length
+        ? h('div.row', {}, ...allowed.map((r) => h('span.allow-chip', {}, `${r.name}`, h('button', { title: `Lock ${r.name} out while paused`, onclick: () => set(r.name, false) }, '✖'))))
+        : h('small.muted', {}, 'Only you. Add people below.'),
+      h('div.row', {}, pick,
+        h('button.mini', { onclick: () => people.filter((r) => r.admin || r.vip).forEach((r) => { if (!r.pauseOk) set(r.name, true); }) }, '+ All admins & VIPs'),
+        allowed.length ? h('button.mini', { onclick: () => { if (confirm('Lock everyone except you out while paused?')) allowed.forEach((r) => set(r.name, false)); } }, 'Remove all') : null));
   };
   const render = (rows: AccountRow[], paused: boolean, pauseText: string) => {
     const admin = ctx.admin();
@@ -56,7 +75,7 @@ export function openAccounts(ctx: AccountsCtx): void {
     const others = rows.filter((r) => r.status !== 'pending');
     fill(body,
       h('div.actions', { style: { justifyContent: 'flex-start', marginTop: '0' } }, h('button.btn' + (ctx.reports() ? '' : '.ghost'), { onclick: () => ctx.openReports() }, `🐞 Problem reports${ctx.reports() ? ` (${ctx.reports()} open)` : ''}`)),
-      ctx.me === OWNER ? pauseBox(paused, pauseText) : null,
+      ctx.me === OWNER ? pauseBox(paused, pauseText, rows) : null,
       h('p.muted', {}, admin ? '🛡️ You are an admin. Passwords are scrambled — nobody can see them, but you can reset them.' : '⭐ VIPs can see every account. Only admins can change them.'),
       pending.length ? h('section.pending', {},
         h('h4', {}, `🆕 Waiting for approval (${pending.length})`),
@@ -64,6 +83,7 @@ export function openAccounts(ctx: AccountsCtx): void {
           h('div', {}, h('b', {}, r.name), h('small.muted', {}, ` signed up ${when(r.created)}`)),
           admin ? h('div.acct-actions', {},
             h('button.btn', { onclick: () => act('approve', r.name) }, '✅ Approve'),
+            ctx.me === OWNER && paused ? h('button.btn', { onclick: () => { act('approve', r.name); ctx.net.send({ t: 'pauseAllow', target: r.name, on: true }); } }, '✅ Approve & let play') : null,
             h('button.btn.ghost', { onclick: () => act('reject', r.name, `Reject ${r.name}'s sign-up? Their account will be deleted.`) }, '✖ Reject')) : h('small.muted', {}, 'An admin needs to approve them')))) : null,
       h('section', {}, h('h4', {}, `👥 All accounts (${others.length})`),
         h('div.acct-list', {}, ...others.map((r) => h('div.acct' + (r.status === 'banned' ? '.banned' : ''), {},

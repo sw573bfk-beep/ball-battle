@@ -84,8 +84,10 @@ Charis & Gabby (6th), Milla (7th).
   else can sign in or sign up while it's paused, and nothing is lost. While paused, *✏️ Update
   message* changes everyone's screen within about 20 seconds, and *▶️ Unpause* brings everyone back
   automatically.
-  Next to each account, Beau can press *🔓 Let play when paused* so that person can keep playing
-  while everyone else is paused (*🔒 Lock when paused* kicks them back out).
+  *🔓 Who can play while paused* (under the Pause button) lists who can still sign in and play:
+  pick anyone to add them, ✖ to remove, or add all admins & VIPs at once (or use *🔓 Let play when
+  paused* next to an account). New people can still sign up while paused and wait in *Waiting for
+  approval*; *✅ Approve & let play* approves them and lets them in straight away.
 - **👑 Owner powers (Beau only):** Beau can go on every floor, owns every item and all estate
   upgrades, always has plenty of Aura (topped up to 10 million each sign-in) and is left off the
   leaderboard. On the 👥 Admin page, *👑 Powers* next to anyone lets him give or take Aura, give any

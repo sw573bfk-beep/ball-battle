@@ -470,3 +470,8 @@ section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter
 .owner-tools input.owner-n { width: 130px; padding: 8px 10px; border-radius: 10px; border: 1px solid #d8c9d6; font: inherit; }
 .owner-tools select.owner-item { flex: 1; min-width: 200px; padding: 8px; border-radius: 10px; border: 1px solid #d8c9d6; font: inherit; }
 .acct-actions .mini.owner { background: #fff4d6; }
+.allowbox { width: 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding-top: 10px; border-top: 1px dashed #cfe5d6; }
+.allowbox .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.allow-chip { display: inline-flex; align-items: center; gap: 4px; background: #e3f8eb; color: #1f6b3d; border-radius: 999px; padding: 4px 6px 4px 12px; font-weight: 700; font-size: 13px; }
+.allow-chip button { border: 0; background: rgba(0,0,0,.08); border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 11px; }
+.allowbox select.allow-pick { padding: 7px 10px; border-radius: 10px; border: 1px solid #d8c9d6; font: inherit; min-width: 190px; }

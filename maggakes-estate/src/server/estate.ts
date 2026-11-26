@@ -219,7 +219,8 @@ export class Estate extends DurableObject {
   private async check(body: { name?: string }) {
     const raw = String(body.name ?? '');
     const p = this.profile(raw);
-    if (this.paused && !this.canPlayPaused(p?.name)) return { paused: true, text: this.pauseText };
+    // While paused, new people can still sign up and wait for approval; everyone else sees the paused screen.
+    if (this.paused && p && p.status !== 'pending' && !this.canPlayPaused(p.name)) return { paused: true, text: this.pauseText };
     if (p) {
       if (p.status === 'banned') return { banned: true };
       const acct = await this.ctx.storage.get<Account>(`acct:${p.name}`);
@@ -234,7 +235,7 @@ export class Estate extends DurableObject {
     const raw = String(body.name ?? '');
     const password = String(body.password ?? '');
     let p = this.profile(raw);
-    if (this.paused && !this.canPlayPaused(p?.name)) return { paused: true, text: this.pauseText };
+    if (this.paused && p && p.status !== 'pending' && !this.canPlayPaused(p.name)) return { paused: true, text: this.pauseText };
     if (p?.status === 'banned') return { banned: true };
     const key = p?.name ?? raw.trim();
     const f = this.fails.get(key.toLowerCase());

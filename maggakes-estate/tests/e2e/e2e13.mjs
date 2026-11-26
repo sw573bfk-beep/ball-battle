@@ -50,7 +50,17 @@ ok(await beau.evaluate(() => !!window.__game().zone && document.querySelector('#
 const st = await (await fetch(BASE + '/api/status')).json();
 ok(st.paused && st.text === MSG, '/api/status says paused with the message');
 ok((await API('/api/check', { name: 'Jess' })).paused && (await API('/api/login', { name: 'Jess', password: 'jess12' })).paused, 'Jess cannot sign in');
-ok((await API('/api/check', { name: 'NewKid' })).paused, 'nobody new can sign up');
+const nk = await API('/api/check', { name: 'NewKid' });
+ok(!nk.paused && nk.isNew, 'new people can still sign up while paused');
+ok((await API('/api/login', { name: 'NewKid', password: 'newkid1' })).pending, '...and wait for approval');
+ok((await API('/api/login', { name: 'NewKid', password: 'newkid1' })).pending, 'still waiting (not the paused screen)');
+await beau.evaluate(() => document.querySelectorAll('#modals .modal').forEach((x) => x.remove()));
+await beau.click('#b-accounts');
+ok(await until(beau, () => document.querySelector('.pending')?.textContent.includes('NewKid')), 'NewKid shows in "Waiting for approval"');
+await beau.click('.acct.pend:has-text("NewKid") button:has-text("Approve & let play")');
+ok(await until(beau, () => [...document.querySelectorAll('.allow-chip')].some((c) => c.textContent.includes('NewKid')), null, 15000), '"✅ Approve & let play" → approved and on the play list');
+ok(!!(await API('/api/login', { name: 'NewKid', password: 'newkid1' })).token, 'NewKid can sign in and play while paused');
+await beau.evaluate(() => document.querySelectorAll('#modals .modal').forEach((x) => x.remove()));
 ok(!(await API('/api/check', { name: 'beau' })).paused, 'Beau can still sign in');
 const fresh = await (await b.newContext()).newPage();
 await fresh.goto(URL);
@@ -73,9 +83,25 @@ await beau.waitForTimeout(500);
 const st2 = await (await fetch(BASE + '/api/status')).json();
 ok(!st2.text.includes('<') && st2.text.length <= 400, 'messages are cleaned and kept short');
 
+// The "Who can play while paused" list at the top of the Admin page
+await beau.evaluate(() => document.querySelectorAll('#modals .modal').forEach((x) => x.remove()));
+await beau.click('#b-accounts');
+ok(await until(beau, () => document.querySelector('.allowbox')?.textContent.includes('Who can play while paused')), '"🔓 Who can play while paused" section on the Admin page');
+await beau.selectOption('.allowbox select.allow-pick', 'Milla');
+ok(await until(beau, () => [...document.querySelectorAll('.allow-chip')].some((c) => c.textContent.includes('Milla'))), 'pick Milla → she is on the list');
+ok(!(await API('/api/check', { name: 'Milla' })).paused, 'Milla can sign in while paused');
+ok(await until(beau, () => /and \d+ unlocked/.test(document.querySelector('.pausebox b')?.textContent ?? '')), 'headline counts unlocked people');
+await beau.click('.allow-chip:has-text("Milla") button');
+ok(await until(beau, () => ![...document.querySelectorAll('.allow-chip')].some((c) => c.textContent.includes('Milla'))), '✖ removes her');
+ok((await API('/api/check', { name: 'Milla' })).paused, 'and she is locked out again');
+await beau.screenshot({ path: 'shots/e2e13-allow.png' });
+await beau.evaluate(() => document.querySelectorAll('#modals .modal').forEach((x) => x.remove()));
+
 // Beau unlocks Keola while paused → she can play; locking her again kicks her back out
 await beau.evaluate(() => window.__game().net.send({ t: 'pauseAllow', target: 'Keola', on: true }));
-ok(await until(beau, () => document.querySelector('.acct')?.parentElement?.textContent.includes('Plays while paused')), 'Admin page shows "🔓 Plays while paused" for Keola');
+await beau.click('#b-accounts');
+ok(await until(beau, () => document.querySelector('.acct-list')?.textContent.includes('Plays while paused') && [...document.querySelectorAll('.allow-chip')].some((c) => c.textContent.includes('Keola'))), 'Admin page shows Keola as "🔓 Plays while paused"');
+await beau.evaluate(() => document.querySelectorAll('#modals .modal').forEach((x) => x.remove()));
 ok(!(await API('/api/check', { name: 'Keola' })).paused && (await API('/api/check', { name: 'Jess' })).paused, 'Keola can sign in, Jess still cannot');
 await keola.reload();
 ok(await until(keola, () => window.__game && window.__game() && window.__game().zone, null, 40000), 'Keola plays while the game is paused');
