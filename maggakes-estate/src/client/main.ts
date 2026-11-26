@@ -3,6 +3,7 @@ import { Net, api } from './net';
 import { Game } from './game';
 import { h, $, fill, toast } from './ui/dom';
 import { recentErrors, TEAMS_NOTE } from './ui/report';
+import { PAUSE_TEXT } from '../shared/protocol';
 
 const KEY = 'maggakes.token';
 
@@ -155,20 +156,20 @@ if (location.search.includes('debug')) {
   import('./ui/minigames2').then((m) => { (window as unknown as Record<string, unknown>).__mg = m; });
 }
 
-/** The game is paused until Beau is paid. Checks every 20 seconds and comes back by itself when unpaused. */
+/** The game is paused (with Beau's message). Checks every 20 seconds and comes back by itself when unpaused. */
 let pollPaused = 0;
 function showPaused(text: string): void {
   $('#login').classList.remove('gone');
   fill($('#login .panel'), h('div.paused-box', {},
     h('div.big', {}, '⏸️'),
     h('h1', {}, 'Game paused'),
-    h('p.pay', {}, '💵 $15 to Beau'),
-    h('p', {}, text),
-    h('p.muted', {}, 'The game will start again by itself as soon as it\'s paid.'),
+    text === PAUSE_TEXT ? h('p.pay', {}, '💵 $15 to Beau') : null,
+    h('p.pausetext', {}, text),
+    h('p.muted', {}, 'The game will start again by itself as soon as Beau unpauses it.'),
     h('button.link', { onclick: () => { clearInterval(pollPaused); showLogin(); } }, 'Beau? Sign in')));
   clearInterval(pollPaused);
   pollPaused = window.setInterval(async () => {
-    try { const r = await (await fetch('/api/status')).json(); if (!r.paused) location.reload(); } catch { /* try again soon */ }
+    try { const r = await (await fetch('/api/status')).json(); if (!r.paused) location.reload(); else if (r.text && r.text !== text) showPaused(r.text); } catch { /* try again soon */ }
   }, 20000);
 }
 

@@ -18,7 +18,8 @@ const join = async (name, pw) => {
   await p.evaluate(() => document.querySelectorAll('#modals .modal').forEach((x) => x.remove()));
   return p;
 };
-const pausedScreen = (p) => until(p, () => { const t = document.querySelector('#login .paused-box')?.textContent ?? ''; return t.includes('$15') && t.includes('Keola and Milla') && t.includes('Anyone can pay'); }, null, 15000);
+const pausedScreen = (p, want = 'Back soon', ms = 15000) => until(p, (w) => (document.querySelector('#login .paused-box')?.textContent ?? '').includes(w), want, ms);
+const MSG = 'Back soon! Fixing the pool 🏊';
 
 ok((await (await fetch(BASE + '/api/status')).json()).paused === false, 'a brand-new estate is not paused');
 const beau = await join('Beau', 'beau12');
@@ -35,16 +36,19 @@ await keola.evaluate(() => window.__game().net.send({ t: 'pause', on: true }));
 await keola.waitForTimeout(600);
 ok((await (await fetch(BASE + '/api/status')).json()).paused === false, 'Keola cannot pause the game');
 
-// Beau pauses
-await beau.click('.pausebox button');
-ok(await pausedScreen(jess), 'Jess is sent to the paused screen ($15 to Beau, talk to Keola and Milla, anyone can pay)');
+// Beau writes a message and pauses
+ok(await beau.$eval('.pausemsg', (t) => t.value.includes('$15')), 'the message box starts with the $15 message');
+await beau.fill('.pausemsg', MSG);
+await beau.click('.pausebox button:has-text("Pause the game")');
+ok(await pausedScreen(jess, MSG), "Jess is sent to the paused screen showing Beau's message");
+ok(!(await jess.$('.paused-box .pay')), 'no $15 badge on a custom message');
 ok(await pausedScreen(keola), 'Keola too');
 await jess.screenshot({ path: 'shots/e2e13-paused.png' });
 ok(await until(beau, () => document.querySelector('.pausebox')?.textContent.includes('PAUSED')), 'Beau sees "The game is PAUSED"');
 await beau.evaluate(() => document.querySelectorAll('#modals .modal').forEach((x) => x.remove()));
 ok(await beau.evaluate(() => !!window.__game().zone && document.querySelector('#login').classList.contains('gone')), 'Beau keeps playing');
 const st = await (await fetch(BASE + '/api/status')).json();
-ok(st.paused && st.text.includes('$15'), '/api/status says paused');
+ok(st.paused && st.text === MSG, '/api/status says paused with the message');
 ok((await API('/api/check', { name: 'Jess' })).paused && (await API('/api/login', { name: 'Jess', password: 'jess12' })).paused, 'Jess cannot sign in');
 ok((await API('/api/check', { name: 'NewKid' })).paused, 'nobody new can sign up');
 ok(!(await API('/api/check', { name: 'beau' })).paused, 'Beau can still sign in');
@@ -55,6 +59,19 @@ await fresh.click('button.link:has-text("Beau? Sign in")');
 ok(await until(fresh, () => !!document.querySelector('#login input')), '"Beau? Sign in" shows the sign-in box');
 await jess.reload();
 ok(await pausedScreen(jess), 'reloading does not get around it');
+
+// Beau changes the message while paused → everyone's screen updates
+await beau.click('#b-accounts');
+await until(beau, () => !!document.querySelector('.pausemsg'));
+await beau.click('.pausebox button:has-text("Use the $15 message")');
+await beau.click('.pausebox button:has-text("Update message")');
+ok(await pausedScreen(jess, 'Keola and Milla', 30000), 'Jess sees the new message without reloading');
+ok(await until(jess, () => !!document.querySelector('.paused-box .pay')), 'the $15 message shows the 💵 $15 badge');
+await jess.screenshot({ path: 'shots/e2e13-paused15.png' });
+await beau.evaluate(() => window.__game().net.send({ t: 'pause', on: true, text: '<b>hi</b>' + 'x'.repeat(600) }));
+await beau.waitForTimeout(500);
+const st2 = await (await fetch(BASE + '/api/status')).json();
+ok(!st2.text.includes('<') && st2.text.length <= 400, 'messages are cleaned and kept short');
 
 // Beau unpauses → games come back by themselves
 await beau.evaluate(() => window.__game().net.send({ t: 'pause', on: false }));

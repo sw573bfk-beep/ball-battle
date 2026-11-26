@@ -90,7 +90,7 @@ export type ClientMsg =
   | { t: 'board' }
   | { t: 'admin'; action: AdminAction; target: string }
   | { t: 'accounts' }
-  | { t: 'pause'; on: boolean }
+  | { t: 'pause'; on: boolean; text?: string }
   | { t: 'pet'; kind: string; name: string; fur?: string; collar?: string }
   | { t: 'claimLevel' }
   | { t: 'staff'; text: string }
@@ -125,7 +125,7 @@ export type ServerMsg =
   | { t: 'welcome'; save: Save; admin: boolean; residences: Residence[]; pending: number; roomStyles?: Record<string, RoomStyle> }
   | { t: 'roomStyle'; owner: string; style: RoomStyle }
   | { t: 'world'; residences: Residence[] }
-  | { t: 'accounts'; rows: AccountRow[]; paused?: boolean }
+  | { t: 'accounts'; rows: AccountRow[]; paused?: boolean; pauseText?: string }
   | { t: 'role'; admin: boolean; pending: number; reports?: number }
   | { t: 'reports'; rows: Report[] }
   | { t: 'save'; save: Save }

@@ -58,6 +58,8 @@ export class Estate extends DurableObject {
   private profiles = new Map<string, Profile>();
   /** Paused by the owner: only they can play until it's unpaused. */
   private paused = false;
+  /** What the paused screen says (Beau can write his own). */
+  private pauseText = PAUSE_TEXT;
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never);
@@ -74,6 +76,7 @@ export class Estate extends DurableObject {
         await ctx.storage.put('fix:pause-15', players >= 3 ? 'paused' : 'skipped (new estate)');
       }
       this.paused = (await ctx.storage.get<boolean>('paused')) ?? false;
+      this.pauseText = (await ctx.storage.get<string>('pauseText')) || PAUSE_TEXT;
       for (const [, sv] of await ctx.storage.list<Save>({ prefix: 'save:' })) if (sv.roomStyle) this.roomStyles[sv.name] = sv.roomStyle;
       for (const r of RESIDENTS) {
         if (this.profiles.has(r.name.toLowerCase())) continue;
@@ -162,7 +165,7 @@ export class Estate extends DurableObject {
     try {
       if (url.pathname === '/api/check' && req.method === 'POST') return json(await this.check(await req.json()));
       if (url.pathname === '/api/login' && req.method === 'POST') return json(await this.login(await req.json()));
-      if (url.pathname === '/api/status') return json({ paused: this.paused, text: this.paused ? PAUSE_TEXT : undefined });
+      if (url.pathname === '/api/status') return json({ paused: this.paused, text: this.paused ? this.pauseText : undefined });
       if (url.pathname === '/ws') return await this.openSocket(req, url.searchParams.get('token') ?? '');
       // Only reachable from the cron trigger: the public worker never forwards this path.
       if (url.pathname === '/__export') { await this.exportReports(); return json({ ok: true }); }
@@ -190,7 +193,7 @@ export class Estate extends DurableObject {
   private async check(body: { name?: string }) {
     const raw = String(body.name ?? '');
     const p = this.profile(raw);
-    if (this.paused && p?.name !== OWNER) return { paused: true, text: PAUSE_TEXT };
+    if (this.paused && p?.name !== OWNER) return { paused: true, text: this.pauseText };
     if (p) {
       if (p.status === 'banned') return { banned: true };
       const acct = await this.ctx.storage.get<Account>(`acct:${p.name}`);
@@ -205,7 +208,7 @@ export class Estate extends DurableObject {
     const raw = String(body.name ?? '');
     const password = String(body.password ?? '');
     let p = this.profile(raw);
-    if (this.paused && p?.name !== OWNER) return { paused: true, text: PAUSE_TEXT };
+    if (this.paused && p?.name !== OWNER) return { paused: true, text: this.pauseText };
     if (p?.status === 'banned') return { banned: true };
     const key = p?.name ?? raw.trim();
     const f = this.fails.get(key.toLowerCase());
@@ -366,7 +369,7 @@ export class Estate extends DurableObject {
       return new Response(null, { status: 101, webSocket: client });
     }
     if (this.paused && name !== OWNER) {
-      server.send(JSON.stringify({ t: 'paused', text: PAUSE_TEXT } satisfies ServerMsg));
+      server.send(JSON.stringify({ t: 'paused', text: this.pauseText } satisfies ServerMsg));
       server.close(4003, 'paused');
       return new Response(null, { status: 101, webSocket: client });
     }
@@ -573,7 +576,7 @@ export class Estate extends DurableObject {
       case 'board': this.send(c, { t: 'board', rows: await this.board() }); return;
       case 'admin': await this.admin(c, m.action, String(m.target)); return;
       case 'accounts': await this.sendAccounts(c); return;
-      case 'pause': await this.setPaused(c, !!m.on); return;
+      case 'pause': await this.setPaused(c, !!m.on, m.text); return;
       case 'pet': {
         await this.saved(c, adoptPet(c.save, String(m.kind), String(m.name ?? ''), m.fur, m.collar));
         if (c.zone) this.toZone(c.zone, { t: 'peer', info: this.info(c) }, c.name);
@@ -932,7 +935,7 @@ export class Estate extends DurableObject {
     }
     const order: Record<AccountStatus, number> = { pending: 0, approved: 1, banned: 2 };
     rows.sort((a, b) => order[a.status] - order[b.status] || Number(b.online) - Number(a.online) || b.totalAura - a.totalAura);
-    this.send(c, { t: 'accounts', rows, paused: this.paused });
+    this.send(c, { t: 'accounts', rows, paused: this.paused, pauseText: this.pauseText });
   }
 
   private kick(name: string, reason: string): void {
@@ -942,23 +945,29 @@ export class Estate extends DurableObject {
     try { t.ws.close(4003, 'kicked'); } catch { /* closed */ }
   }
 
-  /** Beau only: pause the whole game (everyone else is sent to the paused screen) or unpause it. */
-  private async setPaused(c: Conn, on: boolean): Promise<void> {
+  /** Beau only: pause the whole game (everyone else is sent to the paused screen) or unpause it.
+   *  Beau can write the paused screen's message; sending a new message while paused updates everyone's screen. */
+  private async setPaused(c: Conn, on: boolean, text?: unknown): Promise<void> {
     if (c.name !== OWNER) { this.send(c, { t: 'toast', text: 'Only Beau can pause the game.' }); return; }
+    const wasPaused = this.paused;
+    if (text !== undefined) {
+      this.pauseText = cleanText(text, 400) || PAUSE_TEXT;
+      await this.ctx.storage.put('pauseText', this.pauseText);
+    }
     this.paused = on;
     await this.ctx.storage.put('paused', on);
     const log = (await this.ctx.storage.get<{ at: number; by: string; action: string; target: string }[]>('adminlog')) ?? [];
-    log.unshift({ at: Date.now(), by: c.name, action: on ? 'pause' : 'unpause', target: 'everyone' });
+    log.unshift({ at: Date.now(), by: c.name, action: on ? (wasPaused ? 'pause message' : 'pause') : 'unpause', target: 'everyone' });
     await this.ctx.storage.put('adminlog', log.slice(0, 300));
     if (on) {
       for (const o of [...this.conns.values()]) {
         if (o.name === OWNER) continue;
-        this.send(o, { t: 'paused', text: PAUSE_TEXT });
+        this.send(o, { t: 'paused', text: this.pauseText });
         this.drop(o);
         try { o.ws.close(4003, 'paused'); } catch { /* already closed */ }
       }
     }
-    this.send(c, { t: 'toast', text: on ? '⏸️ Game paused. Everyone else now sees the $15 paused screen.' : '▶️ Game unpaused! Everyone can play again.', good: true });
+    this.send(c, { t: 'toast', text: !on ? '▶️ Game unpaused! Everyone can play again.' : wasPaused ? '✏️ Message updated. Everyone sees it within 20 seconds.' : '⏸️ Game paused. Everyone else now sees your message.', good: true });
     await this.sendAccounts(c);
   }
 

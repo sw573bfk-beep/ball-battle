@@ -2,7 +2,7 @@ import { h, sheet, fill } from './dom';
 import type { Net } from '../net';
 import type { AccountRow, AdminAction } from '../../shared/protocol';
 import { zoneName } from '../../shared/floors';
-import { OWNER } from '../../shared/protocol';
+import { OWNER, PAUSE_TEXT } from '../../shared/protocol';
 
 interface AccountsCtx {
   net: Net;
@@ -10,7 +10,7 @@ interface AccountsCtx {
   reports: () => number;
   admin: () => boolean;
   me: string;
-  onAccounts: (fn: (rows: AccountRow[], paused: boolean) => void) => () => void;
+  onAccounts: (fn: (rows: AccountRow[], paused: boolean, pauseText: string) => void) => () => void;
 }
 
 const when = (t: number) => (t ? new Date(t).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '—');
@@ -30,16 +30,29 @@ export function openAccounts(ctx: AccountsCtx): void {
     if (confirmText && !confirm(confirmText)) return;
     ctx.net.send({ t: 'admin', action, target });
   };
-  const render = (rows: AccountRow[], paused: boolean) => {
+  let draft: string | null = null; // keep what Beau is typing when the list refreshes
+  const pauseBox = (paused: boolean, pauseText: string) => {
+    const msg = h('textarea.pausemsg', { maxLength: 400, rows: 4, placeholder: 'Type the message everyone will see…', oninput: () => { draft = msg.value; } }) as HTMLTextAreaElement;
+    msg.value = draft ?? (pauseText || PAUSE_TEXT);
+    const send = (on: boolean) => { draft = null; ctx.net.send({ t: 'pause', on, text: msg.value }); };
+    return h('div.pausebox' + (paused ? '.on' : ''), {},
+      h('b', {}, paused ? '⏸️ The game is PAUSED. Only you can play.' : '▶️ The game is running.'),
+      h('small.muted', {}, paused ? 'Everyone else sees this message. Change it and press Update.' : 'Write a message, then pause. Everyone else is sent to a screen showing it. Their progress is kept.'),
+      msg,
+      h('div.row', {},
+        paused
+          ? h('button.btn.ghost', { onclick: () => send(true) }, '✏️ Update message')
+          : h('button.btn.ghost', { onclick: () => { if (confirm('Pause the game for everyone except you?')) send(true); } }, '⏸️ Pause the game'),
+        paused ? h('button.btn', { onclick: () => send(false) }, '▶️ Unpause the game') : null,
+        h('button.mini', { onclick: () => { msg.value = PAUSE_TEXT; draft = PAUSE_TEXT; } }, 'Use the $15 message')));
+  };
+  const render = (rows: AccountRow[], paused: boolean, pauseText: string) => {
     const admin = ctx.admin();
     const pending = rows.filter((r) => r.status === 'pending');
     const others = rows.filter((r) => r.status !== 'pending');
     fill(body,
       h('div.actions', { style: { justifyContent: 'flex-start', marginTop: '0' } }, h('button.btn' + (ctx.reports() ? '' : '.ghost'), { onclick: () => ctx.openReports() }, `🐞 Problem reports${ctx.reports() ? ` (${ctx.reports()} open)` : ''}`)),
-      ctx.me === OWNER ? h('div.pausebox' + (paused ? '.on' : ''), {},
-        h('b', {}, paused ? '⏸️ The game is PAUSED. Only you can play.' : '▶️ The game is running.'),
-        h('small.muted', {}, paused ? 'Everyone else sees: "$15 needs to be paid to Beau… talk to Keola and Milla. Anyone can pay."' : 'Pausing kicks everyone else out to the $15 paused screen. Their progress is kept.'),
-        h('button.btn' + (paused ? '' : '.ghost'), { onclick: () => { if (paused || confirm('Pause the game for everyone except you?')) ctx.net.send({ t: 'pause', on: !paused }); } }, paused ? '▶️ Unpause the game' : '⏸️ Pause the game')) : null,
+      ctx.me === OWNER ? pauseBox(paused, pauseText) : null,
       h('p.muted', {}, admin ? '🛡️ You are an admin. Passwords are scrambled — nobody can see them, but you can reset them.' : '⭐ VIPs can see every account. Only admins can change them.'),
       pending.length ? h('section.pending', {},
         h('h4', {}, `🆕 Waiting for approval (${pending.length})`),
