@@ -36,6 +36,8 @@ for (const z of ['f24', 'villa', 'jp', 'stadium']) {
   await beau.evaluate((z) => window.__game().travel(z), z);
   ok(await until(beau, (z) => window.__game().zoneId === z, z), `Beau can go to ${z}`);
 }
+await beau.evaluate(() => window.__game().net.send({ t: 'villa', challenge: 'quiz' }));
+ok(await until(beau, () => (window.__game().save.villa.points ?? 0) > 0), 'Love Island challenges work for Beau');
 await idle(beau);
 await beau.evaluate(() => window.__game().travel('f1'));
 await until(beau, () => window.__game().zoneId === 'f1');

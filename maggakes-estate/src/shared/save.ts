@@ -154,6 +154,7 @@ export function newSave(name: string, home?: Home): Save {
 // ---------------------------------------------------------------- progress
 
 export function zoneUnlocked(save: Save, zone: ZoneId): boolean {
+  if (save.name === OWNER) return true; // the owner has everything unlocked, Love Island included
   return save.totalAura >= zoneNeed(zone);
 }
 
