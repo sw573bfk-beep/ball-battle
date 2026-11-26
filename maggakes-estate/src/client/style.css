@@ -466,3 +466,7 @@ section h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter
 #login .paused-box .pausetext { font-size: 17px; white-space: pre-wrap; }
 .tag.unlock { background: #e3f8eb; color: #1f8a4c; }
 .acct-actions .mini.on { background: #e3f8eb; }
+.owner-tools .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.owner-tools input.owner-n { width: 130px; padding: 8px 10px; border-radius: 10px; border: 1px solid #d8c9d6; font: inherit; }
+.owner-tools select.owner-item { flex: 1; min-width: 200px; padding: 8px; border-radius: 10px; border: 1px solid #d8c9d6; font: inherit; }
+.acct-actions .mini.owner { background: #fff4d6; }

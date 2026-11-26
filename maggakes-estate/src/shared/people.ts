@@ -16,6 +16,9 @@ export interface Resident {
   admin?: boolean;
 }
 
+/** The owner of the game: can go anywhere and do anything. */
+export const OWNER = 'Beau';
+
 export const RESIDENTS: Resident[] = [
   { name: 'Phoebe', home: 'b', room: 'phoebe' },
   { name: 'Serena', home: 'b', room: 'serena' },

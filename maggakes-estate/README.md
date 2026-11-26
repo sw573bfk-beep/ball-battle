@@ -86,6 +86,13 @@ Charis & Gabby (6th), Milla (7th).
   automatically.
   Next to each account, Beau can press *🔓 Let play when paused* so that person can keep playing
   while everyone else is paused (*🔒 Lock when paused* kicks them back out).
+- **👑 Owner powers (Beau only):** Beau can go on every floor, owns every item and all estate
+  upgrades, always has plenty of Aura (topped up to 10 million each sign-in) and is left off the
+  leaderboard. On the 👥 Admin page, *👑 Powers* next to anyone lets him give or take Aura, give any
+  item, go to them, pull them to him (even onto a locked floor), kick them, mute them in chat
+  (10 min / 1 hour / 1 day), go to and decorate their bedroom, clear their decorations, reset or
+  change their walls & floor, or give them a new bedroom. Standing in anyone's bedroom shows
+  *👑 Decorate <name>'s room*. Everything is written to the admin log.
 - **👑 Jess's Penthouse:** Jess's own floor (lift button 👑) with the biggest bedroom in the estate
   (28×18 m): a giant canopy bed with fairy lights, a hot tub you can sit in, a "JESS LIVE" concert
   stage with a DJ booth, speakers and spotlights, a gold "Jess's Suite" sign, plus a lounge with a

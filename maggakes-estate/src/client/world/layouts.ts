@@ -772,6 +772,8 @@ function ownerRoom(owner: string): { zone: ZoneId; room: string } | undefined {
   return undefined;
 }
 export function roomOwnerZone(owner: string): ZoneId | undefined { return ownerRoom(owner)?.zone; }
+export function roomOf(owner: string): { zone: ZoneId; room: string } | undefined { return ownerRoom(owner); }
+export function getRoomStyle(owner: string): RoomStyle | undefined { return roomStyles[owner]; }
 
 export function getLayout(id: ZoneId): Layout {
   const base = baseLayout(id);

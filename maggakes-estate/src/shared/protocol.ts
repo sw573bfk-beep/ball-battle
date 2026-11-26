@@ -60,7 +60,14 @@ export interface AccountRow {
   hasPassword: boolean;
   /** Beau lets them play while the game is paused. */
   pauseOk?: boolean;
+  /** Muted in chat until this time. */
+  mutedUntil?: number;
+  /** Available Aura (shown to the owner). */
+  aura?: number;
 }
+
+/** Things only the owner (Beau) can do to anyone. */
+export type OwnerAction = 'give' | 'take' | 'item' | 'kick' | 'mute' | 'unmute' | 'summon' | 'goto' | 'newhome' | 'clearroom' | 'resetstyle';
 
 /** A problem report sent from inside the game. */
 export interface Report { id: string; from: string; text: string; info: string; auto: boolean; at: number; done: boolean }
@@ -79,7 +86,7 @@ export type ClientMsg =
   | { t: 'buy'; item: string }
   | { t: 'look'; look: Look }
   | { t: 'villaLook'; look: Look }
-  | { t: 'room'; items: PlacedItem[] }
+  | { t: 'room'; items: PlacedItem[]; owner?: string }
   | { t: 'stat'; stat: string; by: number }
   | { t: 'daily'; id: string }
   | { t: 'car'; car: string | null; paint?: string; wheels?: string }
@@ -94,6 +101,7 @@ export type ClientMsg =
   | { t: 'accounts' }
   | { t: 'pause'; on: boolean; text?: string }
   | { t: 'pauseAllow'; target: string; on: boolean }
+  | { t: 'owner'; action: OwnerAction; target: string; n?: number; item?: string }
   | { t: 'pet'; kind: string; name: string; fur?: string; collar?: string }
   | { t: 'claimLevel' }
   | { t: 'staff'; text: string }
@@ -108,7 +116,7 @@ export type ClientMsg =
   | { t: 'claimEvent'; i: number }
   | { t: 'outfit'; slot: number; name: string; look: Look }
   | { t: 'profile'; profile: Profile }
-  | { t: 'roomStyle'; style: RoomStyle }
+  | { t: 'roomStyle'; style: RoomStyle; owner?: string }
   | { t: 'spin' }
   | { t: 'shell'; id: string }
   | { t: 'lap'; ms: number }
@@ -152,6 +160,8 @@ export type ServerMsg =
   | { t: 'final'; winner: string; partner: string }
   | { t: 'kicked'; reason: string }
   | { t: 'paused'; text: string }
+  /** Owner powers: go to (x, z) on this floor (pulled there by Beau, or Beau jumping to someone). */
+  | { t: 'summon'; zone: ZoneId; x: number; z: number; text: string }
   | { t: 'scene'; scene: Scene }
   | { t: 'spun'; index: number; msg: string }
   | { t: 'laps'; rows: { name: string; ms: number }[] }
@@ -161,5 +171,5 @@ export type ServerMsg =
   | { t: 'tagEnd'; it: string; winners: string[] };
 
 /** Only the owner can pause the game, and only they can play while it's paused. */
-export const OWNER = 'Beau';
+export { OWNER } from './people';
 export const PAUSE_TEXT = "The deadline is up. $15 needs to be paid to Beau before the game can continue. Talk to Keola and Milla about getting Beau the money. Anyone can pay! Don't worry, everyone's progress is saved.";

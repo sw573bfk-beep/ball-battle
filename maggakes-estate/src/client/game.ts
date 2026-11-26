@@ -19,7 +19,8 @@ import { choiceGame, holdGame, sequenceGame, simonGame, timingGame } from './ui/
 import { catchGame, mazeGame, memoryGame, rhythmGame, spotGame, unscrambleGame } from './ui/minigames2';
 import { openBoard, openDaily, openGarage, openMap, openSettings, openShop, openWardrobe, nextGoal, taskList, type Ctx } from './ui/panels';
 import type { ZoneId } from '../shared/people';
-import { setResidences, getResidences, setRoomStyles, setRoomStyle, roomOwnerZone } from './world/layouts';
+import { setResidences, getResidences, setRoomStyles, setRoomStyle, roomOwnerZone, roomOf, getRoomStyle } from './world/layouts';
+import { OWNER } from '../shared/people';
 import { openAccounts } from './ui/accounts';
 import { Fun } from './funsys';
 import { openAdopt, openFun } from './ui/fun';
@@ -106,6 +107,13 @@ export class Game {
     /** A placed item picked for editing, and whether it's being moved. */
     sel: string | null; moving: boolean; ring: THREE.Mesh | null;
   } | null = null;
+  /** Whose room the decorate tool is editing (the owner can edit anyone's). */
+  private decorOwner = '';
+  /** Decorations of each bedroom on this floor, by owner. */
+  private roomItems = new Map<string, PlacedItem[]>();
+  /** Where to stand after arriving (pulled by Beau, or Beau jumping to someone). */
+  private pendingSpot: { x: number; z: number } | null = null;
+  private pendingRoom: string | null = null;
   private saveListeners = new Set<() => void>();
   private boardListeners = new Set<(r: BoardRow[]) => void>();
   private lastSent = { x: 0, z: 0, ry: 0, a: -1, t: 0 };
@@ -267,9 +275,9 @@ export class Game {
 
   // ================================================================== zones
 
-  travel(z: ZoneId, first = false): void {
+  travel(z: ZoneId, first = false, force = false): void {
     if (this.transitioning) return;
-    if (!canEnter(this.save, z)) { toast('That floor is still locked.'); return; }
+    if (!force && !canEnter(this.save, z)) { toast('That floor is still locked.'); return; }
     this.transitioning = true;
     const fade = $('#fade');
     fade.querySelector('b')!.textContent = zoneName(z);
@@ -285,6 +293,7 @@ export class Game {
   private loadZone(z: ZoneId): void {
     this.stopDriving(false);
     this.endDecor();
+    this.roomItems.clear();
     this.cancelCollect();
     if (this.zone) {
       this.gfx.scene.remove(this.zone.root);
@@ -311,6 +320,9 @@ export class Game {
     const lx = zone.lift.x + Math.sin(zone.lift.rot) * 1.8, lz = zone.lift.z + Math.cos(zone.lift.rot) * 1.8;
     const ok = zone.walkable(lx, lz);
     this.pos.set(ok ? lx : zone.spawn.x, ok ? lz : zone.spawn.z);
+    if (this.pendingSpot && zone.walkable(this.pendingSpot.x, this.pendingSpot.z)) this.pos.set(this.pendingSpot.x, this.pendingSpot.z);
+    this.pendingSpot = null;
+    if (this.pendingRoom) { const b = roomBox(zone, this.pendingRoom); if (b) this.pos.set((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2); this.pendingRoom = null; }
     this.ry = zone.lift.rot;
     this.camYaw = zone.lift.rot;
     this.camDist = L.exterior === 'none' ? 13 : 11;
@@ -466,7 +478,13 @@ export class Game {
         if (m.e === 'jump') av?.jump(); else av?.doEmote(m.e as Emote);
         return;
       }
-      case 'room': this.buildDecor(m.owner, m.items); return;
+      case 'room': this.roomItems.set(m.owner, m.items); this.buildDecor(m.owner, m.items); return;
+      case 'summon': {
+        toast(m.text, true);
+        if (m.zone === this.zoneId && this.zone) { if (this.zone.walkable(m.x, m.z)) this.pos.set(m.x, m.z); }
+        else { this.pendingSpot = { x: m.x, z: m.z }; this.travel(m.zone, false, true); }
+        return;
+      }
       case 'roomStyle': {
         setRoomStyle(m.owner, m.style);
         // Rebuild this floor if the restyled bedroom is here.
@@ -972,6 +990,18 @@ export class Game {
         if (b && this.pos.x > b.x0 && this.pos.x < b.x1 && this.pos.y > b.z0 && this.pos.y < b.z1) acts.push({ key: 'decor', label: '🖼️ Decorate my room', run: () => this.startDecor() });
         if (b && this.pos.x > b.x0 && this.pos.x < b.x1 && this.pos.y > b.z0 && this.pos.y < b.z1) acts.push({ key: 'roomstyle', label: '🎨 Walls & floor', run: () => this.openRoomStyle() });
       }
+      // The owner can decorate anyone's bedroom.
+      if (this.save.name === OWNER && this.zone) {
+        for (const who of this.roomItems.keys()) {
+          if (who === this.save.name) continue;
+          const r = roomOf(who);
+          const b = r?.zone === this.zoneId ? roomBox(this.zone, r.room) : null;
+          if (!b || !(this.pos.x > b.x0 && this.pos.x < b.x1 && this.pos.y > b.z0 && this.pos.y < b.z1)) continue;
+          acts.push({ key: `odecor:${who}`, label: `👑 Decorate ${who}'s room`, run: () => this.startDecor(who) });
+          acts.push({ key: `ostyle:${who}`, label: `👑 ${who}'s walls & floor`, run: () => this.openRoomStyle(who) });
+          break;
+        }
+      }
     }
     const key = acts.map((a) => a.key + a.label).join('|');
     this.actions = acts;
@@ -1230,7 +1260,7 @@ export class Game {
     }
     this.zone.root.add(g);
     this.decorGroups.set(owner, g);
-    if (owner === this.save.name && this.decor) {
+    if (owner === this.decorOwner && this.decor) {
       const d = this.decor;
       // Only take the server's copy (and redraw the dock) when something actually changed,
       // so a click isn't lost mid-redraw and the dock's buttons keep pointing at the same items.
@@ -1261,13 +1291,28 @@ export class Game {
 
   private myDecorObj(uid: string | null): THREE.Object3D | undefined {
     if (!uid) return undefined;
-    return this.decorGroups.get(this.save.name)?.children.find((o) => o.userData.uid === uid);
+    return this.decorGroups.get(this.decorOwner)?.children.find((o) => o.userData.uid === uid);
   }
 
-  private startDecor(): void {
-    const res = this.save.home!;
+  /** Owner: go stand in the middle of someone's bedroom (any floor). */
+  private visitRoom(home: { zone: ZoneId; room: string }): void {
+    const centre = () => { const b = this.zone && roomBox(this.zone, home.room); if (b) this.pos.set((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2); };
+    if (home.zone === this.zoneId) { centre(); return; }
+    this.pendingRoom = home.room;
+    this.travel(home.zone, false, true);
+  }
+
+  /** The current items in a bedroom (mine come from my save). */
+  private itemsOf(owner: string): PlacedItem[] { return owner === this.save.name ? this.save.room : this.roomItems.get(owner) ?? []; }
+  /** How many of an item can still be placed: the owner editing someone else's room has no limit. */
+  private decorHave(id: string): number { return this.decorOwner !== this.save.name ? 99 : this.save.inventory[id] ?? 0; }
+
+  private startDecor(owner = this.save.name): void {
+    const res = owner === this.save.name ? this.save.home! : roomOf(owner)!;
     const box = roomBox(this.zone!, res.room)!;
-    this.decor = { items: this.save.room.map((i) => ({ ...i })), pick: null, ghost: null, rot: this.ry + Math.PI, box, scale: 1, sel: null, moving: false, ring: null };
+    this.decorOwner = owner;
+    if (owner !== this.save.name) toast(`👑 Decorating ${owner}'s room`, true);
+    this.decor = { items: this.itemsOf(owner).map((i) => ({ ...i })), pick: null, ghost: null, rot: this.ry + Math.PI, box, scale: 1, sel: null, moving: false, ring: null };
     this.camDist = Math.max(this.camDist, 12);
     this.renderDecorDock();
   }
@@ -1282,11 +1327,11 @@ export class Game {
     $('#decor').classList.remove('on');
     this.actionKey = '';
     // Put a half-moved item back where it was.
-    if (wasMoving) this.buildDecor(this.save.name, this.save.room);
+    if (wasMoving) this.buildDecor(this.decorOwner, this.itemsOf(this.decorOwner));
   }
 
   private sendRoom(): void {
-    if (this.decor) this.net.send({ t: 'room', items: this.decor.items });
+    if (this.decor) this.net.send({ t: 'room', items: this.decor.items, ...(this.decorOwner !== this.save.name ? { owner: this.decorOwner } : {}) });
   }
 
   private renderDecorDock(): void {
@@ -1329,8 +1374,8 @@ export class Game {
       );
       return;
     }
-    const furniture = SHOP.filter((i) => i.cat === 'furniture' && (this.save.inventory[i.id] ?? 0) > 0);
-    const left = (id: string) => (this.save.inventory[id] ?? 0) - d.items.filter((x) => x.item === id).length;
+    const furniture = SHOP.filter((i) => i.cat === 'furniture' && this.decorHave(i.id) > 0);
+    const left = (id: string) => this.decorHave(id) - d.items.filter((x) => x.item === id).length;
     fill(el,
       h('div.decor-items', {}, ...furniture.map((i) => h('button.chip' + (d.pick === i.id ? '.on' : ''), {
         disabled: left(i.id) <= 0, onclick: () => this.pickDecor(i.id),
@@ -1398,7 +1443,7 @@ export class Game {
     d.items.push({ uid: Math.random().toString(36).slice(2, 10), item: d.pick, x: s.x, z: s.z, rot: d.rot, ...(d.color ? { color: d.color } : {}), ...(d.scale !== 1 ? { scale: d.scale } : {}) });
     this.sendRoom();
     const id = d.pick;
-    const left = (this.save.inventory[id] ?? 0) - d.items.filter((x) => x.item === id).length;
+    const left = this.decorHave(id) - d.items.filter((x) => x.item === id).length;
     if (left <= 0) { d.ghost?.removeFromParent(); d.ghost = null; d.pick = null; }
     toast('Placed! ✨');
     this.renderDecorDock();
@@ -1473,7 +1518,7 @@ export class Game {
 
   private deselect(): void {
     const d = this.decor!;
-    if (d.moving) { d.moving = false; d.ghost?.removeFromParent(); d.ghost = null; this.buildDecor(this.save.name, this.save.room); }
+    if (d.moving) { d.moving = false; d.ghost?.removeFromParent(); d.ghost = null; this.buildDecor(this.decorOwner, this.itemsOf(this.decorOwner)); }
     d.sel = null;
     this.updateSelRing();
     this.renderDecorDock();
@@ -1494,10 +1539,11 @@ export class Game {
   }
 
   /** Wall colour + floor style for your own bedroom. */
-  private openRoomStyle(): void {
-    const style: RoomStyle = { ...(this.save.roomStyle ?? {}) };
+  private openRoomStyle(owner = this.save.name): void {
+    const mine = owner === this.save.name;
+    const style: RoomStyle = { ...((mine ? this.save.roomStyle : getRoomStyle(owner)) ?? {}) };
     const body = h('div.mg');
-    const send = () => this.net.send({ t: 'roomStyle', style });
+    const send = () => this.net.send({ t: 'roomStyle', style, ...(mine ? {} : { owner }) });
     const draw = () => fill(body,
       h('h4', {}, '🧱 Wall colour'),
       colorRow(style.wall, WALL_COLORS, (c, live) => { if (!live) { style.wall = c; send(); } }),
@@ -1514,7 +1560,7 @@ export class Game {
         h('button.btn', { onclick: () => closeAllSheets() }, '✓ Done')),
       h('p.muted', {}, 'Everyone who visits your room sees your style.'));
     draw();
-    sheet('🎨 Walls & floor', body);
+    sheet(mine ? '🎨 Walls & floor' : `👑 ${owner}'s walls & floor`, body);
   }
 
   // ================================================================== villa
@@ -1693,7 +1739,7 @@ export class Game {
     btn('#b-board', () => openBoard(this.ctx));
     btn('#b-settings', () => openSettings(this.ctx));
     btn('#b-fun', () => this.openFunMenu());
-    btn('#b-accounts', () => openAccounts({ net: this.net, admin: () => this.admin, me: this.save.name, reports: () => this.reports, openReports: () => openReports(this.net, (fn) => { this.reportListeners.add(fn); return () => this.reportListeners.delete(fn); }), onAccounts: (fn) => { this.accountListeners.add(fn); return () => this.accountListeners.delete(fn); } }));
+    btn('#b-accounts', () => openAccounts({ net: this.net, admin: () => this.admin, me: this.save.name, reports: () => this.reports, openReports: () => openReports(this.net, (fn) => { this.reportListeners.add(fn); return () => this.reportListeners.delete(fn); }), onAccounts: (fn) => { this.accountListeners.add(fn); return () => this.accountListeners.delete(fn); }, visitRoom: (home) => this.visitRoom(home) }));
     btn('#b-emote', () => $('#emotes').classList.toggle('on'));
     btn('#b-tasks', () => $('#hud').classList.toggle('collapsed'));
     document.querySelectorAll<HTMLButtonElement>('#emotes button').forEach((b) => {

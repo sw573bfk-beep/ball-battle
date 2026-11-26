@@ -20,6 +20,7 @@ Run against a local server (`npm run build && npm run dev:server`), with a fresh
 | `e2e12.mjs` | progression: streak claim (once a day), collection book, pet level & tricks, estate upgrades in order |
 | `e2e13.mjs` | pause: only Beau can pause/unpause with his own message (and change it while paused), unlock people to play while paused, everyone else gets the paused screen |
 | `e2e14.mjs` | Jess's Penthouse: her home, huge suite with bed/hot tub/stage/DJ/gold sign, decorating, 2,000 Aura for visitors, old room is a Guest Suite |
+| `e2e15.mjs` | owner powers: Beau maxed out and off the leaderboard, every floor, give/take Aura and items, mute, pull/go to, decorate and restyle anyone's room, new bedroom, kick; other admins can't |
 | `aura-audit*.mjs` | every way to earn/spend Aura; run `aura-after-restart*.mjs` after restarting the server |
 
 They use the machine's Playwright install (`/opt/node-tools/node_modules/playwright`); change that import path if yours is elsewhere.

@@ -9,13 +9,13 @@ import { ALL_ZONES } from '../shared/floors';
 import { SHOP, shopItem } from '../shared/shop';
 import { isHex } from '../shared/look';
 import {
-  adoptPet, buy, bumpStat, cleanText, earn, saveOutfit, setProfile, setRoomStyle, type RoomStyle, canEnter, claimDaily, collectShell, completeTask, migrate, newSave, placeItems, recordLap, rollDaily, setLook, spin,
+  adoptPet, buy, bumpStat, cleanText, earn, saveOutfit, setProfile, setRoomStyle, type RoomStyle, canEnter, claimDaily, collectShell, completeTask, maxOut, migrate, newSave, placeItems, recordLap, rollDaily, setLook, spin,
   topFloor, zoneUnlocked, type Save,
 } from '../shared/save';
 import { ISLANDERS, npcAccepts, villaChallenge, winFinal } from '../shared/villa';
 import { seasonAct, type SeasonAction } from '../shared/season';
 import { OWNER, PAUSE_TEXT } from '../shared/protocol';
-import type { AccountRow, AccountStatus, AdminAction, BoardRow, ClientMsg, PeerInfo, PeerPos, Report, Residence, ServerMsg, StaffMsg } from '../shared/protocol';
+import type { AccountRow, AccountStatus, AdminAction, BoardRow, ClientMsg, OwnerAction, PeerInfo, PeerPos, Report, Residence, ServerMsg, StaffMsg } from '../shared/protocol';
 
 interface Account { salt: string; hash: string; ver: number }
 interface Token { name: string; ver: number; exp: number }
@@ -35,6 +35,8 @@ interface Conn {
   autoReports?: number;
   lastLevel?: number;
   lastPetLevel?: number;
+  /** Pulled somewhere by the owner: allowed into that floor even if it's locked. */
+  summonedTo?: ZoneId;
 }
 
 const TOKEN_DAYS = 60;
@@ -62,6 +64,8 @@ export class Estate extends DurableObject {
   private pauseText = PAUSE_TEXT;
   /** People Beau lets play while it's paused. */
   private pauseAllow = new Set<string>();
+  /** Muted in chat by the owner: name → until (ms). */
+  private mutes: Record<string, number> = {};
   private canPlayPaused(name?: string): boolean { return !!name && (name === OWNER || this.pauseAllow.has(name)); }
 
   constructor(ctx: DurableObjectState, env: unknown) {
@@ -81,6 +85,7 @@ export class Estate extends DurableObject {
       this.paused = (await ctx.storage.get<boolean>('paused')) ?? false;
       this.pauseText = (await ctx.storage.get<string>('pauseText')) || PAUSE_TEXT;
       this.pauseAllow = new Set((await ctx.storage.get<string[]>('pauseAllow')) ?? []);
+      this.mutes = (await ctx.storage.get<Record<string, number>>('mutes')) ?? {};
       for (const [, sv] of await ctx.storage.list<Save>({ prefix: 'save:' })) if (sv.roomStyle) this.roomStyles[sv.name] = sv.roomStyle;
       for (const r of RESIDENTS) {
         if (this.profiles.has(r.name.toLowerCase())) continue;
@@ -403,6 +408,7 @@ export class Estate extends DurableObject {
     const save = await this.load(name);
     rollDaily(save);
     rollStreak(save);
+    if (name === OWNER) maxOut(save);
     const conn: Conn = { ws: server, name, save, zone: null, pos: { name, x: 0, z: 0, ry: 0, a: 0 }, car: null, lastChat: 0 };
     this.conns.set(name, conn);
     const prof = this.profile(name);
@@ -473,7 +479,8 @@ export class Estate extends DurableObject {
     switch (m.t) {
       case 'zone': {
         if (!ALL_ZONES.includes(m.zone) && !(isResidence(m.zone) && this.residences().some((r) => r.zone === m.zone))) return;
-        if (!canEnter(c.save, m.zone)) { this.send(c, { t: 'toast', text: 'That floor is still locked.' }); return; }
+        if (!canEnter(c.save, m.zone) && c.summonedTo !== m.zone) { this.send(c, { t: 'toast', text: 'That floor is still locked.' }); return; }
+        c.summonedTo = undefined;
         if (c.zone) { this.toZone(c.zone, { t: 'gone', name: c.name }, c.name); this.leftZone(c.name, c.zone); }
         c.zone = m.zone;
         c.car = null;
@@ -509,6 +516,7 @@ export class Estate extends DurableObject {
       case 'chat': {
         const text = String(m.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 140);
         if (!text || !c.zone || Date.now() - c.lastChat < 800) return;
+        if ((this.mutes[c.name] ?? 0) > Date.now()) { this.send(c, { t: 'toast', text: `🔇 You're muted by Beau for ${Math.ceil((this.mutes[c.name] - Date.now()) / 60000)} more min.` }); return; }
         c.lastChat = Date.now();
         bumpStat(c.save, 'chat', 1);
         this.toZone(c.zone, { t: 'chat', from: c.name, text });
@@ -552,6 +560,7 @@ export class Estate extends DurableObject {
         return;
       }
       case 'room': {
+        if (m.owner && m.owner !== c.name) { await this.ownerRoom(c, String(m.owner), Array.isArray(m.items) ? m.items : []); return; }
         const r = placeItems(c.save, Array.isArray(m.items) ? m.items : []);
         await this.saved(c, r.ok ? undefined : r);
         const home = c.save.home?.zone;
@@ -599,6 +608,7 @@ export class Estate extends DurableObject {
       case 'accounts': await this.sendAccounts(c); return;
       case 'pause': await this.setPaused(c, !!m.on, m.text); return;
       case 'pauseAllow': await this.setPauseAllow(c, String(m.target), !!m.on); return;
+      case 'owner': await this.ownerAct(c, m.action, String(m.target), m); return;
       case 'pet': {
         await this.saved(c, adoptPet(c.save, String(m.kind), String(m.name ?? ''), m.fur, m.collar));
         if (c.zone) this.toZone(c.zone, { t: 'peer', info: this.info(c) }, c.name);
@@ -650,6 +660,7 @@ export class Estate extends DurableObject {
         return;
       }
       case 'roomStyle': {
+        if (m.owner && m.owner !== c.name) { await this.ownerStyle(c, String(m.owner), m.style ?? {}); return; }
         const r = setRoomStyle(c.save, m.style ?? {});
         await this.saved(c, r);
         if (r.ok && c.save.roomStyle) {
@@ -927,7 +938,8 @@ export class Estate extends DurableObject {
 
   private async board(): Promise<BoardRow[]> {
     const rows: BoardRow[] = [];
-    const people = [...this.profiles.values()].filter((p) => p.status === 'approved');
+    // The owner is maxed out, so they're left off the leaderboard to keep it fair.
+    const people = [...this.profiles.values()].filter((p) => p.status === 'approved' && p.name !== OWNER);
     const accts = await this.ctx.storage.get<Account>(people.map((p) => `acct:${p.name}`));
     for (const p of people) {
       const s = await this.load(p.name);
@@ -953,6 +965,7 @@ export class Estate extends DurableObject {
         name: p.name, status: p.status, admin: p.admin, vip: !!s?.vip, online: this.conns.has(p.name), founder: p.founder,
         totalAura: s?.totalAura ?? 0, home: p.home, created: p.created, lastSeen: this.conns.has(p.name) ? Date.now() : p.lastSeen,
         hasPassword: accts.has(`acct:${p.name}`), pauseOk: this.pauseAllow.has(p.name) || undefined,
+        ...(c.name === OWNER ? { aura: s?.aura ?? 0, mutedUntil: (this.mutes[p.name] ?? 0) > Date.now() ? this.mutes[p.name] : undefined } : {}),
       });
     }
     const order: Record<AccountStatus, number> = { pending: 0, approved: 1, banned: 2 };
@@ -1011,6 +1024,144 @@ export class Estate extends DurableObject {
     }
     this.send(c, { t: 'toast', text: on ? `🔓 ${p.name} can play while the game is paused.` : `🔒 ${p.name} is locked out while the game is paused.`, good: true });
     await this.sendAccounts(c);
+  }
+
+  // ------------------------------------------------------------- owner powers (Beau only)
+
+  /** Runs `fn` on someone's save, whether they're online (live copy) or not, then saves it. */
+  private async editSave(name: string, fn: (s: Save) => void): Promise<void> {
+    const o = this.conns.get(name);
+    if (o) { fn(o.save); await this.saved(o); return; }
+    const s = await this.load(name);
+    fn(s);
+    await this.store(s);
+  }
+
+  private async ownerLog(c: Conn, action: string, target: string): Promise<void> {
+    const log = (await this.ctx.storage.get<{ at: number; by: string; action: string; target: string }[]>('adminlog')) ?? [];
+    log.unshift({ at: Date.now(), by: c.name, action, target });
+    await this.ctx.storage.put('adminlog', log.slice(0, 300));
+  }
+
+  private async ownerAct(c: Conn, action: OwnerAction, target: string, m: { n?: number; item?: string }): Promise<void> {
+    if (c.name !== OWNER) { this.send(c, { t: 'toast', text: 'Only Beau can do that.' }); return; }
+    const p = this.profile(target);
+    if (!p) { this.send(c, { t: 'toast', text: 'No one with that name.' }); return; }
+    const who = p.name, o = this.conns.get(who);
+    const say = (text: string, good = true) => this.send(c, { t: 'toast', text, good });
+    const n = Math.max(0, Math.min(100_000_000, Math.floor(Number(m.n) || 0)));
+    switch (action) {
+      case 'give':
+      case 'take': {
+        if (!n) { say('Type how much Aura.', false); return; }
+        await this.editSave(who, (s) => {
+          if (action === 'give') earn(s, n, n, 'Gift from Beau 👑');
+          else earn(s, -Math.min(n, s.aura), -Math.min(n, s.totalAura), 'Adjusted by Beau');
+        });
+        if (o && who !== OWNER) this.send(o, { t: 'toast', text: action === 'give' ? `👑 Beau gave you ${n.toLocaleString()} Aura!` : `👑 Beau took ${n.toLocaleString()} Aura.`, good: action === 'give' });
+        say(`${action === 'give' ? '💎 Gave' : '➖ Took'} ${n.toLocaleString()} Aura ${action === 'give' ? 'to' : 'from'} ${who}.`);
+        break;
+      }
+      case 'item': {
+        const item = shopItem(String(m.item ?? ''));
+        if (!item) { say('Pick an item.', false); return; }
+        await this.editSave(who, (s) => { s.inventory[item.id] = (s.inventory[item.id] ?? 0) + 1; });
+        if (o && who !== OWNER) this.send(o, { t: 'toast', text: `🎁 Beau gave you ${item.emoji} ${item.name}!`, good: true });
+        say(`🎁 Gave ${item.emoji} ${item.name} to ${who}.`);
+        break;
+      }
+      case 'kick':
+        if (who === OWNER) return;
+        if (!o) { say(`${who} isn't online.`, false); return; }
+        this.kick(who, '👑 Beau kicked you out. You can sign in again.');
+        say(`👢 Kicked ${who}.`);
+        break;
+      case 'mute':
+        if (who === OWNER) return;
+        this.mutes[who] = Date.now() + Math.max(1, Math.min(10080, n || 10)) * 60_000;
+        await this.ctx.storage.put('mutes', this.mutes);
+        if (o) this.send(o, { t: 'toast', text: `🔇 Beau muted you in chat for ${n || 10} min.` });
+        say(`🔇 Muted ${who} for ${n || 10} min.`);
+        break;
+      case 'unmute':
+        delete this.mutes[who];
+        await this.ctx.storage.put('mutes', this.mutes);
+        if (o) this.send(o, { t: 'toast', text: '🔊 Beau unmuted you.', good: true });
+        say(`🔊 Unmuted ${who}.`);
+        break;
+      case 'summon':
+        if (!o || !c.zone) { say(`${who} isn't online.`, false); return; }
+        o.summonedTo = c.zone;
+        this.send(o, { t: 'summon', zone: c.zone, x: c.pos.x + 1.2, z: c.pos.z, text: '👑 Beau pulled you over!' });
+        say(`🧲 Pulling ${who} to you.`);
+        break;
+      case 'goto':
+        if (!o?.zone) { say(`${who} isn't online.`, false); return; }
+        this.send(c, { t: 'summon', zone: o.zone, x: o.pos.x + 1.2, z: o.pos.z, text: `👑 Jumped to ${who}.` });
+        break;
+      case 'newhome': {
+        if (p.status !== 'approved') return;
+        const taken = new Set([...this.profiles.values()].filter((x) => x.home && isResidence(x.home.zone)).map((x) => `${x.home!.zone}:${x.home!.room}`));
+        let seq = (await this.ctx.storage.get<number>('resSeq')) ?? 0;
+        while (taken.has(`${residenceHome(seq).zone}:${residenceHome(seq).room}`)) seq++;
+        const home = residenceHome(seq);
+        await this.ctx.storage.put('resSeq', seq + 1);
+        p.home = home;
+        await this.putProfile(p);
+        await this.editSave(who, (s) => { s.home = home; s.room = []; }); // furniture goes back to their inventory
+        const world: ServerMsg = { t: 'world', residences: this.residences() };
+        for (const x of this.conns.values()) this.send(x, world);
+        if (o) this.send(o, { t: 'toast', text: `🏠 Beau moved your bedroom to Residence ${residenceNumber(home.zone)}!`, good: true });
+        say(`🏠 ${who} now lives on Residence ${residenceNumber(home.zone)} (room ${home.room.toUpperCase()}).`);
+        break;
+      }
+      case 'clearroom':
+        await this.editSave(who, (s) => { s.room = []; });
+        if (p.home) this.toZone(p.home.zone, { t: 'room', owner: who, items: [] });
+        say(`🧹 Cleared ${who}'s bedroom (the furniture is back in their inventory).`);
+        break;
+      case 'resetstyle':
+        await this.editSave(who, (s) => { s.roomStyle = undefined; });
+        delete this.roomStyles[who];
+        for (const x of this.conns.values()) this.send(x, { t: 'roomStyle', owner: who, style: {} });
+        say(`🎨 Reset ${who}'s walls & floor.`);
+        break;
+      default: return;
+    }
+    await this.ownerLog(c, `owner:${action}${n ? ` ${n}` : ''}${m.item ? ` ${m.item}` : ''}`, who);
+    await this.sendAccounts(c);
+  }
+
+  /** The owner decorating someone else's bedroom. Items they didn't own are given to them, so they can keep editing it. */
+  private async ownerRoom(c: Conn, owner: string, items: PlacedItem[]): Promise<void> {
+    if (c.name !== OWNER) { this.send(c, { t: 'toast', text: 'You can only decorate your own room.' }); return; }
+    const p = this.profile(owner);
+    if (!p?.home) return;
+    let res: { ok: boolean; msg: string } = { ok: false, msg: '' };
+    await this.editSave(p.name, (s) => {
+      res = placeItems(s, items, true);
+      if (!res.ok) return;
+      const counts: Record<string, number> = {};
+      for (const it of s.room) counts[it.item] = (counts[it.item] ?? 0) + 1;
+      for (const [id, k] of Object.entries(counts)) s.inventory[id] = Math.max(s.inventory[id] ?? 0, k);
+    });
+    if (!res.ok) { this.send(c, { t: 'toast', text: res.msg }); return; }
+    const s = this.conns.get(p.name)?.save ?? await this.load(p.name);
+    this.toZone(p.home.zone, { t: 'room', owner: p.name, items: s.room });
+    await this.ownerLog(c, 'owner:decorate', p.name);
+  }
+
+  private async ownerStyle(c: Conn, owner: string, style: RoomStyle): Promise<void> {
+    if (c.name !== OWNER) return;
+    const p = this.profile(owner);
+    if (!p) return;
+    let res: { ok: boolean; msg: string } = { ok: false, msg: '' };
+    let out: RoomStyle | undefined;
+    await this.editSave(p.name, (s) => { res = setRoomStyle(s, style); out = s.roomStyle; });
+    if (!res.ok || !out) { this.send(c, { t: 'toast', text: res.msg || 'Could not change that room.' }); return; }
+    this.roomStyles[p.name] = out;
+    for (const x of this.conns.values()) this.send(x, { t: 'roomStyle', owner: p.name, style: out });
+    await this.ownerLog(c, 'owner:roomstyle', p.name);
   }
 
   private async admin(c: Conn, action: AdminAction, target: string): Promise<void> {

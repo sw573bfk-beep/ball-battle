@@ -1,5 +1,5 @@
 import type { ZoneId } from './people';
-import { RESIDENTS, findResident, type Home } from './people';
+import { OWNER, RESIDENTS, findResident, type Home } from './people';
 import { ALL_ZONES, FLOORS, REPLAY_AURA, TASK_AURA, floorById, zoneNeed } from './floors';
 import { FREE_ITEMS, SHOP, shopItem, stackable, type WearSlot } from './shop';
 
@@ -9,7 +9,7 @@ export { HAIR_COLORS, HAIR_STYLES, SKINS } from './look';
 import type { Season } from './season';
 import { currentEvent, levelBadgesFor, levelOf, rollWeek } from './progress';
 import type { QuestState } from './quests';
-import { addPetXp, earnedBadges, upgradeBonus } from './progress2';
+import { UPGRADES, addPetXp, earnedBadges, upgradeBonus } from './progress2';
 
 export type PetKind = 'dog' | 'cat' | 'bunny';
 
@@ -157,8 +157,18 @@ export function zoneUnlocked(save: Save, zone: ZoneId): boolean {
   return save.totalAura >= zoneNeed(zone);
 }
 
+/** The owner has everything: every item, every estate upgrade, every floor and plenty of Aura. Runs each time they sign in (so new items are added too). */
+export function maxOut(s: Save): void {
+  for (const item of SHOP) s.inventory[item.id] = Math.max(s.inventory[item.id] ?? 0, item.cat === 'furniture' ? 5 : 1);
+  s.upgrades = UPGRADES.map((u) => u.id);
+  s.vip = true;
+  if (s.totalAura < 30_000) earn(s, 0, 30_000 - s.totalAura, 'Owner: every floor unlocked');
+  if (s.aura < 1_000_000) earn(s, 10_000_000 - s.aura, 0, 'Owner: Aura top-up');
+}
+
 /** Your home floor is always open so you can get to your own bedroom. */
 export function canEnter(save: Save, zone: ZoneId): boolean {
+  if (save.name === OWNER) return true; // the owner can go everywhere
   if (zoneUnlocked(save, zone)) return true;
   return save.home?.zone === zone;
 }
@@ -315,14 +325,15 @@ export function setRoomStyle(save: Save, r: RoomStyle): Result {
 
 export const ROOM_LIMIT = 30;
 
-export function placeItems(save: Save, items: PlacedItem[]): Result {
+/** `free`: the owner decorating someone else's room (no need to own the items). */
+export function placeItems(save: Save, items: PlacedItem[], free = false): Result {
   if (items.length > ROOM_LIMIT) return { ok: false, msg: `Max ${ROOM_LIMIT} items in a room.` };
   const counts: Record<string, number> = {};
   for (const it of items) {
     counts[it.item] = (counts[it.item] ?? 0) + 1;
     const item = shopItem(it.item);
     if (!item || item.cat !== 'furniture') return { ok: false, msg: 'You can only place furniture.' };
-    if (counts[it.item] > (save.inventory[it.item] ?? 0)) return { ok: false, msg: `You don't have another ${item.name}.` };
+    if (!free && counts[it.item] > (save.inventory[it.item] ?? 0)) return { ok: false, msg: `You don't have another ${item.name}.` };
     if (![it.x, it.z, it.rot].every(Number.isFinite)) return { ok: false, msg: 'Bad position.' };
     if (it.color !== undefined && !isHex(it.color)) return { ok: false, msg: 'Bad colour.' };
     if (it.scale !== undefined && !(Number.isFinite(it.scale) && it.scale >= 0.5 && it.scale <= 1.8)) return { ok: false, msg: 'Bad size.' };
