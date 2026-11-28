@@ -54,6 +54,13 @@ Charis & Gabby (6th), Milla (7th).
 - **The tower (13th–24th floors):** Aquarium, Fashion Studio, Bakery Café, Spa & Salon, Art
   Studio, Theme Park (carousel and Ferris wheel), Space Observatory, Jungle Conservatory, Candy Land,
   Haunted Floor, Music Festival and Sky Garden, with 5 tasks each and new shop items.
+- **Floors 25–100:** 76 more themed floors, one theme each: Ice Cream Parlour, Dinosaur Museum,
+  Rainforest, Space Station, Pirate Ship, Chocolate Factory, Magic School, Grand Ballroom (50th), Gold
+  Vault (75th), Hall of Fame (99th) and the Cloud Palace at the very top (100th), and many more. Each
+  has its own look, centrepiece and side rooms, and 5 tasks from the mini-game kinds below. Each
+  floor's tasks give 1,000 Total Aura, which unlocks the next floor, so you can climb all the way up.
+  (Themes live in `src/shared/tower3.ts`; the floor plans are built from them in
+  `src/client/world/layouts5.ts`.)
 - **The outside world:** at the car park, press *🚗 Road trip* to drive to **Maggakes Beach**
   (swim in the sea), the **Shopping Mall** or **Maggakes Town**, with 5 tasks each. Your car is parked
   there to drive back.
@@ -95,6 +102,13 @@ Charis & Gabby (6th), Milla (7th).
   (10 min / 1 hour / 1 day), go to and decorate their bedroom, clear their decorations, reset or
   change their walls & floor, or give them a new bedroom. Standing in anyone's bedroom shows
   *👑 Decorate <name>'s room*. Everything is written to the admin log.
+- **🌙 Grace's Penthouse:** a lilac, silver and mint "Moonlight Garden" floor: a giant canopy bed,
+  stargazing corner (telescopes and a solar-system model), hot tub, grand piano, starlight lounge and a
+  garden with a koi pond and blossom trees. 5 tasks.
+- **✨ Mia & Arielle's Penthouse:** shared by miac and ArielleCooper: two big bedrooms (Mia's in
+  aqua, Arielle's in peach) off a hallway with gold name signs, a shared lounge with a cinema screen,
+  a games room, bathrooms and a pool terrace with a hot tub. 5 tasks. Approving either account puts
+  them straight into their room. Penthouse homes are set in `PENTHOUSE_HOMES` (`src/shared/people.ts`).
 - **👑 Jess's Penthouse:** Jess's own floor (lift button 👑) with the biggest bedroom in the estate
   (28×18 m): a giant canopy bed with fairy lights, a hot tub you can sit in, a "JESS LIVE" concert
   stage with a DJ booth, speakers and spotlights, a gold "Jess's Suite" sign, plus a lounge with a

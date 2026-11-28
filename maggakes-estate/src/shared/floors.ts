@@ -1,4 +1,5 @@
 import { isResidence, residenceNumber, type ZoneId } from './people';
+import { TOWER3, towerTasks } from './tower3';
 
 /** The kinds of mini-game a task can open. */
 export type TaskKind =
@@ -556,6 +557,13 @@ export const FLOORS: FloorDef[] = [
   },
 ];
 
+// ------------------------------------------------------------ floors 25–100 (themed, see tower3.ts)
+FLOORS.splice(FLOORS.findIndex((f) => f.id === 'f24') + 1, 0, ...TOWER3.map((th): FloorDef => ({
+  id: `f${th.n}` as ZoneId, short: String(th.n), name: `${th.n}th Floor – ${th.name}`.replace(/^(\d*1)th(?! )/, '$1st').replace(/^(\d*[^1]1)th/, '$1st').replace(/^(\d*[^1]2)th/, '$1nd').replace(/^(\d*[^1]3)th/, '$1rd'),
+  need: (th.n - 1) * 1000, blurb: th.blurb, tasks: towerTasks(th),
+})));
+export const TOWER_TOP = 100;
+
 // ------------------------------------------------------------ Jess's Penthouse (her own floor)
 FLOORS.push({
   id: 'jp', short: '👑', name: "Jess's Penthouse", need: 2000, suite: true,
@@ -566,6 +574,29 @@ FLOORS.push({
     { id: 'jconcert', label: 'Set up the concert', kind: 'sequence', hint: 'Get the stage ready for the show.', steps: ['🎤 Mic check', '🎛️ DJ decks on', '💡 Stage lights', '🪩 Disco ball', '🎆 Showtime!'] },
     { id: 'jbed', label: 'Make the giant canopy bed', kind: 'sequence', hint: 'Make the biggest bed in the estate.', steps: ['🛏️ Silk sheets', '🩷 Fluffy duvet', '🛌 Ten pillows', '🧸 Teddies', '✨ Fairy lights on'] },
     { id: 'jglam', label: 'Penthouse glam memory', kind: 'memory', hint: 'Find all the matching glam pairs.', symbols: ['👑', '💎', '💄', '👠', '🎤', '🪩'] },
+  ],
+});
+
+FLOORS.push({
+  id: 'gp', short: '🌙', name: "Grace's Penthouse", need: 2000, suite: true,
+  blurb: 'A moonlight garden penthouse: a giant canopy bed, stargazing corner, hot tub, grand piano and a koi garden.',
+  tasks: [
+    { id: 'gbed', label: 'Make the moonlight bed', kind: 'sequence', hint: 'Make the dreamiest bed in the estate.', steps: ['🛏️ Silk sheets', '💜 Lilac duvet', '🌙 Moon pillows', '🧸 Teddy', '✨ Fairy lights on'] },
+    { id: 'gstars', label: 'Catch the shooting stars', kind: 'catch', hint: 'Catch the stars, dodge the clouds!', item: '🌠', bad: '☁️', count: 10 },
+    { id: 'gpiano', label: 'Play a moonlight song', kind: 'rhythm', hint: 'Tap the lanes as the notes hit the line!' },
+    { id: 'ghottub', label: 'Run a bubble bath in the hot tub', kind: 'hold', hint: 'Hold until the bubbles reach the top.' },
+    { id: 'gkoi', label: 'Moon garden memory', kind: 'memory', hint: 'Find all the matching pairs.', symbols: ['🌙', '🌸', '🐟', '🦋', '⭐', '🔭'] },
+  ],
+});
+FLOORS.push({
+  id: 'mp', short: '✨', name: "Mia & Arielle's Penthouse", need: 2000, suite: true,
+  blurb: 'Two big bedrooms, a shared lounge with a cinema screen, a games room and a pool terrace.',
+  tasks: [
+    { id: 'mmovie', label: 'Set up movie night', kind: 'sequence', hint: 'Get the lounge ready for movie night.', steps: ['🎬 Pick a movie', '🍿 Popcorn', '🛋️ Cushions', '💡 Lights down', '▶️ Press play'] },
+    { id: 'mgames', label: 'Beat the high score', kind: 'simon', hint: 'Watch the pattern, then repeat it.' },
+    { id: 'mdance', label: 'Dance battle', kind: 'rhythm', hint: 'Tap the lanes as the notes hit the line!' },
+    { id: 'mpool', label: 'Cannonball into the pool', kind: 'timing', hint: 'Stop the moving marker in the sweet spot, 3 times.' },
+    { id: 'mhottub', label: 'Besties memory', kind: 'memory', hint: 'Find all the matching pairs.', symbols: ['💙', '🧡', '🎮', '🍿', '🏊', '✨'] },
   ],
 });
 
@@ -591,4 +622,4 @@ export function zoneNeed(id: ZoneId): number {
 }
 
 /** The fixed zones. Residence floors (r1, r2, …) are added as people join. */
-export const ALL_ZONES: ZoneId[] = ['park', 'beach', 'mall', 'town', 'stadium', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24', 'jp', 'villa'];
+export const ALL_ZONES: ZoneId[] = ['park', 'beach', 'mall', 'town', 'stadium', 'b', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24', ...TOWER3.map((th) => `f${th.n}` as ZoneId), 'jp', 'gp', 'mp', 'villa'];

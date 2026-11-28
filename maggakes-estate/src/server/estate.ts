@@ -3,8 +3,8 @@ import { claimAchievement, claimEventGoal, claimLevels, levelOf, newlyReady } fr
 import { acceptQuest, advanceQuests, claimQuest } from '../shared/quests';
 import { PET_TRICKS, buyUpgrade, claimCollection, claimStreak, petLevel, petTricks, rollStreak } from '../shared/progress2';
 import { PAID_MATCHES_PER_DAY, kick, matchReward, newMatch, step, syncPlayers, toWire, type SoccerState } from '../shared/soccer';
-import { zoneNeed } from '../shared/floors';
-import { RESIDENTS, checkUsername, isResidence, residenceHome, residenceNumber, type Home, type ZoneId } from '../shared/people';
+import { zoneName, zoneNeed } from '../shared/floors';
+import { PENTHOUSE_HOMES, RESIDENTS, checkUsername, isResidence, residenceHome, residenceNumber, type Home, type ZoneId } from '../shared/people';
 import { ALL_ZONES } from '../shared/floors';
 import { SHOP, shopItem } from '../shared/shop';
 import { isHex } from '../shared/look';
@@ -165,6 +165,33 @@ export class Estate extends DurableObject {
       await this.store(save);
       await ctx.storage.put('fix:jess-penthouse', `moved Jess from ${from?.zone ?? '?'} to jp (${save.room.length} items)`);
     });
+    // 2026-11-28: Beau gave Grace her own penthouse ('gp') and miac + ArielleCooper a shared one ('mp').
+    // Furniture from a Residence bedroom moves with them; from anywhere else it goes back to their inventory.
+    ctx.blockConcurrencyWhile(async () => {
+      if (await ctx.storage.get('fix:penthouses-gp-mp')) return;
+      const notes: string[] = [];
+      // Where the open middle of each new bedroom starts (old room's top-left corner goes here).
+      const drop: Record<string, [number, number]> = { 'gp:grace': [9.5, 8.3], 'mp:mia': [2.5, 3], 'mp:arielle': [2.5, 17.3] };
+      for (const name of ['Grace', 'miac', 'ArielleCooper']) {
+        const p = this.profile(name), home = PENTHOUSE_HOMES[name];
+        if (!p || p.status !== 'approved') { notes.push(`${name}: no approved account`); continue; }
+        const from = p.home;
+        if (from?.zone === home.zone && from.room === home.room) { notes.push(`${name}: already there`); continue; }
+        p.home = home;
+        await this.putProfile(p);
+        const save = await this.load(p.name);
+        const [dx, dz] = drop[`${home.zone}:${home.room}`];
+        if (from && isResidence(from.zone)) {
+          const ox = from.room === 'a' ? 0 : 19;
+          save.room = save.room.map((it) => ({ ...it, x: Math.round((it.x - ox + dx) * 100) / 100, z: Math.round((it.z + dz) * 100) / 100 }));
+        } else save.room = [];
+        save.home = home;
+        save.lastZone = home.zone;
+        await this.store(save);
+        notes.push(`${p.name}: ${from?.zone ?? '?'} → ${home.zone} (${save.room.length} items)`);
+      }
+      await ctx.storage.put('fix:penthouses-gp-mp', notes.join('; '));
+    });
     // (first attempt, kept so it never runs again)
     ctx.blockConcurrencyWhile(async () => {
       if (await ctx.storage.get('fix:grace-move')) return;
@@ -312,7 +339,7 @@ export class Estate extends DurableObject {
       players.push({ name: live.name, vip: live.vip, admin: !!this.profile(live.name)?.admin, aura: live.aura, total: live.totalAura, log: live.auraLog ?? [] });
     }
     const adminlog = (await this.ctx.storage.get('adminlog')) ?? [];
-    const fixes = { jessPenthouse: await this.ctx.storage.get('fix:jess-penthouse'), paused: this.paused, pauseFix: await this.ctx.storage.get('fix:pause-15'), grace: await this.ctx.storage.get('fix:grace-move2'), resSeq: await this.ctx.storage.get('resSeq'), homes: [...this.profiles.values()].map((p) => [p.name, p.home?.zone, p.home?.room]) };
+    const fixes = { penthouses: await this.ctx.storage.get('fix:penthouses-gp-mp'), jessPenthouse: await this.ctx.storage.get('fix:jess-penthouse'), paused: this.paused, pauseFix: await this.ctx.storage.get('fix:pause-15'), grace: await this.ctx.storage.get('fix:grace-move2'), resSeq: await this.ctx.storage.get('resSeq'), homes: [...this.profiles.values()].map((p) => [p.name, p.home?.zone, p.home?.room]) };
     await kv.put('reports', JSON.stringify({ at: Date.now(), reports: this.reports, villa, players, adminlog, fixes }));
   }
 
@@ -1182,16 +1209,19 @@ export class Estate extends DurableObject {
     switch (action) {
       case 'approve': {
         if (p.status !== 'pending') return;
-        const seq = (await this.ctx.storage.get<number>('resSeq')) ?? 0;
         p.status = 'approved';
-        p.home = residenceHome(seq);
-        await this.ctx.storage.put('resSeq', seq + 1);
+        if (PENTHOUSE_HOMES[p.name]) p.home = PENTHOUSE_HOMES[p.name]; // Beau gave them a penthouse
+        else {
+          const seq = (await this.ctx.storage.get<number>('resSeq')) ?? 0;
+          p.home = residenceHome(seq);
+          await this.ctx.storage.put('resSeq', seq + 1);
+        }
         await this.putProfile(p);
         const save = await this.load(p.name);
         save.home = p.home;
         save.lastZone = p.home.zone;
         await this.store(save);
-        say(`✅ ${p.name} approved! Their bedroom is on Residence ${residenceNumber(p.home.zone)}.`);
+        say(`✅ ${p.name} approved! Their bedroom is ${isResidence(p.home.zone) ? `on Residence ${residenceNumber(p.home.zone)}` : `in ${zoneName(p.home.zone)}`}.`);
         const world: ServerMsg = { t: 'world', residences: this.residences() };
         for (const o of this.conns.values()) this.send(o, world);
         break;

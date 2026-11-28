@@ -1,11 +1,12 @@
-import { RESIDENTS, isResidence, residenceNumber, type FixedZone, type ZoneId } from '../../shared/people';
+import { PENTHOUSE_HOMES, RESIDENTS, isResidence, residenceNumber, type FixedZone, type ZoneId } from '../../shared/people';
 import type { RoomStyle } from '../../shared/save';
 import type { Residence } from '../../shared/protocol';
 import type { FloorMat } from '../engine/tex';
 import { P, bedroomKit, ensuiteKit, label, on, wardrobeKit, type PropDef, type Rect } from './kit';
 import { TOWER_LAYOUTS } from './layouts2';
 import { OUTSIDE_LAYOUTS } from './layouts3';
-import { penthouse } from './layouts4';
+import { gracePenthouse, miaPenthouse, penthouse } from './layouts4';
+import { TOWER3_LAYOUTS } from './layouts5';
 
 export interface RoomDef { id: string; name: string; r: Rect; floor: FloorMat; tint?: string; wall?: string }
 
@@ -739,7 +740,7 @@ const villa: Layout = {
 
 export const LAYOUTS: Record<FixedZone, Layout> = {
   b: basement, f1: floor1, f2: floor2, f3: floor3, f4: floor4, f5: floor5, f6: floor6, f7: floor7, f8: floor8,
-  f9: floor9, f10: floor10, f11: floor11, f12: floor12, ...TOWER_LAYOUTS, ...OUTSIDE_LAYOUTS, park, villa, jp: penthouse,
+  f9: floor9, f10: floor10, f11: floor11, f12: floor12, ...TOWER_LAYOUTS, ...OUTSIDE_LAYOUTS, ...TOWER3_LAYOUTS, park, villa, jp: penthouse, gp: gracePenthouse, mp: miaPenthouse,
 };
 
 // ===================================================================== Residence floors
@@ -765,6 +766,7 @@ export function setRoomStyle(owner: string, style: RoomStyle): void { roomStyles
 
 /** Which floor + room someone's bedroom is. */
 function ownerRoom(owner: string): { zone: ZoneId; room: string } | undefined {
+  if (PENTHOUSE_HOMES[owner]) return PENTHOUSE_HOMES[owner];
   // A founder who moved to a residence floor lives there now.
   for (const res of residences) { const o = res.owners.find((x) => x.name === owner); if (o) return { zone: res.zone, room: o.room }; }
   const f = RESIDENTS.find((r) => r.name === owner);

@@ -1,6 +1,6 @@
 import { h, sheet, toast, fill } from './dom';
 import { SHOP, CAR_PAINTS, shopItem, type ShopCat, type ShopItem } from '../../shared/shop';
-import { ALL_ZONES, FLOORS, TASK_AURA, floorById, zoneName, zoneNeed } from '../../shared/floors';
+import { ALL_ZONES, FLOORS, TASK_AURA, TOWER_TOP, floorById, zoneName, zoneNeed } from '../../shared/floors';
 import { HAIR_COLORS, SKINS, VIP_DAILY, canEnter, dailyFor, floorDone, zoneUnlocked, type Look, type Save } from '../../shared/save';
 import type { BoardRow } from '../../shared/protocol';
 import type { ZoneId } from '../../shared/people';
@@ -197,7 +197,8 @@ export function openMap(ctx: Ctx): void {
   const render = () => {
     const s = ctx.save();
     const res = getResidences();
-    const order: ZoneId[] = ['villa', 'jp', ...res.map((r) => r.zone).reverse(), 'f24', 'f23', 'f22', 'f21', 'f20', 'f19', 'f18', 'f17', 'f16', 'f15', 'f14', 'f13', 'f12', 'f11', 'f10', 'f9', 'f8', 'f7', 'f6', 'f5', 'f4', 'f3', 'f2', 'f1', 'b', 'park', 'beach', 'mall', 'town', 'stadium'];
+    const tower = Array.from({ length: TOWER_TOP }, (_, i) => `f${TOWER_TOP - i}` as ZoneId);
+    const order: ZoneId[] = ['villa', 'jp', 'gp', 'mp', ...res.map((r) => r.zone).reverse(), ...tower, 'b', 'park', 'beach', 'mall', 'town', 'stadium'];
     fill(body, ...order.map((z) => {
       const here = ctx.zone() === z;
       const open = canEnter(s, z);

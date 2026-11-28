@@ -3,7 +3,7 @@
  * Anyone else can sign up; an admin approves them, and every two approved
  * newcomers get a new residence floor with two bedrooms.
  */
-export type FixedZone = 'b' | 'f1' | 'f2' | 'f3' | 'f4' | 'f5' | 'f6' | 'f7' | 'f8' | 'f9' | 'f10' | 'f11' | 'f12' | 'f13' | 'f14' | 'f15' | 'f16' | 'f17' | 'f18' | 'f19' | 'f20' | 'f21' | 'f22' | 'f23' | 'f24' | 'park' | 'villa' | 'beach' | 'mall' | 'town' | 'stadium' | 'jp';
+export type FixedZone = 'b' | 'f1' | 'f2' | 'f3' | 'f4' | 'f5' | 'f6' | 'f7' | 'f8' | 'f9' | 'f10' | 'f11' | 'f12' | 'f13' | 'f14' | 'f15' | 'f16' | 'f17' | 'f18' | 'f19' | 'f20' | 'f21' | 'f22' | 'f23' | 'f24' | 'park' | 'villa' | 'beach' | 'mall' | 'town' | 'stadium' | 'jp' | 'gp' | 'mp' | `f${number}`;
 export type ResidenceZone = `r${number}`;
 export type ZoneId = FixedZone | ResidenceZone;
 
@@ -19,6 +19,14 @@ export interface Resident {
 /** The owner of the game: can go anywhere and do anything. */
 export const OWNER = 'Beau';
 
+/** People Beau gave a penthouse floor (by exact account name). Founders' homes are in RESIDENTS. */
+export const PENTHOUSE_HOMES: Record<string, Home> = {
+  Jess: { zone: 'jp', room: 'jess' },
+  Grace: { zone: 'gp', room: 'grace' },
+  miac: { zone: 'mp', room: 'mia' },
+  ArielleCooper: { zone: 'mp', room: 'arielle' },
+};
+
 export const RESIDENTS: Resident[] = [
   { name: 'Phoebe', home: 'b', room: 'phoebe' },
   { name: 'Serena', home: 'b', room: 'serena' },
@@ -26,7 +34,7 @@ export const RESIDENTS: Resident[] = [
   { name: 'Keola', home: 'f4', room: 'keola', admin: true },
   { name: 'Jess', home: 'jp', room: 'jess' }, // her own penthouse floor (moved from the 4th floor)
   { name: 'Ava', home: 'f5', room: 'ava' },
-  { name: 'Grace', home: 'f5', room: 'grace' },
+  { name: 'Grace', home: 'gp', room: 'grace' }, // her own penthouse floor
   { name: 'Charis', home: 'f6', room: 'charis' },
   { name: 'Gabby', home: 'f6', room: 'gabby' },
   { name: 'Milla', home: 'f7', room: 'milla', admin: true },

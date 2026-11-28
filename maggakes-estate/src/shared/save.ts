@@ -163,7 +163,7 @@ export function maxOut(s: Save): void {
   for (const item of SHOP) s.inventory[item.id] = Math.max(s.inventory[item.id] ?? 0, item.cat === 'furniture' ? 5 : 1);
   s.upgrades = UPGRADES.map((u) => u.id);
   s.vip = true;
-  if (s.totalAura < 30_000) earn(s, 0, 30_000 - s.totalAura, 'Owner: every floor unlocked');
+  if (s.totalAura < 100_000) earn(s, 0, 100_000 - s.totalAura, 'Owner: every floor unlocked');
   if (s.aura < 1_000_000) earn(s, 10_000_000 - s.aura, 0, 'Owner: Aura top-up');
 }
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { PENTHOUSE_HOMES } from '../src/shared/people';
 import { buy, canEnter, claimDaily, completeTask, dailyFor, newSave, placeItems, setLook, zoneUnlocked, bumpStat, saveOutfit, setProfile, setRoomStyle, adoptPet, cleanText, MAX_OUTFITS } from '../src/shared/save';
 import { FLOORS, TASK_AURA } from '../src/shared/floors';
 import { findResident, RESIDENTS } from '../src/shared/people';
@@ -411,7 +412,7 @@ test('SKY FLOORS: four new floors chain on from the rooftop (1,000 apart)', () =
   const s = newSave('Phoebe');
   s.room = [1, 2, 3].map((i) => ({ uid: String(i), item: 'd_teddy', x: i, z: 1, rot: 0 }));
   for (const f of FLOORS.filter((f) => !f.outside && !f.suite)) for (const t of f.tasks) { assert.ok(zoneUnlocked(s, f.id), `${f.id} open in time`); assert.ok(completeTask(s, f.id, t.id, 0).ok); }
-  assert.equal(s.totalAura, 24000, 'all 24 floors = 24,000 Total Aura');
+  assert.equal(s.totalAura, 100000, 'all 100 floors = 100,000 Total Aura (each floor unlocks the next)');
 });
 
 test('LEVELS: XP from every Aura earned, rewards only when claimed', () => {
@@ -577,5 +578,35 @@ test('PROGRESS: tiered achievements give a long road', () => {
   const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
   assert.equal(ids.size, ACHIEVEMENTS.length, 'unique ids');
   assert.ok(TIERED.every((a) => ids.has(a.id)), 'all in the list');
+});
+test('TOWER: floors 25–100 each have a theme, 5 real tasks, and unlock 1,000 apart', () => {
+  for (let n = 25; n <= 100; n++) {
+    const f = FLOORS.find((x) => x.id === `f${n}`)!;
+    assert.ok(f, `f${n} exists`);
+    assert.equal(f.need, (n - 1) * 1000, `f${n} need`);
+    assert.equal(f.tasks.length, 5, `f${n} has 5 tasks`);
+    assert.equal(new Set(f.tasks.map((t) => t.id)).size, 5, `f${n} task ids unique`);
+    for (const t of f.tasks) {
+      if (t.kind === 'sequence') assert.equal(t.steps?.length, 5, `${f.id}:${t.id} steps`);
+      if (t.kind === 'memory') assert.equal(t.symbols?.length, 6, `${f.id}:${t.id} symbols`);
+      if (t.kind === 'catch') assert.ok(t.item && t.bad, `${f.id}:${t.id} catch`);
+      if (t.kind === 'spot') assert.ok(t.odd?.length === 3 && t.odd.every((p) => p.length === 2), `${f.id}:${t.id} spot`);
+      if (t.kind === 'unscramble') assert.ok(t.words!.length >= 3 && t.words!.every((w) => /^[A-Z]+$/.test(w)), `${f.id}:${t.id} words`);
+      if (t.kind === 'maze') assert.ok(t.item && t.goal, `${f.id}:${t.id} maze`);
+    }
+  }
+  assert.equal(new Set(FLOORS.filter((f) => /^f\d+$/.test(f.id)).map((f) => f.name.split(' – ')[1])).size, 100, 'every floor has its own name');
+  assert.equal(FLOORS.find((f) => f.id === 'f100')!.name, '100th Floor – Cloud Palace');
+  assert.equal(FLOORS.find((f) => f.id === 'f52')!.name, '52nd Floor – Toy Store');
+});
+test('PENTHOUSES: Jess, Grace and Mia & Arielle have their own floors', () => {
+  for (const [name, zone, room] of [['Jess', 'jp', 'jess'], ['Grace', 'gp', 'grace'], ['miac', 'mp', 'mia'], ['ArielleCooper', 'mp', 'arielle']]) {
+    assert.deepEqual(PENTHOUSE_HOMES[name], { zone, room });
+    const f = FLOORS.find((x) => x.id === zone)!;
+    assert.ok(f.suite && f.tasks.length === 5, `${zone} is a penthouse with 5 tasks`);
+  }
+  const g = newSave('Grace', { zone: 'gp', room: 'grace' });
+  assert.ok(canEnter(g, 'gp') && !zoneUnlocked(g, 'gp'), 'Grace can always go home');
+  assert.ok(!canEnter(newSave('Ava'), 'mp'), 'visitors need 2,000 Aura');
 });
 console.log(`\n${n} tests passed`);
